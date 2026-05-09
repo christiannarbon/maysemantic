@@ -1,0 +1,41 @@
+name: ecommerce_model
+entities:
+  - name: users
+    table: public.users
+    dimensions:
+      - name: user_id
+        type: number
+        sql: id
+      - name: email
+        type: string
+        sql: email
+      - name: signup_date
+        type: time
+        sql: created_at
+    measures:
+      - name: user_count
+        agg: count
+        sql: id
+  - name: orders
+    table: public.orders
+    dimensions:
+      - name: order_id
+        type: number
+        sql: id
+      - name: status
+        type: string
+        sql: status
+    measures:
+      - name: total_revenue
+        agg: sum
+        sql: amount
+      - name: order_count
+        agg: count
+        sql: id
+metrics:
+  - name: daily_active_users
+    measure: user_count
+    dimensions: [signup_date]
+  - name: revenue_by_status
+    measure: total_revenue
+    dimensions: [status]

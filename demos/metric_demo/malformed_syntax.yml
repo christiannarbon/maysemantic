@@ -1,0 +1,12 @@
+name: malformed_model
+entities:
+  - name: users
+    table: public.users
+    dimensions:
+      - name: user_id
+        type: number
+        sql: id
+      - name: email
+    # Missing fields and incorrect indentation
+      type: string
+      sql: email

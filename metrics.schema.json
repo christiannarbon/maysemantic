@@ -1,0 +1,161 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SemanticModel",
+  "type": "object",
+  "required": [
+    "entities",
+    "metrics",
+    "name"
+  ],
+  "properties": {
+    "entities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Entity"
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Metric"
+      }
+    },
+    "name": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "AggregationType": {
+      "type": "string",
+      "enum": [
+        "sum",
+        "count",
+        "average",
+        "min",
+        "max"
+      ]
+    },
+    "Dimension": {
+      "type": "object",
+      "required": [
+        "name",
+        "sql",
+        "type"
+      ],
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "sql": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/DimensionType"
+        }
+      }
+    },
+    "DimensionType": {
+      "type": "string",
+      "enum": [
+        "string",
+        "number",
+        "boolean",
+        "time"
+      ]
+    },
+    "Entity": {
+      "type": "object",
+      "required": [
+        "dimensions",
+        "measures",
+        "name",
+        "table"
+      ],
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Dimension"
+          }
+        },
+        "measures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Measure"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        }
+      }
+    },
+    "Measure": {
+      "type": "object",
+      "required": [
+        "agg",
+        "name",
+        "sql"
+      ],
+      "properties": {
+        "agg": {
+          "$ref": "#/definitions/AggregationType"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "sql": {
+          "type": "string"
+        }
+      }
+    },
+    "Metric": {
+      "type": "object",
+      "required": [
+        "dimensions",
+        "measure",
+        "name"
+      ],
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "measure": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

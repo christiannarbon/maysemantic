@@ -1,0 +1,14 @@
+[package]
+name = "may"
+version = "0.1.0"
+edition = "2021"
+authors = ["May Semantic Layer Contributors"]
+description = "CLI tool for the May Semantic Layer"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+maysemantic = { path = ".." }
+tokio = { version = "1.52.3", features = ["full"] }
+futures = "0.3.32"
+colored = "3.1.1"
