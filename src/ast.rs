@@ -53,15 +53,19 @@ mod tests {
     fn test_ast_recursion_model() {
         // Construct a nested AST representing:
         // SELECT user_id, raw_data FROM users WHERE id = 1
-        
+
         let projection = vec![
-            SqlNode::Column { name: "user_id".to_string() },
+            SqlNode::Column {
+                name: "user_id".to_string(),
+            },
             SqlNode::Raw("raw_data".to_string()),
         ];
-        
-        let from_node = Box::new(SqlNode::Table { name: "users".to_string() });
+
+        let from_node = Box::new(SqlNode::Table {
+            name: "users".to_string(),
+        });
         let where_node = Some(Box::new(SqlNode::Raw("id = 1".to_string())));
-        
+
         let ast = SqlNode::Select {
             projection,
             from: from_node,
@@ -71,16 +75,21 @@ mod tests {
 
         // Validate structure through basic pattern matching
         match ast {
-            SqlNode::Select { projection, from, r#where, group_by } => {
+            SqlNode::Select {
+                projection,
+                from,
+                r#where,
+                group_by,
+            } => {
                 assert_eq!(projection.len(), 2);
-                
+
                 // Validate inner recursive 'from' node
                 if let SqlNode::Table { name } = *from {
                     assert_eq!(name, "users");
                 } else {
                     panic!("Expected Table node in FROM clause");
                 }
-                
+
                 // Validate optional inner 'where' node
                 let where_inner = *r#where.expect("Expected WHERE clause");
                 if let SqlNode::Raw(raw_sql) = where_inner {
@@ -88,7 +97,7 @@ mod tests {
                 } else {
                     panic!("Expected Raw node in WHERE clause");
                 }
-                
+
                 assert!(group_by.is_empty());
             }
             _ => panic!("Expected Select node at root"),
