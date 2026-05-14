@@ -11,19 +11,38 @@
 /// Linear collections use `Vec<SqlNode>`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SqlNode {
-    /// Represents a complete SELECT statement.
+    /// Represents a complete SQL query block.
     ///
-    /// The `from` and `r#where` clauses are boxed to handle recursive subqueries
-    /// or complex nested AST structures safely.
-    Select {
-        /// The projection list (e.g., `SELECT user_id, count(1)`).
-        projection: Vec<SqlNode>,
-        /// The FROM clause (e.g., `FROM users`). Must be boxed for recursion.
+    /// This acts as the root node for a standard statement, composing the distinct
+    /// clauses together.
+    Query {
+        /// The SELECT clause node.
+        select: Box<SqlNode>,
+        /// The FROM clause node.
         from: Box<SqlNode>,
-        /// An optional WHERE clause.
+        /// An optional WHERE clause node.
         r#where: Option<Box<SqlNode>>,
-        /// The GROUP BY clause.
-        group_by: Vec<SqlNode>,
+        /// An optional GROUP BY clause node.
+        group_by: Option<Box<SqlNode>>,
+    },
+
+    /// Represents the projection list of a SELECT clause.
+    Select(Vec<SqlNode>),
+
+    /// Represents the source of a FROM clause (e.g., a table or subquery).
+    From(Box<SqlNode>),
+
+    /// Represents the conditional logic of a WHERE clause.
+    Where(Box<SqlNode>),
+
+    /// Represents a binary operation (e.g., `id = 1` or `price > 100`).
+    BinaryOp {
+        /// The left side of the operation.
+        left: Box<SqlNode>,
+        /// The operator string (e.g., "=", ">", "AND").
+        op: String,
+        /// The right side of the operation.
+        right: Box<SqlNode>,
     },
 
     /// Represents a base table or view reference (e.g., `users`).
@@ -54,53 +73,85 @@ mod tests {
         // Construct a nested AST representing:
         // SELECT user_id, raw_data FROM users WHERE id = 1
 
-        let projection = vec![
+        let select_node = SqlNode::Select(vec![
             SqlNode::Column {
                 name: "user_id".to_string(),
             },
             SqlNode::Raw("raw_data".to_string()),
-        ];
+        ]);
 
-        let from_node = Box::new(SqlNode::Table {
+        let from_node = SqlNode::From(Box::new(SqlNode::Table {
             name: "users".to_string(),
-        });
-        let where_node = Some(Box::new(SqlNode::Raw("id = 1".to_string())));
+        }));
 
-        let ast = SqlNode::Select {
-            projection,
-            from: from_node,
+        let where_condition = SqlNode::BinaryOp {
+            left: Box::new(SqlNode::Column {
+                name: "id".to_string(),
+            }),
+            op: "=".to_string(),
+            right: Box::new(SqlNode::Raw("1".to_string())),
+        };
+
+        let where_node = Some(Box::new(SqlNode::Where(Box::new(where_condition))));
+
+        let ast = SqlNode::Query {
+            select: Box::new(select_node),
+            from: Box::new(from_node),
             r#where: where_node,
-            group_by: vec![],
+            group_by: None,
         };
 
         // Validate structure through basic pattern matching
         match ast {
-            SqlNode::Select {
-                projection,
+            SqlNode::Query {
+                select,
                 from,
                 r#where,
                 group_by,
             } => {
-                assert_eq!(projection.len(), 2);
-
-                // Validate inner recursive 'from' node
-                if let SqlNode::Table { name } = *from {
-                    assert_eq!(name, "users");
+                // Validate Select
+                if let SqlNode::Select(projection) = *select {
+                    assert_eq!(projection.len(), 2);
                 } else {
-                    panic!("Expected Table node in FROM clause");
+                    panic!("Expected Select node");
                 }
 
-                // Validate optional inner 'where' node
-                let where_inner = *r#where.expect("Expected WHERE clause");
-                if let SqlNode::Raw(raw_sql) = where_inner {
-                    assert_eq!(raw_sql, "id = 1");
+                // Validate inner recursive 'From' node
+                if let SqlNode::From(inner_from) = *from {
+                    if let SqlNode::Table { name } = *inner_from {
+                        assert_eq!(name, "users");
+                    } else {
+                        panic!("Expected Table node inside FROM clause");
+                    }
                 } else {
-                    panic!("Expected Raw node in WHERE clause");
+                    panic!("Expected From node");
                 }
 
-                assert!(group_by.is_empty());
+                // Validate optional inner 'Where' node and BinaryOp
+                let where_outer = *r#where.expect("Expected WHERE clause");
+                if let SqlNode::Where(inner_where) = where_outer {
+                    if let SqlNode::BinaryOp { left, op, right } = *inner_where {
+                        assert_eq!(op, "=");
+                        if let SqlNode::Column { name } = *left {
+                            assert_eq!(name, "id");
+                        } else {
+                            panic!("Expected Column left operand");
+                        }
+                        if let SqlNode::Raw(val) = *right {
+                            assert_eq!(val, "1");
+                        } else {
+                            panic!("Expected Raw right operand");
+                        }
+                    } else {
+                        panic!("Expected BinaryOp inside WHERE clause");
+                    }
+                } else {
+                    panic!("Expected Where node");
+                }
+
+                assert!(group_by.is_none());
             }
-            _ => panic!("Expected Select node at root"),
+            _ => panic!("Expected Query node at root"),
         }
     }
 }
