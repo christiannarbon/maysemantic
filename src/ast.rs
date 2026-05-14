@@ -100,6 +100,28 @@ pub enum SqlNode {
         name: String,
     },
 
+    /// Represents a reference to a semantic dimension defined in the configuration.
+    DimensionRef {
+        /// The entity containing the dimension.
+        entity: String,
+        /// The name of the dimension.
+        dimension: String,
+    },
+
+    /// Represents a reference to a semantic measure defined in the configuration.
+    MeasureRef {
+        /// The entity containing the measure.
+        entity: String,
+        /// The name of the measure.
+        measure: String,
+    },
+
+    /// Represents a synthetic date/time dimension table used as a temporal scaffold.
+    TimeSpine {
+        /// The temporal granularity (e.g., "day", "month", "year").
+        granularity: String,
+    },
+
     /// Represents a column reference (e.g., `user_id` or `users.id`).
     Column {
         /// The name of the column, optionally fully qualified.

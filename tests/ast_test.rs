@@ -288,3 +288,99 @@ fn test_ast_cte_model() {
         _ => panic!("Expected Query node at root"),
     }
 }
+
+#[test]
+fn test_ast_semantic_model() {
+    // Construct a semantic AST representing:
+    // Revenue by Region
+    // This is NOT physical SQL yet. It's the semantic interpretation of the user's intent.
+
+    let select_node = SqlNode::Select(vec![
+        SqlNode::DimensionRef {
+            entity: "locations".to_string(),
+            dimension: "region".to_string(),
+        },
+        SqlNode::MeasureRef {
+            entity: "orders".to_string(),
+            measure: "revenue".to_string(),
+        },
+    ]);
+
+    let from_node = SqlNode::From {
+        source: Box::new(SqlNode::TimeSpine {
+            granularity: "day".to_string(),
+        }),
+        joins: vec![],
+    };
+
+    let group_by_node = Some(Box::new(SqlNode::GroupBy(vec![SqlNode::DimensionRef {
+        entity: "locations".to_string(),
+        dimension: "region".to_string(),
+    }])));
+
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(select_node),
+        from: Box::new(from_node),
+        r#where: None,
+        group_by: group_by_node,
+        having: None,
+    };
+
+    // Validate structure
+    match ast {
+        SqlNode::Query {
+            select,
+            from,
+            group_by,
+            ..
+        } => {
+            // Validate Select
+            if let SqlNode::Select(projection) = *select {
+                assert_eq!(projection.len(), 2);
+
+                if let SqlNode::DimensionRef { entity, dimension } = &projection[0] {
+                    assert_eq!(entity, "locations");
+                    assert_eq!(dimension, "region");
+                } else {
+                    panic!("Expected DimensionRef node in projection");
+                }
+
+                if let SqlNode::MeasureRef { entity, measure } = &projection[1] {
+                    assert_eq!(entity, "orders");
+                    assert_eq!(measure, "revenue");
+                } else {
+                    panic!("Expected MeasureRef node in projection");
+                }
+            } else {
+                panic!("Expected Select node");
+            }
+
+            // Validate From
+            if let SqlNode::From { source, .. } = *from {
+                if let SqlNode::TimeSpine { granularity } = *source {
+                    assert_eq!(granularity, "day");
+                } else {
+                    panic!("Expected TimeSpine node inside FROM source");
+                }
+            } else {
+                panic!("Expected From node");
+            }
+
+            // Validate GroupBy
+            let group_outer = *group_by.expect("Expected GROUP BY clause");
+            if let SqlNode::GroupBy(cols) = group_outer {
+                assert_eq!(cols.len(), 1);
+                if let SqlNode::DimensionRef { entity, dimension } = &cols[0] {
+                    assert_eq!(entity, "locations");
+                    assert_eq!(dimension, "region");
+                } else {
+                    panic!("Expected DimensionRef inside GroupBy");
+                }
+            } else {
+                panic!("Expected GroupBy node");
+            }
+        }
+        _ => panic!("Expected Query node at root"),
+    }
+}
