@@ -177,3 +177,6 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod cli_tests;
