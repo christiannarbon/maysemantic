@@ -24,6 +24,8 @@ pub enum SqlNode {
     /// This acts as the root node for a standard statement, composing the distinct
     /// clauses together.
     Query {
+        /// Optional Common Table Expressions (WITH clauses).
+        ctes: Option<Vec<SqlNode>>,
         /// The SELECT clause node.
         select: Box<SqlNode>,
         /// The FROM clause node.
@@ -34,6 +36,14 @@ pub enum SqlNode {
         group_by: Option<Box<SqlNode>>,
         /// An optional HAVING clause node.
         having: Option<Box<SqlNode>>,
+    },
+
+    /// Represents a Common Table Expression (CTE), typically found in a WITH clause.
+    CTE {
+        /// The alias of the CTE (e.g., `pre_aggregated_orders`).
+        alias: String,
+        /// The inner recursive query defining the CTE body.
+        query: Box<SqlNode>,
     },
 
     /// Represents the projection list of a SELECT clause.

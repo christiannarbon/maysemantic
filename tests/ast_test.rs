@@ -77,6 +77,7 @@ fn test_ast_recursion_model() {
     let having_node = Some(Box::new(SqlNode::Having(Box::new(having_condition))));
 
     let ast = SqlNode::Query {
+        ctes: None,
         select: Box::new(select_node),
         from: Box::new(from_node),
         r#where: where_node,
@@ -87,12 +88,15 @@ fn test_ast_recursion_model() {
     // Validate structure through basic pattern matching
     match ast {
         SqlNode::Query {
+            ctes,
             select,
             from,
             r#where,
             group_by,
             having,
         } => {
+            assert!(ctes.is_none());
+
             // Validate Select
             if let SqlNode::Select(projection) = *select {
                 assert_eq!(projection.len(), 2);
@@ -165,6 +169,120 @@ fn test_ast_recursion_model() {
                 }
             } else {
                 panic!("Expected Having node");
+            }
+        }
+        _ => panic!("Expected Query node at root"),
+    }
+}
+
+#[test]
+fn test_ast_cte_model() {
+    // Construct a nested AST representing:
+    // WITH agg_orders AS (
+    //     SELECT user_id, SUM(amount) FROM orders GROUP BY user_id
+    // )
+    // SELECT user_id FROM agg_orders
+
+    let inner_select = SqlNode::Select(vec![
+        SqlNode::Column {
+            name: "user_id".to_string(),
+        },
+        SqlNode::Function {
+            name: "SUM".to_string(),
+            args: vec![SqlNode::Column {
+                name: "amount".to_string(),
+            }],
+        },
+    ]);
+
+    let inner_from = SqlNode::From {
+        source: Box::new(SqlNode::Table {
+            name: "orders".to_string(),
+        }),
+        joins: vec![],
+    };
+
+    let inner_group_by = Some(Box::new(SqlNode::GroupBy(vec![SqlNode::Column {
+        name: "user_id".to_string(),
+    }])));
+
+    let inner_query = SqlNode::Query {
+        ctes: None,
+        select: Box::new(inner_select),
+        from: Box::new(inner_from),
+        r#where: None,
+        group_by: inner_group_by,
+        having: None,
+    };
+
+    let cte_node = SqlNode::CTE {
+        alias: "agg_orders".to_string(),
+        query: Box::new(inner_query),
+    };
+
+    let outer_select = SqlNode::Select(vec![SqlNode::Column {
+        name: "user_id".to_string(),
+    }]);
+
+    let outer_from = SqlNode::From {
+        source: Box::new(SqlNode::Table {
+            name: "agg_orders".to_string(),
+        }),
+        joins: vec![],
+    };
+
+    let outer_query = SqlNode::Query {
+        ctes: Some(vec![cte_node]),
+        select: Box::new(outer_select),
+        from: Box::new(outer_from),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+
+    // Validate
+    match outer_query {
+        SqlNode::Query {
+            ctes, select, from, ..
+        } => {
+            // Validate CTE
+            let ctes = ctes.expect("Expected CTEs in outer query");
+            assert_eq!(ctes.len(), 1);
+
+            if let SqlNode::CTE { alias, query } = &ctes[0] {
+                assert_eq!(alias, "agg_orders");
+                if let SqlNode::Query {
+                    select: inner_sel, ..
+                } = &**query
+                {
+                    if let SqlNode::Select(proj) = &**inner_sel {
+                        assert_eq!(proj.len(), 2);
+                    } else {
+                        panic!("Expected Select node in inner query");
+                    }
+                } else {
+                    panic!("Expected Query node inside CTE");
+                }
+            } else {
+                panic!("Expected CTE node");
+            }
+
+            // Validate Outer Select
+            if let SqlNode::Select(proj) = *select {
+                assert_eq!(proj.len(), 1);
+            } else {
+                panic!("Expected Select node in outer query");
+            }
+
+            // Validate Outer From points to CTE alias
+            if let SqlNode::From { source, .. } = *from {
+                if let SqlNode::Table { name } = *source {
+                    assert_eq!(name, "agg_orders");
+                } else {
+                    panic!("Expected Table node inside FROM source");
+                }
+            } else {
+                panic!("Expected From node in outer query");
             }
         }
         _ => panic!("Expected Query node at root"),
