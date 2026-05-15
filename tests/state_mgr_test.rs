@@ -85,7 +85,7 @@ metrics: []
 /// Tests that improperly formatted YAML strictly fails parsing.
 ///
 /// Validates:
-/// 1. Providing a String ("not a list") to a Vec field properly triggers `serde_yaml` errors.
+/// 1. Providing a String ("not a list") to a Vec field properly triggers `serde_norway` errors.
 #[test]
 fn test_invalid_yaml_format() {
     let invalid_yaml = r#"

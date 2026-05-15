@@ -98,9 +98,11 @@ pub struct SemanticModel {
 pub struct JoinDefinition {
     #[validate(custom(function = "validate_name"))]
     pub left_entity: String,
+    #[validate(custom(function = "validate_name"))]
     pub left_column: String,
     #[validate(custom(function = "validate_name"))]
     pub right_entity: String,
+    #[validate(custom(function = "validate_name"))]
     pub right_column: String,
     #[serde(default = "default_join_type")]
     pub join_type: JoinType,

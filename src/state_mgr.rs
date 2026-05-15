@@ -12,7 +12,7 @@ use validator::Validate;
 #[derive(Error, Debug)]
 pub enum StateError {
     #[error("Failed to parse YAML: {0}")]
-    YamlError(#[from] serde_yaml::Error),
+    YamlError(#[from] serde_norway::Error),
     #[error("Validation failed: {0}")]
     ValidationError(#[from] validator::ValidationErrors),
     #[error("Failed to acquire state lock")]
@@ -66,7 +66,7 @@ impl StateMgr {
     }
 
     pub fn load_from_yaml(&self, yaml_content: &str) -> Result<(), StateError> {
-        let model: SemanticModel = serde_yaml::from_str(yaml_content)?;
+        let model: SemanticModel = serde_norway::from_str(yaml_content)?;
         model.validate()?;
 
         let mut state = self.state.write().map_err(|_| StateError::LockError)?;

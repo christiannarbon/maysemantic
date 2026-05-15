@@ -17,7 +17,7 @@ fn test_parse_validate_command() {
         Some(Commands::Validate { path }) => {
             assert_eq!(path, Some("./demos/metric_demo".to_string()));
         }
-        _ => panic!("Expected Validate command"),
+        other => panic!("Expected Validate command, got: {other:?}"),
     }
 }
 
@@ -30,7 +30,7 @@ fn test_parse_compile_command_no_path() {
         Some(Commands::Compile { path }) => {
             assert_eq!(path, None);
         }
-        _ => panic!("Expected Compile command"),
+        other => panic!("Expected Compile command, got: {other:?}"),
     }
 }
 
@@ -43,6 +43,6 @@ fn test_parse_run_command() {
         Some(Commands::Run { query }) => {
             assert_eq!(query, "Revenue by Region");
         }
-        _ => panic!("Expected Run command"),
+        other => panic!("Expected Run command, got: {other:?}"),
     }
 }
