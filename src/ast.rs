@@ -1,103 +1,53 @@
 //! Abstract Syntax Tree (AST) definitions for the SQL Compilation Engine.
 //!
-//! This module defines the intermediate representation used by the compiler
-//! before generating dialect-specific SQL strings.
+//! The `SqlNode` acts as the intermediate representation (IR) bridging the gap between
+//! the high-level semantic models (YAML definitions) and the final target-specific
+//! SQL strings.
 
-/// Defines the types of standard SQL joins supported by the semantic engine.
+/// Strongly-typed wrapper for Table or CTE identifiers to prevent string-based mixups.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableIdent(pub String);
+
+/// Strongly-typed wrapper for Column identifiers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColumnIdent(pub String);
+
+/// Specifies the type of SQL Join operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JoinType {
+    /// Standard INNER JOIN (records must exist in both tables).
     Inner,
+    /// LEFT OUTER JOIN (preserves all records from the left table).
     Left,
+    /// FULL OUTER JOIN (preserves all records from both tables).
     Full,
 }
 
-/// Represents a node within the SQL Abstract Syntax Tree (AST).
-///
-/// The `SqlNode` enum is highly recursive. To maintain an optimal memory footprint
-/// and satisfy Rust's sizing requirements at compile time, recursive variants
-/// explicitly box their nested `SqlNode` payloads (`Box<SqlNode>`).
-/// Linear collections use `Vec<SqlNode>`.
+/// Represents evaluable SQL expressions (values, columns, functions, and binary operations).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SqlNode {
-    /// Represents a complete SQL query block.
-    ///
-    /// This acts as the root node for a standard statement, composing the distinct
-    /// clauses together.
-    Query {
-        /// Optional Common Table Expressions (WITH clauses).
-        ctes: Option<Vec<SqlNode>>,
-        /// The SELECT clause node.
-        select: Box<SqlNode>,
-        /// The FROM clause node.
-        from: Box<SqlNode>,
-        /// An optional WHERE clause node.
-        r#where: Option<Box<SqlNode>>,
-        /// An optional GROUP BY clause node.
-        group_by: Option<Box<SqlNode>>,
-        /// An optional HAVING clause node.
-        having: Option<Box<SqlNode>>,
-    },
+pub enum Expr {
+    /// Represents a column reference (e.g., `user_id` or `users.id`).
+    Column(ColumnIdent),
 
-    /// Represents a Common Table Expression (CTE), typically found in a WITH clause.
-    CTE {
-        /// The alias of the CTE (e.g., `pre_aggregated_orders`).
-        alias: String,
-        /// The inner recursive query defining the CTE body.
-        query: Box<SqlNode>,
-    },
+    /// Represents a raw string literal or numeric value.
+    Literal(String),
 
-    /// Represents the projection list of a SELECT clause.
-    Select(Vec<SqlNode>),
-
-    /// Represents the source of a FROM clause, potentially accompanied by a linear list of joins.
-    From {
-        /// The base table or subquery.
-        source: Box<SqlNode>,
-        /// An ordered list of Join nodes.
-        joins: Vec<SqlNode>,
-    },
-
-    /// Represents a relational JOIN.
-    Join {
-        /// The type of join (Inner, Left, Full).
-        join_type: JoinType,
-        /// The target relation being joined.
-        relation: Box<SqlNode>,
-        /// The ON condition for the join.
-        on: Box<SqlNode>,
-    },
-
-    /// Represents the conditional logic of a WHERE clause.
-    Where(Box<SqlNode>),
-
-    /// Represents the list of columns or expressions in a GROUP BY clause.
-    GroupBy(Vec<SqlNode>),
-
-    /// Represents the conditional logic of a HAVING clause.
-    Having(Box<SqlNode>),
-
-    /// Represents a binary operation (e.g., `id = 1` or `price > 100`).
+    /// Represents a binary operation (e.g., `a = b` or `x > 10`).
     BinaryOp {
-        /// The left side of the operation.
-        left: Box<SqlNode>,
-        /// The operator string (e.g., "=", ">", "AND").
+        /// The left-hand operand.
+        left: Box<Expr>,
+        /// The operator string (`=`, `>`, `<`, etc.).
         op: String,
-        /// The right side of the operation.
-        right: Box<SqlNode>,
+        /// The right-hand operand.
+        right: Box<Expr>,
     },
 
-    /// Represents an aggregate or scalar function (e.g., `SUM(amount)` or `COUNT(1)`).
+    /// Represents a standard SQL function (e.g., `SUM(amount)`, `COUNT(id)`).
     Function {
-        /// The name of the function (e.g., "SUM").
+        /// The name of the function.
         name: String,
         /// The arguments passed to the function.
-        args: Vec<SqlNode>,
-    },
-
-    /// Represents a base table or view reference (e.g., `users`).
-    Table {
-        /// The name of the table.
-        name: String,
+        args: Vec<Expr>,
     },
 
     /// Represents a reference to a semantic dimension defined in the configuration.
@@ -116,21 +66,75 @@ pub enum SqlNode {
         measure: String,
     },
 
+    /// Represents raw, unescaped SQL text injected directly into an expression.
+    Raw(String),
+}
+
+/// A highly recursive Abstract Syntax Tree node used to model both physical
+/// relational algebra and semantic metric queries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SqlNode {
+    /// This acts as the root node for a standard statement, composing the distinct
+    /// clauses together.
+    Query {
+        /// Optional Common Table Expressions (WITH clauses).
+        ctes: Option<Vec<SqlNode>>,
+        /// The SELECT clause node.
+        select: Box<SqlNode>,
+        /// The FROM clause node.
+        from: Box<SqlNode>,
+        /// The optional WHERE clause node.
+        r#where: Option<Box<SqlNode>>,
+        /// The optional GROUP BY clause node.
+        group_by: Option<Box<SqlNode>>,
+        /// The optional HAVING clause node.
+        having: Option<Box<SqlNode>>,
+    },
+
+    /// Represents a Common Table Expression (CTE), typically found in a WITH clause.
+    CTE {
+        /// The alias of the CTE (e.g., `pre_aggregated_orders`).
+        alias: TableIdent,
+        /// The inner recursive query defining the CTE body.
+        query: Box<SqlNode>,
+    },
+
+    /// Represents the projection list of a SELECT clause.
+    Select(Vec<Expr>),
+
+    /// Represents the FROM clause, containing a primary source and optional JOINs.
+    From {
+        /// The primary driving table or subquery.
+        source: Box<SqlNode>,
+        /// A sequential list of JOIN operations applied to the source.
+        joins: Vec<SqlNode>,
+    },
+
+    /// Represents a single JOIN operation within a FROM clause.
+    Join {
+        /// The type of join (Inner, Left, Full).
+        join_type: JoinType,
+        /// The target relation being joined (Table or subquery).
+        relation: Box<SqlNode>,
+        /// The boolean expression defining the join constraint.
+        on: Expr,
+    },
+
+    /// Represents the WHERE clause for row-level filtering.
+    Where(Expr),
+
+    /// Represents the GROUP BY clause for defining aggregation levels.
+    GroupBy(Vec<Expr>),
+
+    /// Represents the HAVING clause for post-aggregation filtering.
+    Having(Expr),
+
+    /// Represents a base table or view reference (e.g., `users`).
+    Table(TableIdent),
+
     /// Represents a synthetic date/time dimension table used as a temporal scaffold.
     TimeSpine {
         /// The temporal granularity (e.g., "day", "month", "year").
         granularity: String,
     },
-
-    /// Represents a column reference (e.g., `user_id` or `users.id`).
-    Column {
-        /// The name of the column, optionally fully qualified.
-        name: String,
-    },
-
-    /// A dummy variant containing a raw string payload.
-    ///
-    /// This is used to validate the base recursion model and provides an escape
-    /// hatch for raw SQL injection during complex edge cases.
-    Raw(String),
 }

@@ -3,7 +3,7 @@
 //! Provides ergonomic builder functions to abstract away memory allocations (e.g., `Box::new()`)
 //! and raw variant instantiation when constructing semantic queries.
 
-use crate::ast::SqlNode;
+use crate::ast::{Expr, SqlNode};
 
 /// A stateless builder for constructing `SqlNode` variants.
 pub struct ASTBuilder;
@@ -21,14 +21,14 @@ impl ASTBuilder {
         let mut projection = Vec::with_capacity(dimensions.len() + measures.len());
 
         for (entity, dim) in dimensions {
-            projection.push(SqlNode::DimensionRef {
+            projection.push(Expr::DimensionRef {
                 entity: entity.to_string(),
                 dimension: dim.to_string(),
             });
         }
 
         for (entity, measure) in measures {
-            projection.push(SqlNode::MeasureRef {
+            projection.push(Expr::MeasureRef {
                 entity: entity.to_string(),
                 measure: measure.to_string(),
             });
@@ -44,7 +44,7 @@ impl ASTBuilder {
     pub fn build_semantic_group_by(dimensions: &[(&str, &str)]) -> SqlNode {
         let mut cols = Vec::with_capacity(dimensions.len());
         for (entity, dim) in dimensions {
-            cols.push(SqlNode::DimensionRef {
+            cols.push(Expr::DimensionRef {
                 entity: entity.to_string(),
                 dimension: dim.to_string(),
             });
