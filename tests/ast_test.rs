@@ -158,7 +158,7 @@ fn test_ast_recursion_model() {
                 panic!("Expected Having node");
             }
         }
-        _ => panic!("Expected Query node at root"),
+        other => panic!("Expected Query node at root, got: {other:?}"),
     }
 }
 
@@ -265,7 +265,7 @@ fn test_ast_cte_model() {
                 panic!("Expected From node in outer query");
             }
         }
-        _ => panic!("Expected Query node at root"),
+        other => panic!("Expected Query node at root, got: {other:?}"),
     }
 }
 
@@ -362,6 +362,6 @@ fn test_ast_semantic_model() {
                 panic!("Expected GroupBy node");
             }
         }
-        _ => panic!("Expected Query node at root"),
+        other => panic!("Expected Query node at root, got: {other:?}"),
     }
 }

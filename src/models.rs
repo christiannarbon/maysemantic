@@ -1,10 +1,14 @@
+use crate::ast::JoinType;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError};
 
-pub static NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-z_][a-z0-9_]*$").unwrap());
+pub static NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^[a-z_][a-z0-9_]*$")
+        .expect("NAME_REGEX is a compile-time constant pattern and should never fail to compile")
+});
 
 fn validate_name(name: &str) -> Result<(), ValidationError> {
     if NAME_REGEX.is_match(name) {
@@ -60,6 +64,7 @@ pub struct Entity {
     pub name: String,
     pub description: Option<String>,
     pub table: String,
+    #[validate(custom(function = "validate_name"))]
     pub primary_key: String,
     #[validate(nested)]
     pub dimensions: Vec<Dimension>,
@@ -98,17 +103,9 @@ pub struct JoinDefinition {
     pub right_entity: String,
     pub right_column: String,
     #[serde(default = "default_join_type")]
-    pub join_type: JoinTypeModel,
+    pub join_type: JoinType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum JoinTypeModel {
-    Left,
-    Inner,
-    Full,
-}
-
-fn default_join_type() -> JoinTypeModel {
-    JoinTypeModel::Left
+fn default_join_type() -> JoinType {
+    JoinType::Left
 }

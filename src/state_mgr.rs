@@ -1,3 +1,8 @@
+//! State Manager for the Semantic Layer.
+//!
+//! Manages the lifecycle of `SemanticModel` objects parsed from YAML definitions,
+//! providing thread-safe read/write access via `Arc<RwLock<SemanticState>>`.
+
 use crate::models::SemanticModel;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -42,6 +47,15 @@ impl Default for StateMgr {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Named container for state statistics, replacing the opaque `(usize, usize, usize)` tuple.
+///
+/// Using a struct instead of a positional tuple prevents silent misassignment bugs at call sites.
+pub struct StateStats {
+    pub model_count: usize,
+    pub entity_count: usize,
+    pub metric_count: usize,
 }
 
 impl StateMgr {
@@ -93,11 +107,13 @@ impl StateMgr {
         Ok(state.models.get(name).cloned())
     }
 
-    pub fn get_stats(&self) -> Result<(usize, usize, usize), StateError> {
+    /// Returns aggregate counts of models, entities, and metrics in the current state.
+    pub fn get_stats(&self) -> Result<StateStats, StateError> {
         let state = self.state.read().map_err(|_| StateError::LockError)?;
-        let model_count = state.models.len();
-        let entity_count = state.models.values().map(|m| m.entities.len()).sum();
-        let metric_count = state.models.values().map(|m| m.metrics.len()).sum();
-        Ok((model_count, entity_count, metric_count))
+        Ok(StateStats {
+            model_count: state.models.len(),
+            entity_count: state.models.values().map(|m| m.entities.len()).sum(),
+            metric_count: state.models.values().map(|m| m.metrics.len()).sum(),
+        })
     }
 }

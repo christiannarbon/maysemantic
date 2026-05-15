@@ -4,6 +4,9 @@
 //! the high-level semantic models (YAML definitions) and the final target-specific
 //! SQL strings.
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 /// Strongly-typed wrapper for Table or CTE identifiers to prevent string-based mixups.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableIdent(pub String);
@@ -13,7 +16,11 @@ pub struct TableIdent(pub String);
 pub struct ColumnIdent(pub String);
 
 /// Specifies the type of SQL Join operation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// This is the single source of truth for join type across both the AST and the
+/// YAML configuration models, eliminating any duplication.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
 pub enum JoinType {
     /// Standard INNER JOIN (records must exist in both tables).
     Inner,

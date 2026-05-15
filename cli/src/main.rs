@@ -150,12 +150,11 @@ async fn main() -> Result<()> {
             let state_mgr = StateMgr::new();
             match state_mgr.load_dir(target_path_str).await {
                 Ok(_) => {
-                    let (models, entities, metrics) =
-                        state_mgr.get_stats().map_err(|e| anyhow::anyhow!(e))?;
+                    let stats = state_mgr.get_stats().map_err(|e| anyhow::anyhow!(e))?;
                     println!("\n{}", "Compilation Successful".green().bold());
-                    println!("{}: {}", "Models loaded".bold(), models);
-                    println!("{}: {}", "Entities identified".bold(), entities);
-                    println!("{}: {}", "Metrics ready".bold(), metrics);
+                    println!("{}: {}", "Models loaded".bold(), stats.model_count);
+                    println!("{}: {}", "Entities identified".bold(), stats.entity_count);
+                    println!("{}: {}", "Metrics ready".bold(), stats.metric_count);
                 }
                 Err(e) => {
                     println!("{} {}", "Compilation FAILED:".red().bold(), e);

@@ -3,7 +3,7 @@
 //! Converts the declarative YAML models into a directed graph (`petgraph::DiGraph`)
 //! to allow for shortest-path algorithms to resolve JOIN paths automatically.
 
-use crate::models::JoinTypeModel;
+use crate::ast::JoinType;
 use crate::state_mgr::SemanticState;
 use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::HashMap;
@@ -28,7 +28,7 @@ pub struct GraphNode {
 pub struct GraphEdge {
     pub left_column: String,
     pub right_column: String,
-    pub join_type: JoinTypeModel,
+    pub join_type: JoinType,
 }
 
 /// A specialized directed graph for resolving semantic joins.
@@ -43,20 +43,16 @@ pub fn build_semantic_graph(
     let mut node_indices = HashMap::new();
 
     // Pass 1: Insert all entities as Nodes.
-    // We pre-calculate capacity to optimize the HashMap.
-    let total_entities: usize = state.models.values().map(|m| m.entities.len()).sum();
-    node_indices.reserve(total_entities);
-
-    for model in state.models.values() {
-        for entity in &model.entities {
-            let node = GraphNode {
-                entity_name: entity.name.clone(),
-                table_name: entity.table.clone(),
-                primary_key: entity.primary_key.clone(),
-            };
-            let idx = graph.add_node(node);
-            node_indices.insert(entity.name.clone(), idx);
-        }
+    // flat_map collapses models → entities into a single flat iterator, making
+    // the true iteration subject (entity) immediately clear to the reader.
+    for entity in state.models.values().flat_map(|m| m.entities.iter()) {
+        let node = GraphNode {
+            entity_name: entity.name.clone(),
+            table_name: entity.table.clone(),
+            primary_key: entity.primary_key.clone(),
+        };
+        let idx = graph.add_node(node);
+        node_indices.insert(entity.name.clone(), idx);
     }
 
     // Pass 2: Insert all relationships as Edges.

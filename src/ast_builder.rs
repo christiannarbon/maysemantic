@@ -18,21 +18,19 @@ impl ASTBuilder {
         dimensions: &[(&str, &str)],
         measures: &[(&str, &str)],
     ) -> SqlNode {
-        let mut projection = Vec::with_capacity(dimensions.len() + measures.len());
-
-        for (entity, dim) in dimensions {
-            projection.push(Expr::DimensionRef {
+        // Iterator chains eliminate manual Vec::with_capacity bookkeeping and
+        // express the pure transformation intent more clearly.
+        let projection: Vec<Expr> = dimensions
+            .iter()
+            .map(|(entity, dim)| Expr::DimensionRef {
                 entity: entity.to_string(),
                 dimension: dim.to_string(),
-            });
-        }
-
-        for (entity, measure) in measures {
-            projection.push(Expr::MeasureRef {
+            })
+            .chain(measures.iter().map(|(entity, measure)| Expr::MeasureRef {
                 entity: entity.to_string(),
                 measure: measure.to_string(),
-            });
-        }
+            }))
+            .collect();
 
         SqlNode::Select(projection)
     }
@@ -42,13 +40,13 @@ impl ASTBuilder {
     /// # Arguments
     /// * `dimensions` - A list of (entity_name, dimension_name) tuples.
     pub fn build_semantic_group_by(dimensions: &[(&str, &str)]) -> SqlNode {
-        let mut cols = Vec::with_capacity(dimensions.len());
-        for (entity, dim) in dimensions {
-            cols.push(Expr::DimensionRef {
+        let cols: Vec<Expr> = dimensions
+            .iter()
+            .map(|(entity, dim)| Expr::DimensionRef {
                 entity: entity.to_string(),
                 dimension: dim.to_string(),
-            });
-        }
+            })
+            .collect();
         SqlNode::GroupBy(cols)
     }
 

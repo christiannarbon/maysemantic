@@ -57,6 +57,6 @@ fn test_builder_constructs_valid_semantic_ast() {
                 panic!("Expected GroupBy node");
             }
         }
-        _ => panic!("Expected Query node at root"),
+        other => panic!("Expected Query node at root, got: {other:?}"),
     }
 }

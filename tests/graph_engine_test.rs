@@ -1,5 +1,6 @@
+use maysemantic::ast::JoinType;
 use maysemantic::graph_engine::build_semantic_graph;
-use maysemantic::models::{Entity, JoinDefinition, JoinTypeModel, SemanticModel};
+use maysemantic::models::{Entity, JoinDefinition, SemanticModel};
 use maysemantic::state_mgr::SemanticState;
 
 /// Tests that the GraphEngine can correctly translate a SemanticModel
@@ -38,7 +39,7 @@ fn test_build_semantic_graph() {
         left_column: "id".to_string(),
         right_entity: "orders".to_string(),
         right_column: "user_id".to_string(),
-        join_type: JoinTypeModel::Left,
+        join_type: JoinType::Left,
     };
 
     // Package the entities and join into a unified SemanticModel.
@@ -75,5 +76,5 @@ fn test_build_semantic_graph() {
     let edge_weight = graph.edge_weight(edge_idx).unwrap();
     assert_eq!(edge_weight.left_column, "id");
     assert_eq!(edge_weight.right_column, "user_id");
-    assert_eq!(edge_weight.join_type, JoinTypeModel::Left);
+    assert_eq!(edge_weight.join_type, JoinType::Left);
 }
