@@ -16,7 +16,7 @@ pub enum GraphError {
 }
 
 /// Represents a table or entity in the graph.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GraphNode {
     pub entity_name: String,
     pub table_name: String,
@@ -24,7 +24,7 @@ pub struct GraphNode {
 }
 
 /// Represents a relationship (JOIN) between two entities in the graph.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GraphEdge {
     pub left_column: String,
     pub right_column: String,
