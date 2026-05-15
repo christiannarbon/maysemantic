@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - main
-      - 'feature/*'
-      - 'hotfix/*'
-      - 'release/*'
+      - "feature/*"
+      - "hotfix/*"
+      - "release/*"
   pull_request:
     branches:
       - main
@@ -34,7 +34,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.0
 
       - name: Check Formatting
         run: cargo fmt --all -- --check
