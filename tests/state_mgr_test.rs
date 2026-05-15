@@ -1,7 +1,7 @@
 use maysemantic::{StateError, StateMgr};
 
 /// Tests that the `StateMgr` correctly parses and validates a well-formed Semantic Layer YAML.
-/// 
+///
 /// Validates:
 /// 1. Standard entity/dimension/measure blocks are successfully parsed.
 /// 2. Enums (`DimensionType`, `AggregationType`) deserialize perfectly.
@@ -45,7 +45,7 @@ metrics:
 }
 
 /// Tests that the `StateMgr` can traverse a directory and load all `.yml` or `.yaml` files.
-/// 
+///
 /// Validates:
 /// 1. Asynchronous I/O directory reading.
 /// 2. Multiple file loading into a unified `SemanticState` HashMap.
@@ -65,7 +65,7 @@ async fn test_load_dir() {
 }
 
 /// Tests the `NAME_REGEX` validation rules on entity names.
-/// 
+///
 /// Validates:
 /// 1. Names cannot start with numbers.
 /// 2. The `validator` crate properly rejects non-alphanumeric identifiers,
@@ -83,7 +83,7 @@ metrics: []
 }
 
 /// Tests that improperly formatted YAML strictly fails parsing.
-/// 
+///
 /// Validates:
 /// 1. Providing a String ("not a list") to a Vec field properly triggers `serde_yaml` errors.
 #[test]
@@ -103,7 +103,7 @@ metrics: []
 }
 
 /// Tests the automatic generation of a JSON Schema representing the SemanticModel.
-/// 
+///
 /// Validates:
 /// 1. The `schemars` derivation successfully traverses the struct hierarchy
 ///    to output a schema used for IDE intelligence (autocomplete/validation).

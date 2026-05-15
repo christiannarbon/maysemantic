@@ -2,7 +2,7 @@ use maysemantic::ast::{Expr, SqlNode};
 use maysemantic::ast_builder::ASTBuilder;
 
 /// Tests the `ASTBuilder` utility module to ensure it produces an accurate semantic AST.
-/// 
+///
 /// Validates:
 /// 1. `build_semantic_select` properly translates string tuples into `Expr::DimensionRef` and `Expr::MeasureRef`.
 /// 2. Memory allocations (Vec scaling, Box pointers) are handled safely without boilerplate.

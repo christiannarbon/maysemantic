@@ -1,7 +1,7 @@
 use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 
 /// Tests the construction and validation of a complex, heavily nested physical SQL AST.
-/// 
+///
 /// Validates:
 /// 1. The ability to nest multiple `Expr` types (Functions inside BinaryOps).
 /// 2. The proper construction of JOIN clauses with strict typed Enums.
@@ -163,7 +163,7 @@ fn test_ast_recursion_model() {
 }
 
 /// Tests the construction of Common Table Expressions (CTEs).
-/// 
+///
 /// Validates:
 /// 1. A CTE can hold a complete recursive inner `Query`.
 /// 2. An outer `Query` can reference the CTE's `TableIdent` alias safely.
@@ -270,7 +270,7 @@ fn test_ast_cte_model() {
 }
 
 /// Tests the construction of an AST using semantic-specific nodes (Dimensions, Measures, TimeSpine).
-/// 
+///
 /// Validates:
 /// 1. The AST can hold high-level business definitions before dialect translation.
 /// 2. `TimeSpine` can act as the primary `FROM` source for metric queries.

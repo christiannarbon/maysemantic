@@ -4,7 +4,7 @@ use maysemantic::state_mgr::SemanticState;
 
 /// Tests that the GraphEngine can correctly translate a SemanticModel
 /// containing multiple entities and joins into a directed `petgraph::DiGraph`.
-/// 
+///
 /// Validates:
 /// 1. All entities are inserted as GraphNodes.
 /// 2. Joins are correctly translated into GraphEdges.
