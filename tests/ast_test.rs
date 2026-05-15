@@ -1,7 +1,14 @@
 use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 
+/// Tests the construction and validation of a complex, heavily nested physical SQL AST.
+/// 
+/// Validates:
+/// 1. The ability to nest multiple `Expr` types (Functions inside BinaryOps).
+/// 2. The proper construction of JOIN clauses with strict typed Enums.
+/// 3. The structural separation of SELECT, FROM, WHERE, GROUP BY, and HAVING nodes.
 #[test]
 fn test_ast_recursion_model() {
+    // Construct the SELECT clause projecting a raw column and a nested SUM() function.
     let select_node = SqlNode::Select(vec![
         Expr::Column(ColumnIdent("user_id".to_string())),
         Expr::Function {
@@ -10,37 +17,45 @@ fn test_ast_recursion_model() {
         },
     ]);
 
+    // Define the primary driving table for the FROM clause.
     let base_table = SqlNode::Table(TableIdent("users".to_string()));
 
+    // Define the JOIN condition: users.id = orders.user_id using typed Expressions.
     let join_condition = Expr::BinaryOp {
         left: Box::new(Expr::Column(ColumnIdent("users.id".to_string()))),
         op: "=".to_string(),
         right: Box::new(Expr::Column(ColumnIdent("orders.user_id".to_string()))),
     };
 
+    // Construct a Left Join node using the orders table and the condition above.
     let join_node = SqlNode::Join {
         join_type: JoinType::Left,
         relation: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
         on: join_condition,
     };
 
+    // Assemble the complete FROM clause consisting of the base table and the join list.
     let from_node = SqlNode::From {
         source: Box::new(base_table),
         joins: vec![join_node],
     };
 
+    // Define a row-level WHERE filter constraint: users.is_active = 1
     let where_condition = Expr::BinaryOp {
         left: Box::new(Expr::Column(ColumnIdent("users.is_active".to_string()))),
         op: "=".to_string(),
         right: Box::new(Expr::Raw("1".to_string())),
     };
 
+    // Wrap the condition inside the structural Where node.
     let where_node = Some(Box::new(SqlNode::Where(where_condition)));
 
+    // Define the GROUP BY level.
     let group_by_node = Some(Box::new(SqlNode::GroupBy(vec![Expr::Column(ColumnIdent(
         "user_id".to_string(),
     ))])));
 
+    // Define a post-aggregation filter for the HAVING clause: SUM(amount) > 100
     let having_condition = Expr::BinaryOp {
         left: Box::new(Expr::Function {
             name: "SUM".to_string(),
@@ -50,8 +65,10 @@ fn test_ast_recursion_model() {
         right: Box::new(Expr::Raw("100".to_string())),
     };
 
+    // Wrap the condition inside the structural Having node.
     let having_node = Some(Box::new(SqlNode::Having(having_condition)));
 
+    // Assemble all clauses into the root Query AST node.
     let ast = SqlNode::Query {
         ctes: None,
         select: Box::new(select_node),
@@ -145,8 +162,14 @@ fn test_ast_recursion_model() {
     }
 }
 
+/// Tests the construction of Common Table Expressions (CTEs).
+/// 
+/// Validates:
+/// 1. A CTE can hold a complete recursive inner `Query`.
+/// 2. An outer `Query` can reference the CTE's `TableIdent` alias safely.
 #[test]
 fn test_ast_cte_model() {
+    // Build the inner CTE SELECT projection.
     let inner_select = SqlNode::Select(vec![
         Expr::Column(ColumnIdent("user_id".to_string())),
         Expr::Function {
@@ -155,15 +178,18 @@ fn test_ast_cte_model() {
         },
     ]);
 
+    // Build the inner CTE FROM clause targeting the orders table.
     let inner_from = SqlNode::From {
         source: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
         joins: vec![],
     };
 
+    // Build the inner CTE GROUP BY level.
     let inner_group_by = Some(Box::new(SqlNode::GroupBy(vec![Expr::Column(ColumnIdent(
         "user_id".to_string(),
     ))])));
 
+    // Assemble the complete internal recursive Query for the CTE.
     let inner_query = SqlNode::Query {
         ctes: None,
         select: Box::new(inner_select),
@@ -173,18 +199,22 @@ fn test_ast_cte_model() {
         having: None,
     };
 
+    // Construct the CTE node, binding the inner query to the "agg_orders" alias.
     let cte_node = SqlNode::CTE {
         alias: TableIdent("agg_orders".to_string()),
         query: Box::new(inner_query),
     };
 
+    // Build the outer query's SELECT projection.
     let outer_select = SqlNode::Select(vec![Expr::Column(ColumnIdent("user_id".to_string()))]);
 
+    // Build the outer query's FROM clause, actively targeting the CTE alias.
     let outer_from = SqlNode::From {
         source: Box::new(SqlNode::Table(TableIdent("agg_orders".to_string()))),
         joins: vec![],
     };
 
+    // Assemble the full outer Query containing the CTE definition.
     let outer_query = SqlNode::Query {
         ctes: Some(vec![cte_node]),
         select: Box::new(outer_select),
@@ -239,8 +269,14 @@ fn test_ast_cte_model() {
     }
 }
 
+/// Tests the construction of an AST using semantic-specific nodes (Dimensions, Measures, TimeSpine).
+/// 
+/// Validates:
+/// 1. The AST can hold high-level business definitions before dialect translation.
+/// 2. `TimeSpine` can act as the primary `FROM` source for metric queries.
 #[test]
 fn test_ast_semantic_model() {
+    // Build a semantic SELECT clause containing abstract Dimension and Measure references.
     let select_node = SqlNode::Select(vec![
         Expr::DimensionRef {
             entity: "locations".to_string(),
@@ -252,6 +288,7 @@ fn test_ast_semantic_model() {
         },
     ]);
 
+    // Use a semantic TimeSpine as the primary driver for the FROM clause.
     let from_node = SqlNode::From {
         source: Box::new(SqlNode::TimeSpine {
             granularity: "day".to_string(),
@@ -259,11 +296,13 @@ fn test_ast_semantic_model() {
         joins: vec![],
     };
 
+    // Group by the semantic Dimension explicitly.
     let group_by_node = Some(Box::new(SqlNode::GroupBy(vec![Expr::DimensionRef {
         entity: "locations".to_string(),
         dimension: "region".to_string(),
     }])));
 
+    // Assemble the complete semantic Query structure.
     let ast = SqlNode::Query {
         ctes: None,
         select: Box::new(select_node),

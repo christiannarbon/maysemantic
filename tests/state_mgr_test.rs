@@ -1,5 +1,11 @@
 use maysemantic::{StateError, StateMgr};
 
+/// Tests that the `StateMgr` correctly parses and validates a well-formed Semantic Layer YAML.
+/// 
+/// Validates:
+/// 1. Standard entity/dimension/measure blocks are successfully parsed.
+/// 2. Enums (`DimensionType`, `AggregationType`) deserialize perfectly.
+/// 3. Required fields like `primary_key` are properly enforced by the validator.
 #[test]
 fn test_valid_yaml_parsing() {
     let valid_yaml = r#"
@@ -7,6 +13,7 @@ name: test_model
 entities:
   - name: users
     table: public.users
+    primary_key: id
     dimensions:
       - name: user_id
         type: number
@@ -37,6 +44,11 @@ metrics:
     assert_eq!(model.metrics.len(), 1);
 }
 
+/// Tests that the `StateMgr` can traverse a directory and load all `.yml` or `.yaml` files.
+/// 
+/// Validates:
+/// 1. Asynchronous I/O directory reading.
+/// 2. Multiple file loading into a unified `SemanticState` HashMap.
 #[tokio::test]
 async fn test_load_dir() {
     use std::io::Write;
@@ -52,6 +64,12 @@ async fn test_load_dir() {
     assert_eq!(model.name, "dir_model");
 }
 
+/// Tests the `NAME_REGEX` validation rules on entity names.
+/// 
+/// Validates:
+/// 1. Names cannot start with numbers.
+/// 2. The `validator` crate properly rejects non-alphanumeric identifiers,
+///    preventing SQL injection vulnerabilities at the parsing stage.
 #[test]
 fn test_invalid_name_validation() {
     let invalid_yaml = r#"
@@ -64,6 +82,10 @@ metrics: []
     assert!(matches!(result, Err(StateError::ValidationError(_))));
 }
 
+/// Tests that improperly formatted YAML strictly fails parsing.
+/// 
+/// Validates:
+/// 1. Providing a String ("not a list") to a Vec field properly triggers `serde_yaml` errors.
 #[test]
 fn test_invalid_yaml_format() {
     let invalid_yaml = r#"
@@ -71,6 +93,7 @@ name: test_model
 entities:
   - name: users
     table: public.users
+    primary_key: id
     dimensions: "not a list"
 metrics: []
 "#;
@@ -79,6 +102,11 @@ metrics: []
     assert!(matches!(result, Err(StateError::YamlError(_))));
 }
 
+/// Tests the automatic generation of a JSON Schema representing the SemanticModel.
+/// 
+/// Validates:
+/// 1. The `schemars` derivation successfully traverses the struct hierarchy
+///    to output a schema used for IDE intelligence (autocomplete/validation).
 #[test]
 fn test_generate_json_schema() {
     // Generate JSON schema from the public SemanticModel structure

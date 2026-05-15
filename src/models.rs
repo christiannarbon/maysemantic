@@ -60,6 +60,7 @@ pub struct Entity {
     pub name: String,
     pub description: Option<String>,
     pub table: String,
+    pub primary_key: String,
     #[validate(nested)]
     pub dimensions: Vec<Dimension>,
     #[validate(nested)]
@@ -83,4 +84,31 @@ pub struct SemanticModel {
     pub entities: Vec<Entity>,
     #[validate(nested)]
     pub metrics: Vec<Metric>,
+    #[serde(default)]
+    #[validate(nested)]
+    pub joins: Vec<JoinDefinition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Validate)]
+pub struct JoinDefinition {
+    #[validate(custom(function = "validate_name"))]
+    pub left_entity: String,
+    pub left_column: String,
+    #[validate(custom(function = "validate_name"))]
+    pub right_entity: String,
+    pub right_column: String,
+    #[serde(default = "default_join_type")]
+    pub join_type: JoinTypeModel,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum JoinTypeModel {
+    Left,
+    Inner,
+    Full,
+}
+
+fn default_join_type() -> JoinTypeModel {
+    JoinTypeModel::Left
 }
