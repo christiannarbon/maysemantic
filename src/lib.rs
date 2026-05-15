@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod ast_builder;
 pub mod models;
 pub mod state_mgr;
 
