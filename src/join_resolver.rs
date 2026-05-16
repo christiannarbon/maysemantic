@@ -14,38 +14,51 @@ use crate::graph_engine::{GraphEdge, GraphNode, SemanticGraph};
 use petgraph::algo::astar;
 use petgraph::graph::NodeIndex;
 use std::collections::HashMap;
-use thiserror::Error;
 
 /// Errors that can occur during join path resolution.
-#[derive(Error, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum JoinResolutionError {
     /// The requested source or target entity name is not present in the graph.
-    #[error("Unknown entity: '{0}' was not found in the semantic graph.")]
     TableNotFound(String),
 
     /// A* found no path connecting the two entities.
     /// This means the tables are structurally disconnected in the YAML definitions.
-    #[error(
-        "No join path exists between '{source_table}' and '{target_table}'. \
-         Check that a join definition connects these entities."
-    )]
-    UnreachablePath {
-        source_table: String,
-        target_table: String,
-    },
+    UnreachablePath { source: String, target: String },
 
     /// An edge expected to exist between two consecutive path nodes was not found.
     /// This indicates an internal graph consistency error and should never occur
     /// in a correctly constructed `SemanticGraph`.
-    #[error(
-        "Internal graph error: expected an edge between '{from_entity}' and '{to_entity}' \
-         in the resolved path, but none was found."
-    )]
     BrokenPath {
         from_entity: String,
         to_entity: String,
     },
 }
+
+impl std::fmt::Display for JoinResolutionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JoinResolutionError::TableNotFound(name) => write!(
+                f,
+                "Unknown entity: '{name}' was not found in the semantic graph."
+            ),
+            JoinResolutionError::UnreachablePath { source, target } => write!(
+                f,
+                "No join path exists between '{source}' and '{target}'. \
+                 Check that a join definition connects these entities."
+            ),
+            JoinResolutionError::BrokenPath {
+                from_entity,
+                to_entity,
+            } => write!(
+                f,
+                "Internal graph error: expected an edge between '{from_entity}' and '{to_entity}' \
+                 in the resolved path, but none was found."
+            ),
+        }
+    }
+}
+
+impl std::error::Error for JoinResolutionError {}
 
 /// Resolves join paths between entities by running shortest-path search
 /// over the in-memory `SemanticGraph`.
@@ -88,8 +101,8 @@ impl JoinResolver {
     /// `GraphEdge` via `find_edge`, and returns the ordered join sequence.
     ///
     /// # Errors
-    /// - `JoinResolutionError::UnknownEntity` if either name is not in the graph.
-    /// - `JoinResolutionError::NoPathFound` if the tables are disconnected.
+    /// - `JoinResolutionError::TableNotFound` if either name is not in the graph.
+    /// - `JoinResolutionError::UnreachablePath` if the tables are disconnected.
     /// - `JoinResolutionError::BrokenPath` if graph internal consistency fails.
     pub fn find_join_path(
         &self,
@@ -123,8 +136,8 @@ impl JoinResolver {
 
         // Extract the ordered path of NodeIndexes, or surface a clear error.
         let (_cost, path) = astar_result.ok_or_else(|| JoinResolutionError::UnreachablePath {
-            source_table: source_table.to_string(),
-            target_table: target_table.to_string(),
+            source: source_table.to_string(),
+            target: target_table.to_string(),
         })?;
 
         // Reconstruct the edge sequence from the node path.
@@ -141,15 +154,13 @@ impl JoinResolver {
                         from_entity: self
                             .graph
                             .node_weight(from_idx)
-                            .map(|n| n.entity_name.as_str())
-                            .unwrap_or("unknown")
-                            .to_string(),
+                            .map(|n| n.entity_name.clone())
+                            .unwrap_or_else(|| format!("<node {}>", from_idx.index())),
                         to_entity: self
                             .graph
                             .node_weight(to_idx)
-                            .map(|n| n.entity_name.as_str())
-                            .unwrap_or("unknown")
-                            .to_string(),
+                            .map(|n| n.entity_name.clone())
+                            .unwrap_or_else(|| format!("<node {}>", to_idx.index())),
                     }
                 })?;
 
