@@ -181,8 +181,8 @@ fn test_no_path_returns_error_for_disconnected_graph() {
 
     let result = resolver.find_join_path("orders", "reports");
     assert!(
-        matches!(result, Err(JoinResolutionError::NoPathFound { .. })),
-        "Expected NoPathFound for a disconnected entity, got: {result:?}"
+        matches!(result, Err(JoinResolutionError::UnreachablePath { .. })),
+        "Expected UnreachablePath for a disconnected entity, got: {result:?}"
     );
 }
 
@@ -196,10 +196,10 @@ fn test_unknown_source_entity_returns_error() {
     let result = resolver.find_join_path("nonexistent_table", "orders");
     assert_eq!(
         result,
-        Err(JoinResolutionError::UnknownEntity(
+        Err(JoinResolutionError::TableNotFound(
             "nonexistent_table".to_string()
         )),
-        "Expected UnknownEntity error for a source entity that does not exist"
+        "Expected TableNotFound error for a source entity that does not exist"
     );
 }
 
@@ -212,9 +212,9 @@ fn test_unknown_target_entity_returns_error() {
     let result = resolver.find_join_path("orders", "ghost_table");
     assert_eq!(
         result,
-        Err(JoinResolutionError::UnknownEntity(
+        Err(JoinResolutionError::TableNotFound(
             "ghost_table".to_string()
         )),
-        "Expected UnknownEntity error for a target entity that does not exist"
+        "Expected TableNotFound error for a target entity that does not exist"
     );
 }

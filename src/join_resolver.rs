@@ -21,17 +21,17 @@ use thiserror::Error;
 pub enum JoinResolutionError {
     /// The requested source or target entity name is not present in the graph.
     #[error("Unknown entity: '{0}' was not found in the semantic graph.")]
-    UnknownEntity(String),
+    TableNotFound(String),
 
     /// A* found no path connecting the two entities.
     /// This means the tables are structurally disconnected in the YAML definitions.
     #[error(
-        "No join path exists between '{from_entity}' and '{to_entity}'. \
+        "No join path exists between '{source_table}' and '{target_table}'. \
          Check that a join definition connects these entities."
     )]
-    NoPathFound {
-        from_entity: String,
-        to_entity: String,
+    UnreachablePath {
+        source_table: String,
+        target_table: String,
     },
 
     /// An edge expected to exist between two consecutive path nodes was not found.
@@ -99,11 +99,11 @@ impl JoinResolver {
         // Resolve both entity names to NodeIndexes, failing fast on unknown names.
         let (source_idx, _) = self
             .get_node(source_table)
-            .ok_or_else(|| JoinResolutionError::UnknownEntity(source_table.to_string()))?;
+            .ok_or_else(|| JoinResolutionError::TableNotFound(source_table.to_string()))?;
 
         let (target_idx, _) = self
             .get_node(target_table)
-            .ok_or_else(|| JoinResolutionError::UnknownEntity(target_table.to_string()))?;
+            .ok_or_else(|| JoinResolutionError::TableNotFound(target_table.to_string()))?;
 
         // Short-circuit: source and target are the same entity, no JOINs needed.
         if source_idx == target_idx {
@@ -122,9 +122,9 @@ impl JoinResolver {
         );
 
         // Extract the ordered path of NodeIndexes, or surface a clear error.
-        let (_cost, path) = astar_result.ok_or_else(|| JoinResolutionError::NoPathFound {
-            from_entity: source_table.to_string(),
-            to_entity: target_table.to_string(),
+        let (_cost, path) = astar_result.ok_or_else(|| JoinResolutionError::UnreachablePath {
+            source_table: source_table.to_string(),
+            target_table: target_table.to_string(),
         })?;
 
         // Reconstruct the edge sequence from the node path.
