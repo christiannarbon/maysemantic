@@ -86,6 +86,12 @@ pub enum Expr {
     },
 
     /// Represents raw, unescaped SQL text injected directly into an expression.
+    ///
+    /// # Safety
+    /// This variant writes its contents directly into the SQL output buffer
+    /// with **zero escaping or validation**. It must NEVER be constructed from
+    /// unsanitized user input. Callers are responsible for ensuring the string
+    /// is safe, trusted SQL.
     Raw(String),
 }
 

@@ -1,4 +1,5 @@
 use crate::ast::{Expr, JoinType, SqlNode};
+use std::fmt::Write;
 
 /// Errors that occur during AST-to-SQL generation.
 #[derive(Debug, PartialEq)]
@@ -90,7 +91,6 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 Ok(())
             }
             SqlNode::CTE { alias, query } => {
-                use std::fmt::Write;
                 write!(buf, "{} AS (", self.quote_identifier(&alias.0))?;
                 self.write_node(buf, query)?;
                 buf.push(')');
@@ -121,6 +121,9 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 buf.push_str("HAVING ");
                 self.write_expr(buf, expr)
             }
+            // Table identifiers are written raw (not quoted) because they may contain
+            // schema-qualified names (e.g., `public.users`). Individual segment quoting
+            // will be handled when schema-aware identifier parsing is implemented.
             SqlNode::Table(ident) => {
                 buf.push_str(&ident.0);
                 Ok(())
@@ -134,6 +137,9 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
     /// Recursively writes an Expression to the string buffer.
     fn write_expr(&self, buf: &mut String, expr: &Expr) -> Result<(), DialectError> {
         match expr {
+            // Column identifiers are written raw (not quoted) because they may contain
+            // table-qualified names (e.g., `users.id`). Individual segment quoting
+            // will be handled when schema-aware identifier parsing is implemented.
             Expr::Column(ident) => {
                 buf.push_str(&ident.0);
                 Ok(())
@@ -163,12 +169,14 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 Ok(())
             }
             Expr::DimensionRef { entity, dimension } => Err(DialectError::UnsupportedExpr(
-                format!("DimensionRef({entity}.{dimension}"),
+                format!("DimensionRef({entity}.{dimension})"),
             )),
             Expr::MeasureRef { entity, measure } => Err(DialectError::UnsupportedExpr(format!(
                 "MeasureRef({entity}.{measure})"
             ))),
             Expr::Raw(sql) => {
+                // SAFETY: Raw SQL is written verbatim. The caller must guarantee
+                // this string does not contain unsanitized user input.
                 buf.push_str(sql);
                 Ok(())
             }
@@ -177,7 +185,12 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
 
     /// Quotes an identifier according to the dialect's rules (default ANSI: "ident")
     fn quote_identifier(&self, ident: &str) -> String {
-        format!("\"{ident}\"")
+        if ident.contains('"') {
+            let escaped = ident.replace('"', "\"\"");
+            format!("\"{escaped}\"")
+        } else {
+            format!("\"{ident}\"")
+        }
     }
 
     /// Writes the SELECT projection list.
@@ -228,13 +241,17 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
     }
 
     /// Provides dialect-specific date truncation syntax.
+    ///
+    /// **Note:** This method is not automatically called during AST traversal
+    /// because no `Expr::DateTrunc` variant exists yet. It is provided as a
+    /// hook for dialect implementations to override, and will be wired in
+    /// when the `Expr` enum is extended with a `DateTrunc` variant.
     fn write_date_trunc(
         &self,
         buf: &mut String,
         granularity: &str,
         column: &str,
     ) -> Result<(), DialectError> {
-        use std::fmt::Write;
         write!(
             buf,
             "DATE_TRUNC('{granularity}', {})",

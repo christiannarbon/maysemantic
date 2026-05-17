@@ -7,7 +7,7 @@ pub mod models;
 pub mod state_mgr;
 
 pub use ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-pub use dialect::{DialectError, SqlDialect};
+pub use dialect::{DialectError, DummyDialect, SqlDialect};
 pub use join_resolver::{JoinResolutionError, JoinResolver};
 pub use models::{
     AggregationType, Dimension, DimensionType, Entity, JoinDefinition, Measure, Metric,
