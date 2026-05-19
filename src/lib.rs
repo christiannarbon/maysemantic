@@ -4,6 +4,7 @@ pub mod dialect;
 pub mod graph_engine;
 pub mod join_resolver;
 pub mod models;
+pub mod postgres_dialect;
 pub mod state_mgr;
 
 pub use ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
@@ -13,4 +14,5 @@ pub use models::{
     AggregationType, Dimension, DimensionType, Entity, JoinDefinition, Measure, Metric,
     SemanticModel,
 };
+pub use postgres_dialect::PostgresDialect;
 pub use state_mgr::{SemanticState, StateError, StateMgr, StateStats};
