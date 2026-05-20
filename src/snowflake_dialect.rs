@@ -26,13 +26,28 @@ impl SqlDialect for SnowflakeDialect {
     /// To ensure safe generation, we normalize all identifiers to uppercase
     /// before quoting, mimicking Snowflake's default unquoted resolution behavior.
     fn quote_identifier(&self, ident: &str) -> String {
-        let upper_ident = ident.to_ascii_uppercase();
-        if upper_ident.contains('"') {
-            let escaped = upper_ident.replace('"', "\"\"");
-            format!("\"{escaped}\"")
-        } else {
-            format!("\"{upper_ident}\"")
+        // Calculate exact capacity to avoid reallocations:
+        // 2 quotes + base length + extra space for escaped quotes
+        let mut capacity = ident.len() + 2;
+        if ident.contains('"') {
+            capacity += ident.chars().filter(|&c| c == '"').count();
         }
+
+        // Allocate exactly once
+        let mut buf = String::with_capacity(capacity);
+        buf.push('"');
+
+        // Process and uppercase in a single pass
+        for c in ident.chars() {
+            let upper_c = c.to_ascii_uppercase();
+            if upper_c == '"' {
+                buf.push_str("\"\""); // escape quotes
+            } else {
+                buf.push(upper_c);
+            }
+        }
+        buf.push('"');
+        buf
     }
 
     /// Writes Snowflake's `DATE_TRUNC` function.
@@ -45,12 +60,20 @@ impl SqlDialect for SnowflakeDialect {
         granularity: &str,
         column: &str,
     ) -> Result<(), DialectError> {
-        write!(
-            buf,
-            "DATE_TRUNC('{}', {})",
-            granularity.to_ascii_uppercase(),
-            self.quote_identifier(column)
-        )?;
+        buf.push_str("DATE_TRUNC('");
+
+        // Write uppercased chars directly to avoid allocating a new String
+        for c in granularity.chars() {
+            buf.push(c.to_ascii_uppercase());
+        }
+
+        buf.push_str("', ");
+
+        // quote_identifier still returns a String (required by trait signature)
+        let quoted = self.quote_identifier(column);
+        buf.push_str(&quoted);
+
+        buf.push(')');
         Ok(())
     }
 }
