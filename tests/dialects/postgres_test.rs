@@ -1,5 +1,5 @@
 use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-use maysemantic::postgres_dialect::PostgresDialect;
+use maysemantic::PostgresDialect;
 use maysemantic::SqlDialect;
 
 #[test]

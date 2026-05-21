@@ -9,7 +9,7 @@
 //! future tickets.
 
 use crate::ast::Expr;
-use crate::dialect::{DialectError, SqlDialect};
+use crate::dialects::{DialectError, SqlDialect};
 use std::fmt::Write;
 
 /// A dialect adapter that generates PostgreSQL-compliant SQL.

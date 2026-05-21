@@ -1,5 +1,5 @@
 use maysemantic::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
-use maysemantic::dialect::DummyDialect;
+use maysemantic::DummyDialect;
 use maysemantic::SqlDialect;
 
 #[test]

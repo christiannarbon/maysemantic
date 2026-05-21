@@ -1,5 +1,5 @@
+use maysemantic::ast::ASTBuilder;
 use maysemantic::ast::{Expr, SqlNode};
-use maysemantic::ast_builder::ASTBuilder;
 
 /// Tests the `ASTBuilder` utility module to ensure it produces an accurate semantic AST.
 ///

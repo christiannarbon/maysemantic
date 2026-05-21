@@ -5,7 +5,7 @@
 //! identifier case-sensitivity and provides custom functions for JSON extraction.
 
 use crate::ast::Expr;
-use crate::dialect::{DialectError, SqlDialect};
+use crate::dialects::{DialectError, SqlDialect};
 use std::fmt::Write;
 
 /// A dialect adapter that generates Snowflake-compliant SQL.

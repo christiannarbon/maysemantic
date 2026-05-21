@@ -1,5 +1,5 @@
 use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-use maysemantic::snowflake_dialect::SnowflakeDialect;
+use maysemantic::SnowflakeDialect;
 use maysemantic::SqlDialect;
 
 #[test]

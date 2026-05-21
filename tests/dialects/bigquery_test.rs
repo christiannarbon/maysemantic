@@ -1,5 +1,5 @@
 use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-use maysemantic::bigquery_dialect::BigQueryDialect;
+use maysemantic::BigQueryDialect;
 use maysemantic::SqlDialect;
 
 #[test]

@@ -10,7 +10,7 @@
 //! equivalent to Dijkstra's algorithm. It provably returns the minimum number
 //! of JOINs required to connect the source to the target, with no redundant hops.
 
-use crate::graph_engine::{GraphEdge, GraphNode, SemanticGraph};
+use crate::graph::engine::{GraphEdge, GraphNode, SemanticGraph};
 use petgraph::algo::astar;
 use petgraph::graph::NodeIndex;
 use std::collections::HashMap;

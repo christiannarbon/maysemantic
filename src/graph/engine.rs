@@ -4,7 +4,7 @@
 //! to allow for shortest-path algorithms to resolve JOIN paths automatically.
 
 use crate::ast::JoinType;
-use crate::state_mgr::SemanticState;
+use crate::models::SemanticState;
 use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::HashMap;
 use thiserror::Error;

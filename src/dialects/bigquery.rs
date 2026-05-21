@@ -6,7 +6,7 @@
 //! argument ordering (e.g., DATE_TRUNC).
 
 use crate::ast::Expr;
-use crate::dialect::{DialectError, SqlDialect};
+use crate::dialects::{DialectError, SqlDialect};
 
 /// A dialect adapter that generates BigQuery-compliant SQL.
 ///
