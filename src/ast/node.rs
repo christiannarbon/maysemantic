@@ -13,7 +13,7 @@ pub struct TableIdent(pub String);
 
 impl std::fmt::Display for TableIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        f.write_str(&self.0)
     }
 }
 
@@ -23,7 +23,7 @@ pub struct ColumnIdent(pub String);
 
 impl std::fmt::Display for ColumnIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        f.write_str(&self.0)
     }
 }
 

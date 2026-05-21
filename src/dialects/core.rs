@@ -40,9 +40,14 @@ impl From<std::fmt::Error> for DialectError {
 /// To minimize string allocations, the trait passes a `&mut String` buffer
 /// recursively through the AST via `write_node`.
 pub trait SqlDialect: std::fmt::Debug + Send + Sync {
+    /// Initial buffer capacity in bytes for SQL generation.
+    /// Tuned for typical 3–5 clause queries. Dialects with complex default
+    /// output (e.g., many CTEs) may override this.
+    const INITIAL_BUFFER_CAPACITY: usize = 512;
+
     /// The main entry point for the compiler to generate SQL.
     fn generate_sql(&self, ast: &SqlNode) -> Result<String, DialectError> {
-        let mut buf = String::with_capacity(1024);
+        let mut buf = String::with_capacity(Self::INITIAL_BUFFER_CAPACITY);
         self.write_node(&mut buf, ast)?;
         Ok(buf)
     }
@@ -260,9 +265,3 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
         Ok(())
     }
 }
-
-/// A dummy dialect for testing standard ANSI implementations.
-#[derive(Debug)]
-pub struct DummyDialect;
-
-impl SqlDialect for DummyDialect {}

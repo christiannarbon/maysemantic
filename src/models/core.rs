@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError};
 
-pub static NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
+static NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^[a-z_][a-z0-9_]*$")
         .expect("NAME_REGEX is a compile-time constant pattern and should never fail to compile")
 });

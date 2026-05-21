@@ -26,10 +26,8 @@ impl SqlDialect for BigQueryDialect {
     fn quote_identifier(&self, ident: &str) -> String {
         // Calculate exact capacity to avoid reallocations:
         // 2 backticks + base length + extra space for escaped backticks (each adds 1 char for '\')
-        let mut capacity = ident.len() + 2;
-        if ident.contains('`') {
-            capacity += ident.chars().filter(|&c| c == '`').count();
-        }
+        let escape_count = ident.chars().filter(|&c| c == '`').count();
+        let capacity = ident.len() + 2 + escape_count;
 
         // Allocate exactly once
         let mut buf = String::with_capacity(capacity);
