@@ -1,5 +1,10 @@
 # May Semantic Layer
 
+[![CI](https://github.com/christiannarbon/maysemantic/actions/workflows/ci.yml/badge.svg)](https://github.com/christiannarbon/maysemantic/actions)
+[![Last Commit](https://img.shields.io/github/last-commit/christiannarbon/maysemantic?style=flat-square)](https://github.com/christiannarbon/maysemantic/commits/main)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg?style=flat-square)](https://github.com/christiannarbon/maysemantic)
+[![Rustc](https://img.shields.io/badge/rust-1.75+-lightgray.svg?style=flat-square)](https://blog.rust-lang.org)
+
 The `maysemantic` crate provides the core State Manager (`StateMgr`) and generic semantic models for the `may` open-source semantic layer.
 
 ## CLI Application
