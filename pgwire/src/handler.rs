@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use futures::{stream, Sink};
+use futures::{Sink, stream};
 use maysemantic::StateMgr;
 use pgwire::api::auth::noop::NoopStartupHandler;
 use pgwire::api::copy::NoopCopyHandler;
@@ -50,13 +50,8 @@ impl SimpleQueryHandler for SemanticProcessor {
         }
 
         if upper_query.contains("VERSION()") {
-            let field_info = FieldInfo::new(
-                "version".into(),
-                None,
-                None,
-                Type::TEXT,
-                FieldFormat::Text,
-            );
+            let field_info =
+                FieldInfo::new("version".into(), None, None, Type::TEXT, FieldFormat::Text);
             let schema = Arc::new(vec![field_info]);
 
             let mut encoder = DataRowEncoder::new(schema.clone());
@@ -69,29 +64,20 @@ impl SimpleQueryHandler for SemanticProcessor {
             ))]);
         }
 
-        let stats = self
-            .state_mgr
-            .get_stats()
-            .map_err(|e| {
-                PgWireError::UserError(Box::new(ErrorInfo::new(
-                    "ERROR".to_owned(),
-                    "XX000".to_owned(),
-                    e.to_string(),
-                )))
-            })?;
+        let stats = self.state_mgr.get_stats().map_err(|e| {
+            PgWireError::UserError(Box::new(ErrorInfo::new(
+                "ERROR".to_owned(),
+                "XX000".to_owned(),
+                e.to_string(),
+            )))
+        })?;
 
         info!(
             "Semantic state holds {} models. Parsing real queries coming in MAY-2.0.0.",
             stats.model_count
         );
 
-        let field_info = FieldInfo::new(
-            "status".into(),
-            None,
-            None,
-            Type::TEXT,
-            FieldFormat::Text,
-        );
+        let field_info = FieldInfo::new("status".into(), None, None, Type::TEXT, FieldFormat::Text);
         let schema = Arc::new(vec![field_info]);
 
         let mut encoder = DataRowEncoder::new(schema.clone());
