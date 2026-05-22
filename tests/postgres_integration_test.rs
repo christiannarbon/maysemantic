@@ -2,6 +2,11 @@ use tokio_postgres::NoTls;
 
 #[tokio::test]
 async fn test_pagila_connection_and_basic_query() {
+    if std::env::var("PAGILA_TESTS").is_err() {
+        eprintln!("Skipping Pagila integration tests (set PAGILA_TESTS=1 to run)");
+        return;
+    }
+
     let connect_str = "host=localhost port=5433 user=postgres password=may_password dbname=pagila";
 
     // Connect to the database.

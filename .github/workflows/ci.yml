@@ -42,7 +42,9 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Run Tests
+      - name: Run Unit Tests
+        # Integration tests are gated by PAGILA_TESTS and run in a separate job.
+        # Without the env var they skip gracefully, so cargo test --workspace is safe.
         run: cargo test --workspace
 
       - name: Lint Dockerfile
@@ -99,3 +101,31 @@ jobs:
       - name: Clean up test container
         if: always()
         run: docker rm -f pgwire-test || true
+
+  integration-test:
+    name: Pagila Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.9.1
+
+      - name: Start Pagila Database
+        run: docker compose up -d --wait
+        working-directory: tests/env
+
+      - name: Run Pagila Integration Tests
+        run: cargo test --workspace
+        env:
+          PAGILA_TESTS: "1"
+
+      - name: Stop Pagila Database
+        if: always()
+        run: docker compose down -v
+        working-directory: tests/env
