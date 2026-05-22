@@ -1,13 +1,17 @@
 use async_trait::async_trait;
+use futures::SinkExt;
 use futures::{Sink, stream};
 use maysemantic::StateMgr;
-use pgwire::api::auth::noop::NoopStartupHandler;
+use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
 use pgwire::api::copy::NoopCopyHandler;
 use pgwire::api::query::{PlaceholderExtendedQueryHandler, SimpleQueryHandler};
 use pgwire::api::results::{DataRowEncoder, FieldFormat, FieldInfo, QueryResponse, Response, Tag};
 use pgwire::api::{ClientInfo, PgWireHandlerFactory, Type};
 use pgwire::error::{ErrorInfo, PgWireError, PgWireResult};
 use pgwire::messages::PgWireBackendMessage;
+use pgwire::messages::PgWireFrontendMessage;
+use pgwire::messages::response::SslResponse;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -22,7 +26,58 @@ impl SemanticProcessor {
     }
 }
 
-impl NoopStartupHandler for SemanticProcessor {}
+impl ServerParameterProvider for SemanticProcessor {
+    fn server_parameters<C>(&self, _client: &C) -> Option<HashMap<String, String>>
+    where
+        C: ClientInfo,
+    {
+        let mut params = HashMap::new();
+        params.insert("server_version".to_owned(), "13.0".to_owned());
+        params.insert("server_encoding".to_owned(), "UTF8".to_owned());
+        params.insert("client_encoding".to_owned(), "UTF8".to_owned());
+        params.insert("DateStyle".to_owned(), "ISO YMD".to_owned());
+        params.insert("integer_datetimes".to_owned(), "on".to_owned());
+        Some(params)
+    }
+}
+
+#[async_trait]
+impl StartupHandler for SemanticProcessor {
+    async fn on_startup<C>(
+        &self,
+        client: &mut C,
+        message: PgWireFrontendMessage,
+    ) -> PgWireResult<()>
+    where
+        C: ClientInfo + futures::sink::Sink<PgWireBackendMessage> + Unpin + Send,
+        C::Error: Debug,
+        PgWireError: From<<C as futures::sink::Sink<PgWireBackendMessage>>::Error>,
+    {
+        match message {
+            PgWireFrontendMessage::SslRequest(_) => {
+                // Reject SSL requests to force fallback to plaintext
+                client
+                    .send(PgWireBackendMessage::SslResponse(SslResponse::Refuse))
+                    .await?;
+            }
+            PgWireFrontendMessage::Startup(ref startup) => {
+                // Extract and log connection parameters
+                pgwire::api::auth::save_startup_parameters_to_metadata(client, startup);
+
+                info!("PGWire Client Handshake Parameters:");
+                for (k, v) in &startup.parameters {
+                    info!("  {} = {}", k, v);
+                }
+
+                pgwire::api::auth::finish_authentication(client, self).await?;
+            }
+            _ => {
+                // Ignore other frontend messages during startup phase
+            }
+        }
+        Ok(())
+    }
+}
 
 #[async_trait]
 impl SimpleQueryHandler for SemanticProcessor {
