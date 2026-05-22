@@ -1,6 +1,5 @@
 use async_trait::async_trait;
-use futures::SinkExt;
-use futures::{Sink, stream};
+use futures::{Sink, SinkExt, stream};
 use maysemantic::StateMgr;
 use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
 use pgwire::api::copy::NoopCopyHandler;
@@ -31,7 +30,7 @@ impl ServerParameterProvider for SemanticProcessor {
     where
         C: ClientInfo,
     {
-        let mut params = HashMap::new();
+        let mut params = HashMap::with_capacity(5);
         params.insert("server_version".to_owned(), "13.0".to_owned());
         params.insert("server_encoding".to_owned(), "UTF8".to_owned());
         params.insert("client_encoding".to_owned(), "UTF8".to_owned());
@@ -66,13 +65,16 @@ impl StartupHandler for SemanticProcessor {
 
                 info!("PGWire Client Handshake Parameters:");
                 for (k, v) in &startup.parameters {
-                    info!("  {} = {}", k, v);
+                    info!("  {k} = {v}");
                 }
 
                 pgwire::api::auth::finish_authentication(client, self).await?;
             }
             _ => {
-                // Ignore other frontend messages during startup phase
+                debug!(
+                    "Ignoring unexpected frontend message during startup phase: {:?}",
+                    message
+                );
             }
         }
         Ok(())
@@ -92,7 +94,7 @@ impl SimpleQueryHandler for SemanticProcessor {
         PgWireError: From<<C as Sink<PgWireBackendMessage>>::Error>,
     {
         let query_trimmed = query.trim();
-        info!("Received query: {}", query_trimmed);
+        info!("Received query: {query_trimmed}");
 
         let upper_query = query_trimmed.to_uppercase();
         if upper_query.starts_with("SET ")
@@ -100,11 +102,14 @@ impl SimpleQueryHandler for SemanticProcessor {
             || upper_query.starts_with("BEGIN")
             || upper_query.starts_with("COMMIT")
         {
-            debug!("Acknowledging handshake/setup command: {}", query_trimmed);
+            debug!("Acknowledging handshake/setup command: {query_trimmed}");
             return Ok(vec![Response::Execution(Tag::new("OK"))]);
         }
 
-        if upper_query.contains("VERSION()") {
+        let is_version_query = upper_query.contains("VERSION()");
+        drop(upper_query);
+
+        if is_version_query {
             let field_info =
                 FieldInfo::new("version".into(), None, None, Type::TEXT, FieldFormat::Text);
             let schema = Arc::new(vec![field_info]);
@@ -127,19 +132,17 @@ impl SimpleQueryHandler for SemanticProcessor {
             )))
         })?;
 
+        let model_count = stats.model_count;
         info!(
-            "Semantic state holds {} models. Parsing real queries coming in MAY-2.0.0.",
-            stats.model_count
+            "Semantic state holds {model_count} models. Parsing real queries coming in MAY-2.0.0."
         );
 
         let field_info = FieldInfo::new("status".into(), None, None, Type::TEXT, FieldFormat::Text);
         let schema = Arc::new(vec![field_info]);
 
         let mut encoder = DataRowEncoder::new(schema.clone());
-        let msg = format!(
-            "Query received but execution is pending MAY-2.0.0. Models: {}",
-            stats.model_count
-        );
+        let msg =
+            format!("Query received but execution is pending MAY-2.0.0. Models: {model_count}");
         encoder.encode_field(&Some(msg.as_str()))?;
         let row = encoder.finish();
 
