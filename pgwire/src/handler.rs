@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use futures::{Sink, SinkExt, stream};
 use maysemantic::StateMgr;
+use pgwire::api::PgWireConnectionState;
 use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
 use pgwire::api::copy::NoopCopyHandler;
 use pgwire::api::query::{PlaceholderExtendedQueryHandler, SimpleQueryHandler};
@@ -10,6 +11,7 @@ use pgwire::error::{ErrorInfo, PgWireError, PgWireResult};
 use pgwire::messages::PgWireBackendMessage;
 use pgwire::messages::PgWireFrontendMessage;
 use pgwire::messages::response::SslResponse;
+use pgwire::messages::startup::Authentication;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -25,7 +27,9 @@ impl SemanticProcessor {
     }
 }
 
-impl ServerParameterProvider for SemanticProcessor {
+pub struct MockAuthenticator;
+
+impl ServerParameterProvider for MockAuthenticator {
     fn server_parameters<C>(&self, _client: &C) -> Option<HashMap<String, String>>
     where
         C: ClientInfo,
@@ -34,14 +38,14 @@ impl ServerParameterProvider for SemanticProcessor {
         params.insert("server_version".to_owned(), "13.0".to_owned());
         params.insert("server_encoding".to_owned(), "UTF8".to_owned());
         params.insert("client_encoding".to_owned(), "UTF8".to_owned());
-        params.insert("DateStyle".to_owned(), "ISO YMD".to_owned());
+        params.insert("DateStyle".to_owned(), "ISO, MDY".to_owned());
         params.insert("integer_datetimes".to_owned(), "on".to_owned());
         Some(params)
     }
 }
 
 #[async_trait]
-impl StartupHandler for SemanticProcessor {
+impl StartupHandler for MockAuthenticator {
     async fn on_startup<C>(
         &self,
         client: &mut C,
@@ -68,6 +72,15 @@ impl StartupHandler for SemanticProcessor {
                     info!("  {k} = {v}");
                 }
 
+                client.set_state(PgWireConnectionState::AuthenticationInProgress);
+                client
+                    .send(PgWireBackendMessage::Authentication(
+                        Authentication::CleartextPassword,
+                    ))
+                    .await?;
+            }
+            PgWireFrontendMessage::PasswordMessageFamily(_) => {
+                info!("MockAuthenticator explicitly accepted provided credentials.");
                 pgwire::api::auth::finish_authentication(client, self).await?;
             }
             _ => {
@@ -155,16 +168,20 @@ impl SimpleQueryHandler for SemanticProcessor {
 
 pub struct SemanticProcessorFactory {
     handler: Arc<SemanticProcessor>,
+    authenticator: Arc<MockAuthenticator>,
 }
 
 impl SemanticProcessorFactory {
     pub fn new(handler: Arc<SemanticProcessor>) -> Self {
-        Self { handler }
+        Self {
+            handler,
+            authenticator: Arc::new(MockAuthenticator),
+        }
     }
 }
 
 impl PgWireHandlerFactory for SemanticProcessorFactory {
-    type StartupHandler = SemanticProcessor;
+    type StartupHandler = MockAuthenticator;
     type SimpleQueryHandler = SemanticProcessor;
     type ExtendedQueryHandler = PlaceholderExtendedQueryHandler;
     type CopyHandler = NoopCopyHandler;
@@ -178,7 +195,7 @@ impl PgWireHandlerFactory for SemanticProcessorFactory {
     }
 
     fn startup_handler(&self) -> Arc<Self::StartupHandler> {
-        self.handler.clone()
+        self.authenticator.clone()
     }
 
     fn copy_handler(&self) -> Arc<Self::CopyHandler> {
