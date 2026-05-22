@@ -2,6 +2,7 @@ name: ecommerce_model
 entities:
   - name: users
     table: public.users
+    primary_key: user_id
     dimensions:
       - name: user_id
         type: number
@@ -18,6 +19,7 @@ entities:
         sql: id
   - name: orders
     table: public.orders
+    primary_key: order_id
     dimensions:
       - name: order_id
         type: number
