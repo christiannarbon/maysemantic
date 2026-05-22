@@ -21,6 +21,7 @@ FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 
 # Install certificates and update packages
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -29,8 +30,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/target/release/may_pgwire /usr/local/bin/may_pgwire
 
 # Create a non-root user for execution
-RUN useradd -m -u 10001 -U appuser
-RUN chown -R appuser:appuser /app
+RUN useradd -m -u 10001 -U appuser && \
+    chown -R appuser:appuser /app
 
 USER appuser
 
