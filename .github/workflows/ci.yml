@@ -44,3 +44,58 @@ jobs:
 
       - name: Run Tests
         run: cargo test --workspace
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: pgwire/Dockerfile
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image (Verify Only)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: pgwire/Dockerfile
+          push: false
+          load: true
+          tags: may_pgwire:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start PGWire Service Container
+        run: |
+          docker run -d --name pgwire-test -p 5432:5432 \
+            -v ${{ github.workspace }}/demos/valid_demo:/app:ro \
+            may_pgwire:test
+
+      - name: Verify Query Execution & Model Loading
+        run: |
+          # Install pg_isready/psql on ubuntu runner
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          
+          # Wait up to 10 seconds for the service to accept connections
+          for i in {1..10}; do
+            if pg_isready -h 127.0.0.1 -p 5432; then
+              echo "PGWire container is ready!"
+              break
+            fi
+            echo "Waiting for container boot..."
+            sleep 1
+          done
+          
+          # Query the container and check if the loaded model count matches
+          RESULT=$(psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "SELECT * FROM users;" -t | tr -d '[:space:]')
+          echo "Query Result: $RESULT"
+          if [[ "$RESULT" == *"Models:1"* ]]; then
+            echo "Verification successful!"
+          else
+            echo "Verification failed: expected 1 loaded model"
+            docker logs pgwire-test
+            exit 1
+          fi
+
+      - name: Clean up test container
+        if: always()
+        run: docker rm -f pgwire-test || true
