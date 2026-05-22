@@ -23,7 +23,14 @@ impl std::fmt::Display for DialectError {
     }
 }
 
-impl std::error::Error for DialectError {}
+impl std::error::Error for DialectError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DialectError::FormatError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 impl From<std::fmt::Error> for DialectError {
     fn from(err: std::fmt::Error) -> Self {
@@ -190,12 +197,20 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
 
     /// Quotes an identifier according to the dialect's rules (default ANSI: "ident")
     fn quote_identifier(&self, ident: &str) -> String {
-        if ident.contains('"') {
-            let escaped = ident.replace('"', "\"\"");
-            format!("\"{escaped}\"")
-        } else {
-            format!("\"{ident}\"")
+        let escape_count = ident.chars().filter(|&c| c == '"').count();
+        let capacity = ident.len() + 2 + escape_count;
+
+        let mut buf = String::with_capacity(capacity);
+        buf.push('"');
+        for c in ident.chars() {
+            if c == '"' {
+                buf.push_str("\"\"");
+            } else {
+                buf.push(c);
+            }
         }
+        buf.push('"');
+        buf
     }
 
     /// Writes the SELECT projection list.

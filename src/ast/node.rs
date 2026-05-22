@@ -31,7 +31,7 @@ impl std::fmt::Display for ColumnIdent {
 ///
 /// This is the single source of truth for join type across both the AST and the
 /// YAML configuration models, eliminating any duplication.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum JoinType {
     /// Standard INNER JOIN (records must exist in both tables).

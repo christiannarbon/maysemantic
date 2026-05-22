@@ -1,6 +1,6 @@
 pub mod bigquery;
 pub mod core;
-pub mod dummy;
+pub(crate) mod dummy;
 pub mod postgres;
 pub mod snowflake;
 

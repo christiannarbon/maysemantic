@@ -1,7 +1,8 @@
-use maysemantic::ast::ASTBuilder;
-use maysemantic::ast::{Expr, SqlNode};
+use maysemantic::ast::{
+    build_semantic_group_by, build_semantic_select, build_semantic_timespine_query, Expr, SqlNode,
+};
 
-/// Tests the `ASTBuilder` utility module to ensure it produces an accurate semantic AST.
+/// Tests the builder utility functions to ensure they produce an accurate semantic AST.
 ///
 /// Validates:
 /// 1. `build_semantic_select` properly translates string tuples into `Expr::DimensionRef` and `Expr::MeasureRef`.
@@ -11,15 +12,14 @@ use maysemantic::ast::{Expr, SqlNode};
 fn test_builder_constructs_valid_semantic_ast() {
     // Construct the SELECT clause using the builder, which automatically wraps
     // our tuple dimensions and measures into Expr::DimensionRef and Expr::MeasureRef.
-    let select =
-        ASTBuilder::build_semantic_select(&[("locations", "region")], &[("orders", "revenue")]);
+    let select = build_semantic_select(&[("locations", "region")], &[("orders", "revenue")]);
 
     // Construct the GROUP BY clause using the builder to wrap the dimension tuple.
-    let group_by = ASTBuilder::build_semantic_group_by(&[("locations", "region")]);
+    let group_by = build_semantic_group_by(&[("locations", "region")]);
 
     // Assemble the complete Query, injecting the select and group_by nodes,
     // and setting the FROM source to a TimeSpine with a "day" granularity.
-    let query = ASTBuilder::build_semantic_timespine_query("day", select, Some(group_by));
+    let query = build_semantic_timespine_query("day", select, Some(group_by));
 
     match query {
         SqlNode::Query {

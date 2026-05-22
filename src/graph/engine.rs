@@ -69,7 +69,7 @@ pub fn build_semantic_graph(
             let edge = GraphEdge {
                 left_column: join.left_column.clone(),
                 right_column: join.right_column.clone(),
-                join_type: join.join_type.clone(),
+                join_type: join.join_type,
             };
 
             // Add directed edge from Left to Right

@@ -21,21 +21,14 @@ pub enum StateError {
     IoError(#[from] std::io::Error),
 }
 
+#[derive(Default)]
 pub struct SemanticState {
     pub models: HashMap<String, SemanticModel>,
 }
 
-impl Default for SemanticState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SemanticState {
     pub fn new() -> Self {
-        Self {
-            models: HashMap::new(),
-        }
+        Self::default()
     }
 }
 
@@ -45,7 +38,9 @@ pub struct StateMgr {
 
 impl Default for StateMgr {
     fn default() -> Self {
-        Self::new()
+        Self {
+            state: Arc::new(RwLock::new(SemanticState::new())),
+        }
     }
 }
 
@@ -60,9 +55,7 @@ pub struct StateStats {
 
 impl StateMgr {
     pub fn new() -> Self {
-        Self {
-            state: Arc::new(RwLock::new(SemanticState::new())),
-        }
+        Self::default()
     }
 
     pub fn load_from_yaml(&self, yaml_content: &str) -> Result<(), StateError> {
@@ -77,6 +70,7 @@ impl StateMgr {
 
     pub async fn load_dir(&self, path: impl AsRef<std::path::Path>) -> Result<(), StateError> {
         use tokio::fs;
+        use validator::Validate;
         let path = path.as_ref();
 
         let mut entries = Vec::new();
@@ -94,9 +88,17 @@ impl StateMgr {
             }
         }
 
+        let mut models = Vec::with_capacity(entries.len());
         for entry in entries {
             let content = fs::read_to_string(&entry).await?;
-            self.load_from_yaml(&content)?;
+            let model: SemanticModel = serde_norway::from_str(&content)?;
+            model.validate()?;
+            models.push(model);
+        }
+
+        let mut state = self.state.write().map_err(|_| StateError::LockError)?;
+        for model in models {
+            state.models.insert(model.name.clone(), model);
         }
 
         Ok(())
