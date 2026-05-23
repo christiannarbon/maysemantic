@@ -43,9 +43,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run Unit Tests
-        # Integration tests are gated by PAGILA_TESTS and run in a separate job.
-        # Without the env var they skip gracefully, so cargo test --workspace is safe.
-        run: cargo test --workspace
+        run: cargo test --test unit
 
       - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
@@ -121,7 +119,7 @@ jobs:
         working-directory: tests/env
 
       - name: Run Pagila Integration Tests
-        run: cargo test --workspace
+        run: cargo test --test integration
         env:
           PAGILA_TESTS: "1"
 

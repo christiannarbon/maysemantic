@@ -30,8 +30,12 @@ lint:
 	cargo clippy --all-targets --all-features -- -D warnings
 
 test:
-	@echo "Running unit tests..."
-	cargo test --workspace
+	@echo "🧪 Running unit tests..."
+	cargo test --test unit
+
+integration-test:
+	@echo "🧪 Running integration tests..."
+	cargo test --test integration
 
 check: fmt lint test
 	@echo "All checks passed!"

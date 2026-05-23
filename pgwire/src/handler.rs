@@ -153,7 +153,8 @@ impl SimpleQueryHandler for QueryProcessor {
         }
 
         if is_select_1 {
-            let field_col = FieldInfo::new("?column?".into(), None, None, Type::INT4, FieldFormat::Text);
+            let field_col =
+                FieldInfo::new("?column?".into(), None, None, Type::INT4, FieldFormat::Text);
             let schema = Arc::new(vec![field_col]);
 
             let mut encoder = DataRowEncoder::new(schema.clone());
@@ -177,8 +178,15 @@ impl SimpleQueryHandler for QueryProcessor {
         info!("Returning a generic mock tabular response for query execution.");
 
         let field_id = FieldInfo::new("id".into(), None, None, Type::INT8, FieldFormat::Text);
-        let field_name = FieldInfo::new("name".into(), None, None, Type::VARCHAR, FieldFormat::Text);
-        let field_active = FieldInfo::new("is_active".into(), None, None, Type::BOOL, FieldFormat::Text);
+        let field_name =
+            FieldInfo::new("name".into(), None, None, Type::VARCHAR, FieldFormat::Text);
+        let field_active = FieldInfo::new(
+            "is_active".into(),
+            None,
+            None,
+            Type::BOOL,
+            FieldFormat::Text,
+        );
         let schema = Arc::new(vec![field_id, field_name, field_active]);
 
         let mut encoder1 = DataRowEncoder::new(schema.clone());
