@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+echo "========================================"
+echo "🚀 Running Pre-Push Validations..."
+echo "========================================"
+
+# 1. Rust Formatting
+echo "--> Checking Rust formatting..."
+if ! cargo fmt --all -- --check; then
+    echo "❌ [ERROR] Formatting check failed. Run 'cargo fmt' to fix."
+    exit 1
+fi
+echo "✅ Formatting looks good!"
+
+# 2. Rust Linting
+echo "--> Checking Rust clippy lints..."
+if ! cargo clippy --all-targets --all-features -- -D warnings; then
+    echo "❌ [ERROR] Clippy linting failed. Fix the warnings above."
+    exit 1
+fi
+echo "✅ Clippy is happy!"
+
+# 3. Dockerfile Linting
+echo "--> Linting pgwire/Dockerfile..."
+if command -v hadolint >/dev/null 2>&1; then
+    if ! hadolint pgwire/Dockerfile; then
+        echo "❌ [ERROR] Dockerfile linting failed."
+        exit 1
+    fi
+    echo "✅ Dockerfile is well-formed!"
+elif command -v docker >/dev/null 2>&1; then
+    if ! docker run --rm -i hadolint/hadolint < pgwire/Dockerfile; then
+        echo "❌ [ERROR] Dockerfile linting failed."
+        exit 1
+    fi
+    echo "✅ Dockerfile is well-formed!"
+else
+    echo "⚠️ [WARNING] Neither hadolint nor docker found. Skipping Dockerfile linting."
+fi
+
+# 4. Unit Tests
+echo "--> Running Unit Tests..."
+if ! cargo test --workspace; then
+    echo "❌ [ERROR] Unit tests failed."
+    exit 1
+fi
+echo "✅ Tests passed!"
+
+echo "========================================"
+echo "🎉 All validations passed! Pushing to remote..."
+echo "========================================"
+exit 0
