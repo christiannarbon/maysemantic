@@ -134,6 +134,7 @@ impl SimpleQueryHandler for QueryProcessor {
         }
 
         let is_version_query = upper_query.contains("VERSION()");
+        let is_select_1 = upper_query == "SELECT 1;" || upper_query == "SELECT 1";
         drop(upper_query);
 
         if is_version_query {
@@ -151,7 +152,21 @@ impl SimpleQueryHandler for QueryProcessor {
             ))]);
         }
 
-        let stats = self.state_mgr.get_stats().map_err(|e| {
+        if is_select_1 {
+            let field_col = FieldInfo::new("?column?".into(), None, None, Type::INT4, FieldFormat::Text);
+            let schema = Arc::new(vec![field_col]);
+
+            let mut encoder = DataRowEncoder::new(schema.clone());
+            encoder.encode_field(&Some(1_i32))?;
+            let row = encoder.finish();
+
+            return Ok(vec![Response::Query(QueryResponse::new(
+                schema,
+                stream::iter(vec![row]),
+            ))]);
+        }
+
+        let _stats = self.state_mgr.get_stats().map_err(|e| {
             PgWireError::UserError(Box::new(ErrorInfo::new(
                 "ERROR".to_owned(),
                 "XX000".to_owned(),
@@ -159,23 +174,28 @@ impl SimpleQueryHandler for QueryProcessor {
             )))
         })?;
 
-        let model_count = stats.model_count;
-        info!(
-            "Semantic state holds {model_count} models. Parsing real queries coming in MAY-2.0.0."
-        );
+        info!("Returning a generic mock tabular response for query execution.");
 
-        let field_info = FieldInfo::new("status".into(), None, None, Type::TEXT, FieldFormat::Text);
-        let schema = Arc::new(vec![field_info]);
+        let field_id = FieldInfo::new("id".into(), None, None, Type::INT8, FieldFormat::Text);
+        let field_name = FieldInfo::new("name".into(), None, None, Type::VARCHAR, FieldFormat::Text);
+        let field_active = FieldInfo::new("is_active".into(), None, None, Type::BOOL, FieldFormat::Text);
+        let schema = Arc::new(vec![field_id, field_name, field_active]);
 
-        let mut encoder = DataRowEncoder::new(schema.clone());
-        let msg =
-            format!("Query received but execution is pending MAY-2.0.0. Models: {model_count}");
-        encoder.encode_field(&Some(msg.as_str()))?;
-        let row = encoder.finish();
+        let mut encoder1 = DataRowEncoder::new(schema.clone());
+        encoder1.encode_field(&Some(1_i64))?;
+        encoder1.encode_field(&Some("Alice"))?;
+        encoder1.encode_field(&Some(true))?;
+        let row1 = encoder1.finish();
+
+        let mut encoder2 = DataRowEncoder::new(schema.clone());
+        encoder2.encode_field(&Some(2_i64))?;
+        encoder2.encode_field(&Some("Bob"))?;
+        encoder2.encode_field(&Some(false))?;
+        let row2 = encoder2.finish();
 
         Ok(vec![Response::Query(QueryResponse::new(
             schema,
-            stream::iter(vec![row]),
+            stream::iter(vec![row1, row2]),
         ))])
     }
 }
