@@ -7,7 +7,7 @@ use tokio::signal;
 use tracing::{error, info};
 
 mod handler;
-use handler::{SemanticProcessor, SemanticProcessorFactory};
+use handler::{QueryProcessor, QueryProcessorFactory};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,8 +27,8 @@ async fn main() -> Result<()> {
     }
 
     let shared_state = Arc::new(state_mgr);
-    let processor = Arc::new(SemanticProcessor::new(shared_state));
-    let factory = Arc::new(SemanticProcessorFactory::new(processor));
+    let processor = Arc::new(QueryProcessor::new(shared_state));
+    let factory = Arc::new(QueryProcessorFactory::new(processor));
 
     let addr = "0.0.0.0:5432";
     let listener = TcpListener::bind(addr)

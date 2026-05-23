@@ -12,16 +12,18 @@ use pgwire::messages::PgWireBackendMessage;
 use pgwire::messages::PgWireFrontendMessage;
 use pgwire::messages::response::SslResponse;
 use pgwire::messages::startup::Authentication;
+use sqlparser::dialect::PostgreSqlDialect;
+use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
-pub struct SemanticProcessor {
+pub struct QueryProcessor {
     state_mgr: Arc<StateMgr>,
 }
 
-impl SemanticProcessor {
+impl QueryProcessor {
     pub fn new(state_mgr: Arc<StateMgr>) -> Self {
         Self { state_mgr }
     }
@@ -95,7 +97,7 @@ impl StartupHandler for MockAuthenticator {
 }
 
 #[async_trait]
-impl SimpleQueryHandler for SemanticProcessor {
+impl SimpleQueryHandler for QueryProcessor {
     async fn do_query<'a, C>(
         &self,
         _client: &mut C,
@@ -109,6 +111,10 @@ impl SimpleQueryHandler for SemanticProcessor {
         let query_trimmed = query.trim();
         info!("Received query: {query_trimmed}");
 
+        if query_trimmed.is_empty() {
+            return Ok(vec![Response::EmptyQuery]);
+        }
+
         let upper_query = query_trimmed.to_uppercase();
         if upper_query.starts_with("SET ")
             || upper_query.starts_with("SHOW ")
@@ -117,6 +123,14 @@ impl SimpleQueryHandler for SemanticProcessor {
         {
             debug!("Acknowledging handshake/setup command: {query_trimmed}");
             return Ok(vec![Response::Execution(Tag::new("OK"))]);
+        }
+
+        match Parser::parse_sql(&PostgreSqlDialect {}, query_trimmed) {
+            Ok(ast) => info!("Successfully parsed AST: {:#?}", ast),
+            Err(e) => warn!(
+                "Failed to parse query into AST: {:?}. Query was: {}",
+                e, query_trimmed
+            ),
         }
 
         let is_version_query = upper_query.contains("VERSION()");
@@ -166,13 +180,13 @@ impl SimpleQueryHandler for SemanticProcessor {
     }
 }
 
-pub struct SemanticProcessorFactory {
-    handler: Arc<SemanticProcessor>,
+pub struct QueryProcessorFactory {
+    handler: Arc<QueryProcessor>,
     authenticator: Arc<MockAuthenticator>,
 }
 
-impl SemanticProcessorFactory {
-    pub fn new(handler: Arc<SemanticProcessor>) -> Self {
+impl QueryProcessorFactory {
+    pub fn new(handler: Arc<QueryProcessor>) -> Self {
         Self {
             handler,
             authenticator: Arc::new(MockAuthenticator),
@@ -180,9 +194,9 @@ impl SemanticProcessorFactory {
     }
 }
 
-impl PgWireHandlerFactory for SemanticProcessorFactory {
+impl PgWireHandlerFactory for QueryProcessorFactory {
     type StartupHandler = MockAuthenticator;
-    type SimpleQueryHandler = SemanticProcessor;
+    type SimpleQueryHandler = QueryProcessor;
     type ExtendedQueryHandler = PlaceholderExtendedQueryHandler;
     type CopyHandler = NoopCopyHandler;
 

@@ -12,3 +12,4 @@ pgwire = "0.27"
 async-trait = "0.1"
 maysemantic = { path = ".." }
 futures = { workspace = true }
+sqlparser = "0.62.0"
