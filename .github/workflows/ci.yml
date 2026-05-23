@@ -85,13 +85,23 @@ jobs:
             sleep 1
           done
           
-          # Query the container and check if the loaded model count matches
+          # Query the container and check the mock tabular response
           RESULT=$(PGPASSWORD=dummy psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "SELECT * FROM users;" -t | tr -d '[:space:]')
           echo "Query Result: $RESULT"
-          if [[ "$RESULT" == *"Models:1"* ]]; then
-            echo "Verification successful!"
+          
+          if [[ "$RESULT" == *"Alice"* ]] && [[ "$RESULT" == *"Bob"* ]]; then
+            echo "Mock response verified!"
           else
-            echo "Verification failed: expected 1 loaded model"
+            echo "Verification failed: expected mock tabular rows containing Alice and Bob"
+            docker logs pgwire-test
+            exit 1
+          fi
+          
+          # Verify that the semantic model was loaded successfully from demos/valid_demo
+          if docker logs pgwire-test 2>&1 | grep -q "Successfully loaded 1 models"; then
+            echo "Model loading verified!"
+          else
+            echo "Verification failed: expected 1 loaded model in logs"
             docker logs pgwire-test
             exit 1
           fi
@@ -116,7 +126,7 @@ jobs:
 
       - name: Start Pagila Database
         run: docker compose up -d --wait
-        working-directory: tests/env
+        working-directory: tests/integration/env
 
       - name: Run Pagila Integration Tests
         run: cargo test --test integration
@@ -126,4 +136,4 @@ jobs:
       - name: Stop Pagila Database
         if: always()
         run: docker compose down -v
-        working-directory: tests/env
+        working-directory: tests/integration/env
