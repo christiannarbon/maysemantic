@@ -40,7 +40,7 @@ fi
 
 # 4. Unit Tests
 echo "--> Running Unit Tests..."
-if ! cargo test --test unit; then
+if ! cargo test --workspace --test unit; then
     echo "[ERROR] Unit tests failed."
     exit 1
 fi
@@ -48,7 +48,7 @@ echo "Unit tests passed!"
 
 # 5. Integration Tests
 echo "--> Running Integration Tests..."
-if ! cargo test --test integration; then
+if ! cargo test --workspace --test integration; then
     echo "[ERROR] Integration tests failed."
     exit 1
 fi

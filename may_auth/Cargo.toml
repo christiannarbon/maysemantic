@@ -13,3 +13,7 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 bcrypt = "0.15"
+
+[[test]]
+name = "unit"
+path = "tests/unit/main.rs"

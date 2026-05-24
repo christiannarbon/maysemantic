@@ -43,7 +43,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run Unit Tests
-        run: cargo test --test unit
+        run: cargo test --workspace --test unit
 
       - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
@@ -129,7 +129,7 @@ jobs:
         working-directory: tests/integration/env
 
       - name: Run Pagila Integration Tests
-        run: cargo test --test integration
+        run: cargo test --workspace --test integration
         env:
           PAGILA_TESTS: "1"
 
