@@ -24,15 +24,15 @@ The `may` semantic layer translates an agnostic intermediate AST (`SqlNode`) int
 
 ## Contributing a New Dialect
 
-Adding a new dialect is straightforward. All dialect generation logic lives in the `DialectGen` module under `src/`. 
+Adding a new dialect is straightforward. All dialect generation logic lives in the `dialects` module under `may_core/src/`. 
 
 To implement a new warehouse target (e.g., `DatabricksDialect`), follow these steps:
 
 ### 1. Create the Adapter Struct
-Create a new file in `src/` (e.g., `src/databricks_dialect.rs`) and define a struct for your dialect.
+Create a new file in `may_core/src/dialects/` (e.g., `may_core/src/dialects/databricks.rs`) and define a struct for your dialect.
 
 ```rust
-use crate::dialect::{DialectError, SqlDialect};
+use crate::dialects::{DialectError, SqlDialect};
 
 #[derive(Debug)]
 pub struct DatabricksDialect;
@@ -79,7 +79,7 @@ impl SqlDialect for DatabricksDialect {
 If your warehouse has specific functions that aren't yet represented broadly in the AST (like JSON extraction or specific array unnesting), implement them as public methods on your struct (e.g., `write_json_extract`).
 
 ### 4. Register and Test
-- Register your module in `src/lib.rs` and re-export the struct.
-- Create a test file in `tests/` (e.g., `tests/databricks_dialect_test.rs`).
+- Register your module in `may_core/src/dialects/mod.rs` and re-export the struct.
+- Create a test file in `may_core/tests/unit/dialects/` (e.g., `may_core/tests/unit/dialects/databricks_test.rs`).
 - Write integration tests to ensure your overrides generate the expected SQL.
 - Run `cargo fmt`, `cargo clippy`, and `cargo test`.
