@@ -15,6 +15,7 @@ env:
   CARGO_TERM_COLOR: always
   NODE_OPTIONS: "--no-deprecation"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  SQLX_OFFLINE: "true"
 
 permissions:
   contents: read
