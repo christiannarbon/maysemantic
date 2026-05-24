@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::fmt;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq, Eq)]
@@ -8,6 +9,15 @@ use uuid::Uuid;
 pub enum Role {
     Admin,
     Viewer,
+}
+
+impl fmt::Display for Role {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Role::Admin => write!(f, "admin"),
+            Role::Viewer => write!(f, "viewer"),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]

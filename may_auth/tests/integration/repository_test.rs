@@ -18,10 +18,10 @@ async fn test_user_repository_integration() -> Result<(), Box<dyn std::error::Er
 
     let test_username = format!("test_user_{}", uuid::Uuid::new_v4());
 
+    let hashed = may_auth::password::hash_password("test_password")?;
+
     // Create user
-    let created_user = repo
-        .create(&test_username, "password_hash", Role::Viewer)
-        .await?;
+    let created_user = repo.create(&test_username, &hashed, Role::Viewer).await?;
     assert_eq!(created_user.username, test_username);
     assert_eq!(created_user.role, Role::Viewer);
 

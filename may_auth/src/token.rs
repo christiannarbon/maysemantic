@@ -9,16 +9,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct Claims {
     pub sub: String,
     pub role: String,
-    pub exp: usize,
+    pub exp: u64,
 }
 
 pub struct TokenService {
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
-    expiry_secs: usize,
+    expiry_secs: u64,
 }
 
 impl TokenService {
+    #[must_use = "TokenService::new returns Err if MAY_JWT_SECRET is not set"]
     pub fn new() -> Result<Self, AuthError> {
         let secret = env::var("MAY_JWT_SECRET")
             .map_err(|_| AuthError::MissingConfig("MAY_JWT_SECRET".to_string()))?;
@@ -38,11 +39,11 @@ impl TokenService {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| AuthError::InvalidToken)?
-            .as_secs() as usize;
+            .as_secs();
 
         let claims = Claims {
             sub: user.id.to_string(),
-            role: format!("{:?}", user.role).to_lowercase(),
+            role: user.role.to_string(),
             exp: now + self.expiry_secs,
         };
 

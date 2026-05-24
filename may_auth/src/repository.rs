@@ -1,6 +1,5 @@
 use crate::error::AuthError;
 use crate::models::{Role, User};
-use crate::password::hash_password;
 use async_trait::async_trait;
 use sqlx::PgPool;
 
@@ -53,8 +52,6 @@ impl UserRepository for PgUserRepository {
         password_hash: &str,
         role: Role,
     ) -> Result<User, AuthError> {
-        let hashed = hash_password(password_hash)?;
-
         let user = sqlx::query_as!(
             User,
             r#"
@@ -63,7 +60,7 @@ impl UserRepository for PgUserRepository {
             RETURNING id, username, password_hash, role as "role: Role", created_at, updated_at
             "#,
             username,
-            hashed,
+            password_hash,
             role as _
         )
         .fetch_one(&self.pool)
