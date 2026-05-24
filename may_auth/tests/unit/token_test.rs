@@ -2,10 +2,10 @@ use chrono::Utc;
 use may_auth::error::AuthError;
 use may_auth::models::{Role, User};
 use may_auth::token::TokenService;
+use serial_test::serial;
 use std::env;
 use std::thread;
 use uuid::Uuid;
-use serial_test::serial;
 
 fn create_mock_user() -> User {
     User {
