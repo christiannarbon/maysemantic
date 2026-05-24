@@ -128,7 +128,7 @@ jobs:
 
       - name: Start Pagila Database
         run: docker compose up -d --wait
-        working-directory: tests/integration/env
+        working-directory: may_core/tests/integration/env
 
       - name: Run Pagila Integration Tests
         run: cargo test --workspace --test integration
@@ -138,4 +138,4 @@ jobs:
       - name: Stop Pagila Database
         if: always()
         run: docker compose down -v
-        working-directory: tests/integration/env
+        working-directory: may_core/tests/integration/env
