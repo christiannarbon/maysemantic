@@ -92,7 +92,9 @@ impl StartupHandler for PgWireAuthenticator {
             }
             PgWireFrontendMessage::PasswordMessageFamily(ref password_msg) => {
                 let password = match password_msg {
-                    pgwire::messages::startup::PasswordMessageFamily::Password(p) => p.password.as_str(),
+                    pgwire::messages::startup::PasswordMessageFamily::Password(p) => {
+                        p.password.as_str()
+                    }
                     _ => {
                         let error_info = ErrorInfo::new(
                             "FATAL".to_owned(),
@@ -304,5 +306,49 @@ impl PgWireHandlerFactory for QueryProcessorFactory {
 
     fn copy_handler(&self) -> Arc<Self::CopyHandler> {
         Arc::new(NoopCopyHandler)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use may_auth::error::AuthError;
+    use may_auth::models::{Role, User};
+    use may_auth::repository::UserRepository;
+    use pgwire::api::DefaultClient;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    struct MockUserRepository;
+
+    #[async_trait]
+    impl UserRepository for MockUserRepository {
+        async fn find_by_username(&self, _username: &str) -> Result<User, AuthError> {
+            Err(AuthError::UserNotFound)
+        }
+        async fn create(&self, _u: &str, _p: &str, _r: Role) -> Result<User, AuthError> {
+            unimplemented!()
+        }
+        async fn list(&self) -> Result<Vec<User>, AuthError> {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn test_pgwire_server_parameters() {
+        let repo = Arc::new(MockUserRepository);
+        let auth = PgWireAuthenticator::new(repo);
+
+        let client = DefaultClient::<()>::new(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5432),
+            false,
+        );
+
+        let params = auth
+            .server_parameters(&client)
+            .expect("Parameters should be returned");
+        assert_eq!(params.get("server_version").unwrap(), "13.0");
+        assert_eq!(params.get("client_encoding").unwrap(), "UTF8");
+        assert_eq!(params.get("DateStyle").unwrap(), "ISO, MDY");
     }
 }
