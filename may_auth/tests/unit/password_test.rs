@@ -1,4 +1,4 @@
 #[test]
-fn test_password_skeleton() {
-    assert!(true, "Placeholder for password tests");
+fn test_password_placeholder() {
+    // Placeholder for password tests
 }

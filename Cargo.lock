@@ -1305,6 +1305,7 @@ dependencies = [
 name = "may_auth"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "bcrypt",
  "chrono",
  "serde",
