@@ -1,11 +1,11 @@
 # May Semantic Layer
 
-[![CI](https://github.com/christiannarbon/maysemantic/actions/workflows/ci.yml/badge.svg)](https://github.com/christiannarbon/maysemantic/actions)
-[![Last Commit](https://img.shields.io/github/last-commit/christiannarbon/maysemantic?style=flat-square)](https://github.com/christiannarbon/maysemantic/commits/main)
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg?style=flat-square)](https://github.com/christiannarbon/maysemantic)
+[![CI](https://github.com/christiannarbon/may_core/actions/workflows/ci.yml/badge.svg)](https://github.com/christiannarbon/may_core/actions)
+[![Last Commit](https://img.shields.io/github/last-commit/christiannarbon/may_core?style=flat-square)](https://github.com/christiannarbon/may_core/commits/main)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg?style=flat-square)](https://github.com/christiannarbon/may_core)
 [![Rustc](https://img.shields.io/badge/rust-1.75+-lightgray.svg?style=flat-square)](https://blog.rust-lang.org)
 
-The `maysemantic` crate provides the core State Manager (`StateMgr`) and generic semantic models for the `may` open-source semantic layer.
+The `may_core` crate provides the core State Manager (`StateMgr`) and generic semantic models for the `may` open-source semantic layer.
 
 ## CLI Application
 
@@ -64,7 +64,7 @@ The `StateMgr` handles safely loading and validating YAML definitions into stric
 Invalid inputs trigger strict regex and `serde` validations dynamically without panicking.
 
 ```rust
-use maysemantic::StateMgr;
+use may_core::StateMgr;
 
 let state_mgr = StateMgr::new();
 match state_mgr.load_from_yaml(include_str!("../metrics.yml")) {

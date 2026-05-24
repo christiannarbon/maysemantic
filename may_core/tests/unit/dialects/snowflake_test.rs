@@ -1,6 +1,6 @@
-use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-use maysemantic::SnowflakeDialect;
-use maysemantic::SqlDialect;
+use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
+use may_core::SnowflakeDialect;
+use may_core::SqlDialect;
 
 #[test]
 fn test_snowflake_dialect_generates_basic_select() {

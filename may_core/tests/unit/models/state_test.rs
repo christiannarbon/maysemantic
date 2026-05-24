@@ -1,4 +1,4 @@
-use maysemantic::{StateError, StateMgr};
+use may_core::{StateError, StateMgr};
 
 /// Tests that the `StateMgr` correctly parses and validates a well-formed Semantic Layer YAML.
 ///
@@ -110,7 +110,7 @@ metrics: []
 #[test]
 fn test_generate_json_schema() {
     // Generate JSON schema from the public SemanticModel structure
-    let schema = schemars::schema_for!(maysemantic::SemanticModel);
+    let schema = schemars::schema_for!(may_core::SemanticModel);
     let schema_json = serde_json::to_string_pretty(&schema).expect("Failed to serialize schema");
     assert!(schema_json.contains("SemanticModel"));
 }

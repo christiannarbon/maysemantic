@@ -1,4 +1,4 @@
-use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
+use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 
 /// Tests the construction and validation of a complex, heavily nested physical SQL AST.
 ///

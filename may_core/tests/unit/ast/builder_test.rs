@@ -1,4 +1,4 @@
-use maysemantic::ast::{
+use may_core::ast::{
     build_semantic_group_by, build_semantic_select, build_semantic_timespine_query, Expr, SqlNode,
 };
 

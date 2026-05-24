@@ -8,8 +8,8 @@ The `may` project is written in Rust. You will need the standard Rust toolchain 
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/maysemantic.git
-cd maysemantic
+git clone https://github.com/your-org/may_core.git
+cd may_core
 
 # Run the tests to ensure everything is working locally
 cargo test --workspace

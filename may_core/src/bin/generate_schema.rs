@@ -1,4 +1,4 @@
-use maysemantic::models::SemanticModel;
+use may_core::models::SemanticModel;
 
 fn main() {
     let schema = schemars::schema_for!(SemanticModel);

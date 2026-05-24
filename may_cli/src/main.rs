@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use futures::future::join_all;
-use maysemantic::StateMgr;
+use may_core::StateMgr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;

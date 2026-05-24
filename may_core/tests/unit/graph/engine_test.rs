@@ -1,7 +1,7 @@
-use maysemantic::ast::JoinType;
-use maysemantic::build_semantic_graph;
-use maysemantic::models::{Entity, JoinDefinition, SemanticModel};
-use maysemantic::SemanticState;
+use may_core::ast::JoinType;
+use may_core::build_semantic_graph;
+use may_core::models::{Entity, JoinDefinition, SemanticModel};
+use may_core::SemanticState;
 
 /// Tests that the GraphEngine can correctly translate a SemanticModel
 /// containing multiple entities and joins into a directed `petgraph::DiGraph`.

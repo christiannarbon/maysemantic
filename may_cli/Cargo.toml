@@ -1,14 +1,18 @@
 [package]
-name = "may"
+name = "may_cli"
 version = "0.1.0"
 edition = "2021"
 authors = ["May Semantic Layer Contributors"]
 description = "CLI tool for the May Semantic Layer"
 
+[[bin]]
+name = "may"
+path = "src/main.rs"
+
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 anyhow = { workspace = true }
-maysemantic = { path = ".." }
+may_core = { path = "../may_core" }
 tokio = { workspace = true }
 futures = { workspace = true }
 colored = "3.1.1"

@@ -1,8 +1,8 @@
-use maysemantic::ast::JoinType;
-use maysemantic::build_semantic_graph;
-use maysemantic::models::{Entity, JoinDefinition, SemanticModel};
-use maysemantic::SemanticState;
-use maysemantic::{JoinResolutionError, JoinResolver};
+use may_core::ast::JoinType;
+use may_core::build_semantic_graph;
+use may_core::models::{Entity, JoinDefinition, SemanticModel};
+use may_core::SemanticState;
+use may_core::{JoinResolutionError, JoinResolver};
 
 /// Builds a SemanticState containing three connected entities:
 /// `orders` --[order_user_id = user_id]--> `users` --[user_team_id = team_id]--> `teams`

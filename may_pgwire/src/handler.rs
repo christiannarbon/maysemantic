@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use futures::{Sink, SinkExt, stream};
 use may_auth::repository::UserRepository;
-use maysemantic::StateMgr;
+use may_core::StateMgr;
 use pgwire::api::PgWireConnectionState;
 use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
 use pgwire::api::copy::NoopCopyHandler;

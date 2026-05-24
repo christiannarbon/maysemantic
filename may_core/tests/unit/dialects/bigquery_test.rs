@@ -1,71 +1,9 @@
-use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-use maysemantic::DummyDialect;
-use maysemantic::SqlDialect;
+use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
+use may_core::BigQueryDialect;
+use may_core::SqlDialect;
 
 #[test]
-fn test_dummy_dialect_generates_group_by_and_having() {
-    let ast = SqlNode::Query {
-        ctes: None,
-        select: Box::new(SqlNode::Select(vec![
-            Expr::Column(ColumnIdent("region".to_string())),
-            Expr::Function {
-                name: "SUM".to_string(),
-                args: vec![Expr::Column(ColumnIdent("amount".to_string()))],
-            },
-        ])),
-        from: Box::new(SqlNode::From {
-            source: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
-            joins: vec![],
-        }),
-        r#where: None,
-        group_by: Some(Box::new(SqlNode::GroupBy(vec![Expr::Column(ColumnIdent(
-            "region".to_string(),
-        ))]))),
-        having: Some(Box::new(SqlNode::Having(Expr::BinaryOp {
-            left: Box::new(Expr::Function {
-                name: "SUM".to_string(),
-                args: vec![Expr::Column(ColumnIdent("amount".to_string()))],
-            }),
-            op: ">".to_string(),
-            right: Box::new(Expr::Literal("1000".to_string())),
-        }))),
-    };
-
-    let dialect = DummyDialect;
-    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
-    assert_eq!(
-        sql,
-        "SELECT region, SUM(amount) FROM orders GROUP BY region HAVING SUM(amount) > 1000"
-    );
-}
-
-#[test]
-fn test_dummy_dialect_rejects_unresolved_dimension_ref() {
-    let ast = SqlNode::Query {
-        ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::DimensionRef {
-            entity: "users".to_string(),
-            dimension: "region".to_string(),
-        }])),
-        from: Box::new(SqlNode::From {
-            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
-            joins: vec![],
-        }),
-        r#where: None,
-        group_by: None,
-        having: None,
-    };
-
-    let dialect = DummyDialect;
-    let result = dialect.generate_sql(&ast);
-    assert!(
-        result.is_err(),
-        "Expected error for unresolved DimensionRef"
-    );
-}
-
-#[test]
-fn test_dummy_dialect_generates_basic_sql() {
+fn test_bigquery_dialect_generates_basic_select() {
     let ast = SqlNode::Query {
         ctes: None,
         select: Box::new(SqlNode::Select(vec![
@@ -85,8 +23,10 @@ fn test_dummy_dialect_generates_basic_sql() {
         having: None,
     };
 
-    let dialect = DummyDialect;
+    let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    // Table/column identifiers are currently written raw from ast.rs, so they don't get backticks automatically here.
+    // However, BigQuery uses backticks in CTE aliases and specific functions like write_date_trunc.
     assert_eq!(
         sql,
         "SELECT users.id, users.name FROM public.users WHERE users.status = 'active'"
@@ -94,12 +34,13 @@ fn test_dummy_dialect_generates_basic_sql() {
 }
 
 #[test]
-fn test_dummy_dialect_generates_joins() {
+fn test_bigquery_dialect_generates_joins() {
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
-            "orders.amount".to_string(),
-        ))])),
+        select: Box::new(SqlNode::Select(vec![
+            Expr::Column(ColumnIdent("orders.amount".to_string())),
+            Expr::Column(ColumnIdent("users.name".to_string())),
+        ])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
             joins: vec![SqlNode::Join {
@@ -117,16 +58,67 @@ fn test_dummy_dialect_generates_joins() {
         having: None,
     };
 
-    let dialect = DummyDialect;
+    let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT orders.amount FROM orders LEFT JOIN users ON orders.user_id = users.id"
+        "SELECT orders.amount, users.name FROM orders LEFT JOIN users ON orders.user_id = users.id"
     );
 }
 
 #[test]
-fn test_dummy_dialect_generates_ctes() {
+fn test_bigquery_dialect_write_date_trunc() {
+    let dialect = BigQueryDialect;
+    let mut buf = String::new();
+    dialect
+        .write_date_trunc(&mut buf, "month", "created_at")
+        .expect("write_date_trunc failed");
+    // BigQuery reverses the arguments and uses backticks for identifiers
+    assert_eq!(buf, "DATE_TRUNC(`created_at`, MONTH)");
+}
+
+#[test]
+fn test_bigquery_dialect_write_date_trunc_with_granularities() {
+    let dialect = BigQueryDialect;
+
+    for (granularity, expected) in [
+        ("day", "DATE_TRUNC(`order_date`, DAY)"),
+        ("week", "DATE_TRUNC(`order_date`, WEEK)"),
+        ("quarter", "DATE_TRUNC(`order_date`, QUARTER)"),
+        ("year", "DATE_TRUNC(`order_date`, YEAR)"),
+    ] {
+        let mut buf = String::new();
+        dialect
+            .write_date_trunc(&mut buf, granularity, "order_date")
+            .expect("write_date_trunc failed");
+        assert_eq!(buf, expected, "Failed for granularity: {granularity}");
+    }
+}
+
+#[test]
+fn test_bigquery_dialect_write_unnest() {
+    let dialect = BigQueryDialect;
+    let mut buf = String::new();
+    dialect
+        .write_unnest(
+            &mut buf,
+            &Expr::Column(ColumnIdent("user.tags".to_string())),
+        )
+        .expect("write_unnest failed");
+
+    assert_eq!(buf, "UNNEST(user.tags)");
+}
+
+#[test]
+fn test_bigquery_dialect_quote_identifier_backticks() {
+    let dialect = BigQueryDialect;
+    assert_eq!(dialect.quote_identifier("users"), "`users`");
+    // Should escape internal backticks with backslash
+    assert_eq!(dialect.quote_identifier("my`table"), "`my\\`table`");
+}
+
+#[test]
+fn test_bigquery_dialect_ctes_use_backticks() {
     let cte = SqlNode::CTE {
         alias: TableIdent("active_users".to_string()),
         query: Box::new(SqlNode::Query {
@@ -158,10 +150,11 @@ fn test_dummy_dialect_generates_ctes() {
         having: None,
     };
 
-    let dialect = DummyDialect;
+    let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    // CTE aliases use quote_identifier, which will wrap in backticks
     assert_eq!(
         sql,
-        "WITH \"active_users\" AS (SELECT id FROM users) SELECT * FROM active_users"
+        "WITH `active_users` AS (SELECT id FROM users) SELECT * FROM active_users"
     );
 }

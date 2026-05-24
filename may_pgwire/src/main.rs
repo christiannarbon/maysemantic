@@ -1,15 +1,43 @@
 use anyhow::{Context, Result};
-use maysemantic::StateMgr;
+use async_trait::async_trait;
+use may_auth::error::AuthError;
+use may_auth::models::{Role, User};
+use may_auth::repository::UserRepository;
+use may_core::StateMgr;
 use pgwire::tokio::process_socket;
 use sqlx::PgPool;
 use std::env;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::signal;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 mod handler;
 use handler::{QueryProcessor, QueryProcessorFactory};
+
+/// Fallback repository used when no `DATABASE_URL` is configured.
+/// Every authentication attempt is rejected with a clear diagnostic error.
+/// This allows the PGWire container to boot (e.g. in smoke-test environments)
+/// without requiring a backing Postgres instance.
+struct DenyAllRepository;
+
+#[async_trait]
+impl UserRepository for DenyAllRepository {
+    async fn find_by_username(&self, _username: &str) -> Result<User, AuthError> {
+        Err(AuthError::InvalidCredentials)
+    }
+    async fn create(
+        &self,
+        _username: &str,
+        _password_hash: &str,
+        _role: Role,
+    ) -> Result<User, AuthError> {
+        Err(AuthError::InvalidCredentials)
+    }
+    async fn list(&self) -> Result<Vec<User>, AuthError> {
+        Err(AuthError::InvalidCredentials)
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -31,12 +59,29 @@ async fn main() -> Result<()> {
     let shared_state = Arc::new(state_mgr);
     let processor = Arc::new(QueryProcessor::new(shared_state));
 
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5434/postgres".to_string());
-    let pool = PgPool::connect(&database_url)
-        .await
-        .context("Failed to connect to postgres database")?;
-    let repository = Arc::new(may_auth::repository::PgUserRepository::new(pool));
+    let repository: Arc<dyn UserRepository + Send + Sync> = match env::var("DATABASE_URL") {
+        Ok(database_url) => match PgPool::connect(&database_url).await {
+            Ok(pool) => {
+                info!("Connected to identity database.");
+                Arc::new(may_auth::repository::PgUserRepository::new(pool))
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to connect to identity database: {:?}. \
+                         Authentication will be disabled — all logins will be rejected.",
+                    e
+                );
+                Arc::new(DenyAllRepository)
+            }
+        },
+        Err(_) => {
+            warn!(
+                "DATABASE_URL not set. \
+                 Authentication is disabled — all logins will be rejected."
+            );
+            Arc::new(DenyAllRepository)
+        }
+    };
     let authenticator = Arc::new(handler::PgWireAuthenticator::new(repository));
 
     let factory = Arc::new(QueryProcessorFactory::new(processor, authenticator));

@@ -1,6 +1,6 @@
-use maysemantic::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-use maysemantic::PostgresDialect;
-use maysemantic::SqlDialect;
+use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
+use may_core::PostgresDialect;
+use may_core::SqlDialect;
 
 #[test]
 fn test_postgres_dialect_generates_basic_select() {

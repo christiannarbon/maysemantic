@@ -21,15 +21,15 @@ fi
 echo "Clippy is happy!"
 
 # 3. Dockerfile Linting
-echo "--> Linting pgwire/Dockerfile..."
+echo "--> Linting may_pgwire/Dockerfile..."
 if command -v hadolint >/dev/null 2>&1; then
-    if ! hadolint pgwire/Dockerfile; then
+    if ! hadolint may_pgwire/Dockerfile; then
         echo "[ERROR] Dockerfile linting failed."
         exit 1
     fi
     echo "Dockerfile is well-formed!"
 elif command -v docker >/dev/null 2>&1; then
-    if ! docker run --rm -i hadolint/hadolint < pgwire/Dockerfile; then
+    if ! docker run --rm -i hadolint/hadolint < may_pgwire/Dockerfile; then
         echo "[ERROR] Dockerfile linting failed."
         exit 1
     fi
