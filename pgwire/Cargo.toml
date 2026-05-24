@@ -13,3 +13,5 @@ async-trait = "0.1"
 maysemantic = { path = ".." }
 futures = { workspace = true }
 sqlparser = "0.62.0"
+may_auth = { path = "../may_auth" }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono"] }

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures::{Sink, SinkExt, stream};
+use may_auth::repository::UserRepository;
 use maysemantic::StateMgr;
 use pgwire::api::PgWireConnectionState;
 use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
@@ -29,9 +30,17 @@ impl QueryProcessor {
     }
 }
 
-pub struct MockAuthenticator;
+pub struct PgWireAuthenticator {
+    repository: Arc<dyn UserRepository + Send + Sync>,
+}
 
-impl ServerParameterProvider for MockAuthenticator {
+impl PgWireAuthenticator {
+    pub fn new(repository: Arc<dyn UserRepository + Send + Sync>) -> Self {
+        Self { repository }
+    }
+}
+
+impl ServerParameterProvider for PgWireAuthenticator {
     fn server_parameters<C>(&self, _client: &C) -> Option<HashMap<String, String>>
     where
         C: ClientInfo,
@@ -47,7 +56,7 @@ impl ServerParameterProvider for MockAuthenticator {
 }
 
 #[async_trait]
-impl StartupHandler for MockAuthenticator {
+impl StartupHandler for PgWireAuthenticator {
     async fn on_startup<C>(
         &self,
         client: &mut C,
@@ -81,9 +90,62 @@ impl StartupHandler for MockAuthenticator {
                     ))
                     .await?;
             }
-            PgWireFrontendMessage::PasswordMessageFamily(_) => {
-                info!("MockAuthenticator explicitly accepted provided credentials.");
-                pgwire::api::auth::finish_authentication(client, self).await?;
+            PgWireFrontendMessage::PasswordMessageFamily(ref password_msg) => {
+                let password = match password_msg {
+                    pgwire::messages::startup::PasswordMessageFamily::Password(p) => p.password.as_str(),
+                    _ => {
+                        let error_info = ErrorInfo::new(
+                            "FATAL".to_owned(),
+                            "28P01".to_owned(),
+                            "unsupported password message type".to_owned(),
+                        );
+                        return Err(PgWireError::UserError(Box::new(error_info)));
+                    }
+                };
+
+                let user_name = match client.metadata().get("user") {
+                    Some(u) => u.clone(),
+                    None => {
+                        let error_info = ErrorInfo::new(
+                            "FATAL".to_owned(),
+                            "28P01".to_owned(),
+                            "password authentication failed for user \"\"".to_owned(),
+                        );
+                        return Err(PgWireError::UserError(Box::new(error_info)));
+                    }
+                };
+
+                let user_res = self.repository.find_by_username(&user_name).await;
+                let is_valid = match user_res {
+                    Ok(user) => {
+                        let password_string = password.to_string();
+                        let verify_task = tokio::task::spawn_blocking(move || {
+                            may_auth::password::verify_password(
+                                &password_string,
+                                &user.password_hash,
+                            )
+                        })
+                        .await;
+                        matches!(verify_task, Ok(Ok(true)))
+                    }
+                    Err(_) => false,
+                };
+
+                if is_valid {
+                    info!(
+                        "PgWireAuthenticator successfully authenticated user: {}",
+                        user_name
+                    );
+                    pgwire::api::auth::finish_authentication(client, self).await?;
+                } else {
+                    warn!("Authentication failed for user: {}", user_name);
+                    let error_info = ErrorInfo::new(
+                        "FATAL".to_owned(),
+                        "28P01".to_owned(),
+                        format!("password authentication failed for user \"{}\"", user_name),
+                    );
+                    return Err(PgWireError::UserError(Box::new(error_info)));
+                }
             }
             _ => {
                 debug!(
@@ -210,20 +272,20 @@ impl SimpleQueryHandler for QueryProcessor {
 
 pub struct QueryProcessorFactory {
     handler: Arc<QueryProcessor>,
-    authenticator: Arc<MockAuthenticator>,
+    authenticator: Arc<PgWireAuthenticator>,
 }
 
 impl QueryProcessorFactory {
-    pub fn new(handler: Arc<QueryProcessor>) -> Self {
+    pub fn new(handler: Arc<QueryProcessor>, authenticator: Arc<PgWireAuthenticator>) -> Self {
         Self {
             handler,
-            authenticator: Arc::new(MockAuthenticator),
+            authenticator,
         }
     }
 }
 
 impl PgWireHandlerFactory for QueryProcessorFactory {
-    type StartupHandler = MockAuthenticator;
+    type StartupHandler = PgWireAuthenticator;
     type SimpleQueryHandler = QueryProcessor;
     type ExtendedQueryHandler = PlaceholderExtendedQueryHandler;
     type CopyHandler = NoopCopyHandler;

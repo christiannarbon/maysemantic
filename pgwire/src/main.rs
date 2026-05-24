@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
 use maysemantic::StateMgr;
 use pgwire::tokio::process_socket;
+use sqlx::PgPool;
+use std::env;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -28,7 +30,16 @@ async fn main() -> Result<()> {
 
     let shared_state = Arc::new(state_mgr);
     let processor = Arc::new(QueryProcessor::new(shared_state));
-    let factory = Arc::new(QueryProcessorFactory::new(processor));
+
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5434/postgres".to_string());
+    let pool = PgPool::connect(&database_url)
+        .await
+        .context("Failed to connect to postgres database")?;
+    let repository = Arc::new(may_auth::repository::PgUserRepository::new(pool));
+    let authenticator = Arc::new(handler::PgWireAuthenticator::new(repository));
+
+    let factory = Arc::new(QueryProcessorFactory::new(processor, authenticator));
 
     let addr = "0.0.0.0:5432";
     let listener = TcpListener::bind(addr)
