@@ -16,6 +16,7 @@ jsonwebtoken = "9"
 bcrypt = "0.15"
 
 [dev-dependencies]
+serial_test = "3.4.0"
 
 [[test]]
 name = "unit"

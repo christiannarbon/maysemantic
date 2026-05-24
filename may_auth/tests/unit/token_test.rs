@@ -5,6 +5,7 @@ use may_auth::token::TokenService;
 use std::env;
 use std::thread;
 use uuid::Uuid;
+use serial_test::serial;
 
 fn create_mock_user() -> User {
     User {
@@ -50,6 +51,7 @@ where
 }
 
 #[test]
+#[serial]
 fn test_issue_and_verify_valid_token() -> Result<(), Box<dyn std::error::Error>> {
     run_with_env("supersecret123", None, || {
         let service = TokenService::new()?;
@@ -66,6 +68,7 @@ fn test_issue_and_verify_valid_token() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[test]
+#[serial]
 fn test_verify_expired_token() -> Result<(), Box<dyn std::error::Error>> {
     run_with_env("supersecret123", Some("0"), || {
         let service = TokenService::new()?;
@@ -86,6 +89,7 @@ fn test_verify_expired_token() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+#[serial]
 fn test_verify_tampered_signature() -> Result<(), Box<dyn std::error::Error>> {
     run_with_env("supersecret123", None, || {
         let service = TokenService::new()?;
