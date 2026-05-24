@@ -1,13 +1,18 @@
+use crate::error::AuthError;
+use crate::models::{Role, User};
+use crate::password::hash_password;
 use async_trait::async_trait;
 use sqlx::PgPool;
-use crate::models::{User, Role};
-use crate::error::AuthError;
-use crate::password::hash_password;
 
 #[async_trait]
 pub trait UserRepository: Send + Sync {
     async fn find_by_username(&self, username: &str) -> Result<User, AuthError>;
-    async fn create(&self, username: &str, password_hash: &str, role: Role) -> Result<User, AuthError>;
+    async fn create(
+        &self,
+        username: &str,
+        password_hash: &str,
+        role: Role,
+    ) -> Result<User, AuthError>;
     async fn list(&self) -> Result<Vec<User>, AuthError>;
 }
 
@@ -42,7 +47,12 @@ impl UserRepository for PgUserRepository {
         }
     }
 
-    async fn create(&self, username: &str, password_hash: &str, role: Role) -> Result<User, AuthError> {
+    async fn create(
+        &self,
+        username: &str,
+        password_hash: &str,
+        role: Role,
+    ) -> Result<User, AuthError> {
         let hashed = hash_password(password_hash)?;
 
         let user = sqlx::query_as!(

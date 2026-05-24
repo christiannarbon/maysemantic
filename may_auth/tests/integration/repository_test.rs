@@ -1,7 +1,7 @@
-use std::env;
-use may_auth::repository::{PgUserRepository, UserRepository};
 use may_auth::models::Role;
+use may_auth::repository::{PgUserRepository, UserRepository};
 use sqlx::PgPool;
+use std::env;
 
 #[tokio::test]
 async fn test_user_repository_integration() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,9 +17,11 @@ async fn test_user_repository_integration() -> Result<(), Box<dyn std::error::Er
     let repo = PgUserRepository::new(pool);
 
     let test_username = format!("test_user_{}", uuid::Uuid::new_v4());
-    
+
     // Create user
-    let created_user = repo.create(&test_username, "password_hash", Role::Viewer).await?;
+    let created_user = repo
+        .create(&test_username, "password_hash", Role::Viewer)
+        .await?;
     assert_eq!(created_user.username, test_username);
     assert_eq!(created_user.role, Role::Viewer);
 
@@ -31,7 +33,10 @@ async fn test_user_repository_integration() -> Result<(), Box<dyn std::error::Er
 
     // Test unknown user returns expected error
     let unknown_user_res = repo.find_by_username("does_not_exist_ever").await;
-    assert!(matches!(unknown_user_res, Err(may_auth::error::AuthError::UserNotFound)));
-    
+    assert!(matches!(
+        unknown_user_res,
+        Err(may_auth::error::AuthError::UserNotFound)
+    ));
+
     Ok(())
 }
