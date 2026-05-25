@@ -40,13 +40,15 @@ impl PgWireAuthenticator {
     }
 }
 
+const PG_COMPAT_VERSION: &str = "14.0";
+
 impl ServerParameterProvider for PgWireAuthenticator {
     fn server_parameters<C>(&self, _client: &C) -> Option<HashMap<String, String>>
     where
         C: ClientInfo,
     {
         let mut params = HashMap::with_capacity(5);
-        params.insert("server_version".to_owned(), "13.0".to_owned());
+        params.insert("server_version".to_owned(), PG_COMPAT_VERSION.to_owned());
         params.insert("server_encoding".to_owned(), "UTF8".to_owned());
         params.insert("client_encoding".to_owned(), "UTF8".to_owned());
         params.insert("DateStyle".to_owned(), "ISO, MDY".to_owned());
@@ -225,7 +227,11 @@ impl SimpleQueryHandler for QueryProcessor {
             let schema = Arc::new(vec![field_info]);
 
             let mut encoder = DataRowEncoder::new(schema.clone());
-            encoder.encode_field(&Some("May Semantic Layer (PostgreSQL 14.0 compatible)"))?;
+            let version_str = format!(
+                "May Semantic Layer (PostgreSQL {} compatible)",
+                PG_COMPAT_VERSION
+            );
+            encoder.encode_field(&Some(version_str.as_str()))?;
             let row = encoder.finish();
 
             return Ok(vec![Response::Query(QueryResponse::new(
@@ -345,10 +351,10 @@ mod tests {
             Err(AuthError::UserNotFound)
         }
         async fn create(&self, _u: &str, _p: &str, _r: Role) -> Result<User, AuthError> {
-            unimplemented!()
+            Err(AuthError::InvalidCredentials)
         }
         async fn list(&self) -> Result<Vec<User>, AuthError> {
-            unimplemented!()
+            Err(AuthError::InvalidCredentials)
         }
     }
 
@@ -365,7 +371,7 @@ mod tests {
         let params = auth
             .server_parameters(&client)
             .expect("Parameters should be returned");
-        assert_eq!(params.get("server_version").unwrap(), "13.0");
+        assert_eq!(params.get("server_version").unwrap(), "14.0");
         assert_eq!(params.get("client_encoding").unwrap(), "UTF8");
         assert_eq!(params.get("DateStyle").unwrap(), "ISO, MDY");
     }

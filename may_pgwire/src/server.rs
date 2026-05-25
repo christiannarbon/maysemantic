@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use may_auth::error::AuthError;
 use may_auth::models::{Role, User};
@@ -29,7 +29,11 @@ impl UserRepository for DenyAllRepository {
     }
 }
 
-pub async fn run_server(port: u16, mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+pub async fn run_server(
+    listener: TcpListener,
+    database_url: Option<String>,
+    mut shutdown_rx: broadcast::Receiver<()>,
+) -> Result<()> {
     info!("Loading semantic models from current directory...");
     let state_mgr = StateMgr::new();
     if let Err(e) = state_mgr.load_dir(".").await {
@@ -44,8 +48,9 @@ pub async fn run_server(port: u16, mut shutdown_rx: broadcast::Receiver<()>) -> 
     let shared_state = Arc::new(state_mgr);
     let processor = Arc::new(QueryProcessor::new(shared_state));
 
-    let repository: Arc<dyn UserRepository + Send + Sync> = match env::var("DATABASE_URL") {
-        Ok(database_url) => match PgPool::connect(&database_url).await {
+    let db_url_opt = database_url.or_else(|| env::var("DATABASE_URL").ok());
+    let repository: Arc<dyn UserRepository + Send + Sync> = match db_url_opt {
+        Some(db_url) => match PgPool::connect(&db_url).await {
             Ok(pool) => {
                 info!("Connected to identity database.");
                 Arc::new(may_auth::repository::PgUserRepository::new(pool))
@@ -59,7 +64,7 @@ pub async fn run_server(port: u16, mut shutdown_rx: broadcast::Receiver<()>) -> 
                 Arc::new(DenyAllRepository)
             }
         },
-        Err(_) => {
+        None => {
             warn!(
                 "DATABASE_URL not set. \
                  Authentication is disabled — all logins will be rejected."
@@ -70,12 +75,10 @@ pub async fn run_server(port: u16, mut shutdown_rx: broadcast::Receiver<()>) -> 
     let authenticator = Arc::new(PgWireAuthenticator::new(repository));
     let factory = Arc::new(QueryProcessorFactory::new(processor, authenticator));
 
-    let addr = format!("0.0.0.0:{}", port);
-    let listener = TcpListener::bind(&addr)
-        .await
-        .context("Failed to bind TCP listener. Is port already in use?")?;
-
-    info!("PGWire Gateway Service listening on {}", addr);
+    info!(
+        "PGWire Gateway Service listening on {}",
+        listener.local_addr()?
+    );
 
     loop {
         tokio::select! {

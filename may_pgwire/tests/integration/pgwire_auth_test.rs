@@ -3,18 +3,16 @@ use may_auth::repository::{PgUserRepository, UserRepository};
 use may_pgwire::server::run_server;
 use sqlx::PgPool;
 use std::env;
-use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 use tokio_postgres::NoTls;
 use uuid::Uuid;
 
-static NEXT_PORT: AtomicU16 = AtomicU16::new(15432);
-
 async fn setup_db_and_server() -> (String, String, broadcast::Sender<()>, u16) {
-    let database_url = "postgres://postgres:may_password@localhost:5433/pagila";
-    let pool_res = PgPool::connect(database_url).await;
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:may_password@localhost:5433/pagila".to_string());
+    let pool_res = PgPool::connect(&database_url).await;
     assert!(pool_res.is_ok(), "Failed to connect to integration DB");
     let pool = match pool_res {
         Ok(p) => p,
@@ -28,32 +26,25 @@ async fn setup_db_and_server() -> (String, String, broadcast::Sender<()>, u16) {
     let test_user = format!("pgwire_test_user_{}", Uuid::new_v4());
     let test_pass = "secret123";
 
-    let hash_res = may_auth::password::hash_password(test_pass);
-    assert!(hash_res.is_ok(), "Password hashing failed");
-    let hashed = match hash_res {
-        Ok(h) => h,
-        Err(_) => unreachable!(),
-    };
+    let test_pass_clone = test_pass.to_string();
+    let hashed =
+        tokio::task::spawn_blocking(move || may_auth::password::hash_password(&test_pass_clone))
+            .await
+            .expect("spawn_blocking panicked")
+            .expect("password hashing failed");
 
     let create_res = repo.create(&test_user, &hashed, Role::Viewer).await;
     assert!(create_res.is_ok(), "Failed to seed user");
 
-    let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
-
-    // Set up the repository connection pool (so the server uses this DB instead of reading env var)
-    // Wait, the server still uses `env::var("DATABASE_URL")`. We must pass it via env,
-    // OR we can change `run_server` to take `Option<String>` or use a temporary `unsafe` block just for `DATABASE_URL` which doesn't race across different ports.
-    // Actually, `PAGILA_TESTS` sets the database, so the connection string is the same for ALL tests.
-    // Setting `DATABASE_URL` safely using `std::env::set_var` is impossible without `unsafe`. But it's constant for all tests, so it's safe to set it.
-    unsafe {
-        env::set_var("DATABASE_URL", database_url);
-    }
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
 
     let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
 
+    let database_url_clone = database_url.clone();
     tokio::spawn(async move {
         let _ = tracing_subscriber::fmt::try_init();
-        if let Err(e) = run_server(port, shutdown_rx).await {
+        if let Err(e) = run_server(listener, Some(database_url_clone), shutdown_rx).await {
             eprintln!("Server crashed: {:?}", e);
         }
     });
@@ -147,9 +138,9 @@ async fn test_pgwire_auth_rejects_invalid_credentials() {
     );
 
     if let Err(e) = connect_res {
-        let err_msg = e.to_string();
+        let err_msg = format!("{:?}", e);
         assert!(
-            err_msg.contains("password authentication failed") || err_msg.contains("db error"),
+            err_msg.contains("password authentication failed"),
             "Expected password auth failure message, got: {}",
             err_msg
         );
