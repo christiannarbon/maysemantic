@@ -96,7 +96,11 @@ impl StartupHandler for PgWireAuthenticator {
                         p.password.clone()
                     }
                     pgwire::messages::startup::PasswordMessageFamily::Raw(bytes) => {
-                        let len = if bytes.ends_with(&[0]) { bytes.len() - 1 } else { bytes.len() };
+                        let len = if bytes.ends_with(&[0]) {
+                            bytes.len() - 1
+                        } else {
+                            bytes.len()
+                        };
                         match std::str::from_utf8(&bytes[..len]) {
                             Ok(s) => s.to_owned(),
                             Err(_) => {

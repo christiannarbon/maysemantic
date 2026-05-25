@@ -112,9 +112,16 @@ async fn test_pgwire_auth_accepts_valid_credentials() {
         Ok(m) => m,
         Err(_) => unreachable!(),
     };
-    
-    let rows: Vec<_> = messages.into_iter().filter(|m| matches!(m, tokio_postgres::SimpleQueryMessage::Row(_))).collect();
-    assert_eq!(rows.len(), 1, "Expected exactly 1 row message from SELECT 1");
+
+    let rows: Vec<_> = messages
+        .into_iter()
+        .filter(|m| matches!(m, tokio_postgres::SimpleQueryMessage::Row(_)))
+        .collect();
+    assert_eq!(
+        rows.len(),
+        1,
+        "Expected exactly 1 row message from SELECT 1"
+    );
 
     let _ = shutdown_tx.send(());
 }
