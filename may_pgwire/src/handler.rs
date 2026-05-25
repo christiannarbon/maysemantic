@@ -91,11 +91,26 @@ impl StartupHandler for PgWireAuthenticator {
                     .await?;
             }
             PgWireFrontendMessage::PasswordMessageFamily(ref password_msg) => {
-                let password = match password_msg {
+                let password_string = match password_msg {
                     pgwire::messages::startup::PasswordMessageFamily::Password(p) => {
-                        p.password.as_str()
+                        p.password.clone()
                     }
-                    _ => {
+                    pgwire::messages::startup::PasswordMessageFamily::Raw(bytes) => {
+                        let len = if bytes.ends_with(&[0]) { bytes.len() - 1 } else { bytes.len() };
+                        match std::str::from_utf8(&bytes[..len]) {
+                            Ok(s) => s.to_owned(),
+                            Err(_) => {
+                                let error_info = ErrorInfo::new(
+                                    "FATAL".to_owned(),
+                                    "28P01".to_owned(),
+                                    "invalid utf8 in password".to_owned(),
+                                );
+                                return Err(PgWireError::UserError(Box::new(error_info)));
+                            }
+                        }
+                    }
+                    other => {
+                        warn!("unsupported password message type: {:?}", other);
                         let error_info = ErrorInfo::new(
                             "FATAL".to_owned(),
                             "28P01".to_owned(),
@@ -120,7 +135,6 @@ impl StartupHandler for PgWireAuthenticator {
                 let user_res = self.repository.find_by_username(&user_name).await;
                 let is_valid = match user_res {
                     Ok(user) => {
-                        let password_string = password.to_string();
                         let verify_task = tokio::task::spawn_blocking(move || {
                             may_auth::password::verify_password(
                                 &password_string,

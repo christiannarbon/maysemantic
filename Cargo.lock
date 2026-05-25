@@ -1376,8 +1376,10 @@ dependencies = [
  "sqlparser",
  "sqlx",
  "tokio",
+ "tokio-postgres",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
