@@ -19,6 +19,7 @@ env:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   build:
@@ -139,3 +140,45 @@ jobs:
         if: always()
         run: docker compose down -v
         working-directory: may_core/tests/integration/env
+
+  cache-cleanup:
+    name: Automated Cache Cleanup
+    runs-on: ubuntu-latest
+    needs: [build, integration-test]
+    if: always()
+    steps:
+      - name: Cleanup old caches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const ref = context.ref;
+            console.log(`Cleaning up caches for ref: ${ref}`);
+            
+            const caches = await github.rest.actions.getActionsCacheList({
+              owner,
+              repo,
+              ref,
+              sort: 'created_at',
+              direction: 'desc'
+            });
+            
+            // Keep the 2 most recent caches (from the build and integration-test jobs)
+            const toDelete = caches.data.actions_caches.slice(2);
+            if (toDelete.length === 0) {
+              console.log("No old caches to delete.");
+              return;
+            }
+            
+            for (const cache of toDelete) {
+              console.log(`Deleting cache ${cache.key} (created at ${cache.created_at})`);
+              try {
+                await github.rest.actions.deleteActionsCacheById({
+                  owner,
+                  repo,
+                  cache_id: cache.id,
+                });
+              } catch (e) {
+                console.log(`Failed to delete cache ${cache.key}: ${e.message}`);
+              }
+            }
