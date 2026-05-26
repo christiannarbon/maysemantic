@@ -40,8 +40,12 @@ impl UserRepository for MockUserRepository {
         Err(AuthError::InvalidCredentials)
     }
 
-    async fn list(&self) -> Result<Vec<User>, AuthError> {
-        Err(AuthError::InvalidCredentials)
+    async fn list(&self, _page: u32, _per_page: u32) -> Result<Vec<User>, AuthError> {
+        Ok(vec![])
+    }
+
+    async fn deactivate(&self, _id: uuid::Uuid) -> Result<(), AuthError> {
+        Ok(())
     }
 }
 
@@ -76,6 +80,7 @@ async fn test_login_valid_credentials() {
         username: "test_user".to_string(),
         password_hash: hashed_password,
         role: Role::Viewer,
+        is_active: true,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };
@@ -118,6 +123,7 @@ async fn test_login_invalid_password() {
         username: "test_user".to_string(),
         password_hash: hashed_password,
         role: Role::Viewer,
+        is_active: true,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };

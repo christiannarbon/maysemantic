@@ -15,6 +15,9 @@ sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid"] }
 anyhow = { workspace = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.7.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
 
 [dev-dependencies]
 uuid = { version = "1.7.0", features = ["v4", "serde"] }

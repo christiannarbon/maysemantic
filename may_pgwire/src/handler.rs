@@ -353,8 +353,11 @@ mod tests {
         async fn create(&self, _u: &str, _p: &str, _r: Role) -> Result<User, AuthError> {
             Err(AuthError::InvalidCredentials)
         }
-        async fn list(&self) -> Result<Vec<User>, AuthError> {
+        async fn list(&self, _page: u32, _per_page: u32) -> Result<Vec<User>, AuthError> {
             Err(AuthError::InvalidCredentials)
+        }
+        async fn deactivate(&self, _id: uuid::Uuid) -> Result<(), AuthError> {
+            Err(AuthError::UserNotFound)
         }
     }
 

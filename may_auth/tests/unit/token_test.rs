@@ -13,6 +13,7 @@ fn create_mock_user() -> User {
         username: "testuser".to_string(),
         password_hash: "dummyhash".to_string(),
         role: Role::Admin,
+        is_active: true,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }

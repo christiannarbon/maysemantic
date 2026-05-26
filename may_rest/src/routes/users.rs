@@ -1,0 +1,236 @@
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use may_auth::models::{Role, User};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+
+use crate::{AppState, middleware::auth::AuthClaims};
+
+const MAX_USERNAME_LEN: usize = 64;
+const MAX_PASSWORD_LEN: usize = 128;
+
+#[derive(Deserialize, ToSchema)]
+pub struct CreateUserRequest {
+    pub(crate) username: String,
+    pub(crate) password: String,
+    pub(crate) role: Role,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct UserResponse {
+    pub id: uuid::Uuid,
+    pub username: String,
+    pub role: Role,
+    pub is_active: bool,
+    #[schema(value_type = String, format = DateTime)]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[schema(value_type = String, format = DateTime)]
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<User> for UserResponse {
+    fn from(user: User) -> Self {
+        Self {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            is_active: user.is_active,
+            created_at: user.created_at,
+            updated_at: user.updated_at,
+        }
+    }
+}
+
+#[derive(Deserialize, IntoParams)]
+pub struct PaginationQuery {
+    #[serde(default = "default_page")]
+    pub page: u32,
+    #[serde(default = "default_per_page")]
+    pub per_page: u32,
+}
+
+fn default_page() -> u32 {
+    1
+}
+
+fn default_per_page() -> u32 {
+    20
+}
+
+/// Create a new user (admin only).
+///
+/// # Errors
+///
+/// Returns `403 Forbidden` if the caller's JWT role is `viewer`.
+/// Returns `400 Bad Request` if username or password is empty or exceeds length limits.
+/// Returns `500 Internal Server Error` if password hashing or database write fails.
+#[utoipa::path(
+    post,
+    path = "/api/users",
+    request_body = CreateUserRequest,
+    responses(
+        (status = 201, description = "User created successfully", body = UserResponse),
+        (status = 400, description = "Bad request – invalid input"),
+        (status = 401, description = "Unauthorized – missing or invalid JWT"),
+        (status = 403, description = "Forbidden – requires admin role"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("bearerAuth" = [])
+    )
+)]
+pub async fn create_user(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Json(payload): Json<CreateUserRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if claims.0.role == "viewer" {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "forbidden: requires admin role"})),
+        ));
+    }
+
+    if payload.username.is_empty()
+        || payload.password.is_empty()
+        || payload.username.len() > MAX_USERNAME_LEN
+        || payload.password.len() > MAX_PASSWORD_LEN
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "username/password must be non-empty and within length limits"})),
+        ));
+    }
+
+    let password = payload.password;
+    let password_hash =
+        tokio::task::spawn_blocking(move || may_auth::password::hash_password(&password))
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "internal error"})),
+                )
+            })?
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": "failed to hash password"})),
+                )
+            })?;
+
+    let user = state
+        .user_repository
+        .create(&payload.username, &password_hash, payload.role)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "failed to create user"})),
+            )
+        })?;
+
+    Ok((StatusCode::CREATED, Json(UserResponse::from(user))))
+}
+
+/// List all users with pagination (admin only).
+///
+/// # Errors
+///
+/// Returns `403 Forbidden` if the caller's JWT role is `viewer`.
+/// Returns `500 Internal Server Error` if the database query fails.
+#[utoipa::path(
+    get,
+    path = "/api/users",
+    params(PaginationQuery),
+    responses(
+        (status = 200, description = "List of users", body = [UserResponse]),
+        (status = 401, description = "Unauthorized – missing or invalid JWT"),
+        (status = 403, description = "Forbidden – requires admin role"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("bearerAuth" = [])
+    )
+)]
+pub async fn list_users(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Query(pagination): Query<PaginationQuery>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if claims.0.role == "viewer" {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "forbidden: requires admin role"})),
+        ));
+    }
+
+    let users = state
+        .user_repository
+        .list(pagination.page, pagination.per_page)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "failed to list users"})),
+            )
+        })?;
+
+    let response: Vec<UserResponse> = users.into_iter().map(UserResponse::from).collect();
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Soft-deactivate a user by ID (admin only).
+///
+/// # Errors
+///
+/// Returns `403 Forbidden` if the caller's JWT role is `viewer`.
+/// Returns `404 Not Found` if no active user with that ID exists.
+/// Returns `500 Internal Server Error` if the database update fails.
+#[utoipa::path(
+    delete,
+    path = "/api/users/{id}",
+    params(
+        ("id" = uuid::Uuid, Path, description = "User ID to deactivate")
+    ),
+    responses(
+        (status = 204, description = "User deactivated successfully"),
+        (status = 401, description = "Unauthorized – missing or invalid JWT"),
+        (status = 403, description = "Forbidden – requires admin role"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("bearerAuth" = [])
+    )
+)]
+pub async fn deactivate_user(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Path(id): Path<uuid::Uuid>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if claims.0.role == "viewer" {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "forbidden: requires admin role"})),
+        ));
+    }
+
+    match state.user_repository.deactivate(id).await {
+        Ok(()) => Ok(StatusCode::NO_CONTENT.into_response()),
+        Err(may_auth::error::AuthError::UserNotFound) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "user not found"})),
+        )),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "failed to deactivate user"})),
+        )),
+    }
+}

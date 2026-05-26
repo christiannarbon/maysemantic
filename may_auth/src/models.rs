@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq, Eq)]
 #[sqlx(type_name = "user_role", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum Role {
     Admin,
     Viewer,
@@ -26,6 +27,7 @@ pub struct User {
     pub username: String,
     pub password_hash: String,
     pub role: Role,
+    pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
