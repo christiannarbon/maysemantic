@@ -14,7 +14,9 @@ use utoipa_swagger_ui::SwaggerUi;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
 
     let database_url = env::var("DATABASE_URL")
         .map_err(|_| anyhow::anyhow!("DATABASE_URL environment variable must be set"))?;
@@ -23,6 +25,8 @@ async fn main() -> anyhow::Result<()> {
         .max_connections(5)
         .connect(&database_url)
         .await?;
+
+    may_auth::seed::ensure_admin(&pool).await?;
 
     let token_service = Arc::new(TokenService::new()?);
     let user_repository = Arc::new(PgUserRepository::new(pool));

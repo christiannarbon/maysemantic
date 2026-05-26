@@ -33,17 +33,21 @@ where
     // Since cargo test runs multithreaded by default, modifying env vars is inherently risky
     // for other parallel tests. In practice, `cargo test -- --test-threads=1` might be needed
     // if multiple tests modify the same env variables concurrently.
-    env::set_var("MAY_JWT_SECRET", secret);
-    if let Some(e) = expiry {
-        env::set_var("MAY_JWT_EXPIRY_SECS", e);
-    } else {
-        env::remove_var("MAY_JWT_EXPIRY_SECS");
+    unsafe {
+        env::set_var("MAY_JWT_SECRET", secret);
+        if let Some(e) = expiry {
+            env::set_var("MAY_JWT_EXPIRY_SECS", e);
+        } else {
+            env::remove_var("MAY_JWT_EXPIRY_SECS");
+        }
     }
 
     let result = std::panic::catch_unwind(test_fn);
 
-    env::remove_var("MAY_JWT_SECRET");
-    env::remove_var("MAY_JWT_EXPIRY_SECS");
+    unsafe {
+        env::remove_var("MAY_JWT_SECRET");
+        env::remove_var("MAY_JWT_EXPIRY_SECS");
+    }
 
     match result {
         Ok(r) => r,
@@ -62,7 +66,7 @@ fn test_issue_and_verify_valid_token() -> Result<(), Box<dyn std::error::Error>>
         let claims = service.verify(&token)?;
 
         assert_eq!(claims.sub, user.id.to_string());
-        assert_eq!(claims.role, "admin");
+        assert_eq!(claims.role, Role::Admin);
 
         Ok(())
     })

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO users (username, password_hash, role, is_active)\n        VALUES ('admin', $1, 'admin'::user_role, true)\n        ON CONFLICT (username) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "35d81d4327e8683468d0fa6b00ffbc6912b09f489e25bfc2634b54340bc06c13"
+}

@@ -1,1 +1,1 @@
-DELETE FROM users WHERE username = 'admin';
+-- Migration logic moved to application startup (ensure_admin)

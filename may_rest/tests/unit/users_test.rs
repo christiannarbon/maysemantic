@@ -98,6 +98,15 @@ impl UserRepository for MockUserRepository {
             Some(_) => Err(AuthError::InvalidCredentials),
         }
     }
+
+    async fn update(
+        &self,
+        _id: uuid::Uuid,
+        _role: Option<Role>,
+        _password_hash: Option<String>,
+    ) -> Result<User, AuthError> {
+        Err(AuthError::UserNotFound)
+    }
 }
 
 // ---------------------------------------------------------------------------

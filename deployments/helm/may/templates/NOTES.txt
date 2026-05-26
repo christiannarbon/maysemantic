@@ -1,0 +1,10 @@
+Thank you for installing the May Semantic Layer!
+
+IMPORTANT SECURITY NOTICE:
+Ensure that you rotate the default admin password immediately.
+To set the admin password, provide the `identityDb.password` value during installation or upgrade:
+
+    helm upgrade --install {{ .Release.Name }} . \
+      --set identityDb.password="<your-secure-password>"
+
+For further usage instructions, please refer to the documentation.

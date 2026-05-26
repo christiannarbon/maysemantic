@@ -31,6 +31,14 @@ impl UserRepository for DenyAllRepository {
     async fn deactivate(&self, _id: uuid::Uuid) -> Result<(), AuthError> {
         Err(AuthError::UserNotFound)
     }
+    async fn update(
+        &self,
+        _id: uuid::Uuid,
+        _role: Option<Role>,
+        _password_hash: Option<String>,
+    ) -> Result<User, AuthError> {
+        Err(AuthError::UserNotFound)
+    }
 }
 
 pub async fn run_server(

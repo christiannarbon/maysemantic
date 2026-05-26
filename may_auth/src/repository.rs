@@ -14,6 +14,12 @@ pub trait UserRepository: Send + Sync {
     ) -> Result<User, AuthError>;
     async fn list(&self, page: u32, per_page: u32) -> Result<Vec<User>, AuthError>;
     async fn deactivate(&self, id: uuid::Uuid) -> Result<(), AuthError>;
+    async fn update(
+        &self,
+        id: uuid::Uuid,
+        role: Option<Role>,
+        password_hash: Option<String>,
+    ) -> Result<User, AuthError>;
 }
 
 pub struct PgUserRepository {
@@ -104,5 +110,35 @@ impl UserRepository for PgUserRepository {
         }
 
         Ok(())
+    }
+
+    async fn update(
+        &self,
+        id: uuid::Uuid,
+        role: Option<Role>,
+        password_hash: Option<String>,
+    ) -> Result<User, AuthError> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            UPDATE users 
+            SET 
+                role = COALESCE($2::user_role, role),
+                password_hash = COALESCE($3::text, password_hash),
+                updated_at = now()
+            WHERE id = $1 AND is_active = true
+            RETURNING id, username, password_hash, role as "role: Role", is_active, created_at, updated_at
+            "#,
+            id,
+            role as _,
+            password_hash as _
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match user {
+            Some(u) => Ok(u),
+            None => Err(AuthError::UserNotFound),
+        }
     }
 }

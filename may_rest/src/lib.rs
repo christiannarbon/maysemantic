@@ -18,13 +18,15 @@ pub struct AppState {
         routes::auth::login,
         routes::users::create_user,
         routes::users::list_users,
-        routes::users::deactivate_user
+        routes::users::deactivate_user,
+        routes::users::update_user
     ),
     components(
         schemas(
             routes::auth::LoginRequest,
             routes::auth::LoginResponse,
             routes::users::CreateUserRequest,
+            routes::users::UpdateUserRequest,
             routes::users::UserResponse
         )
     ),

@@ -21,6 +21,12 @@ pub struct CreateUserRequest {
     pub(crate) role: Role,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateUserRequest {
+    pub(crate) role: Option<Role>,
+    pub(crate) password: Option<String>,
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct UserResponse {
     pub id: uuid::Uuid,
@@ -89,7 +95,7 @@ pub async fn create_user(
     claims: AuthClaims,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    if claims.0.role == "viewer" {
+    if claims.0.role != Role::Admin {
         return Err((
             StatusCode::FORBIDDEN,
             Json(json!({"error": "forbidden: requires admin role"})),
@@ -163,7 +169,7 @@ pub async fn list_users(
     claims: AuthClaims,
     Query(pagination): Query<PaginationQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    if claims.0.role == "viewer" {
+    if claims.0.role != Role::Admin {
         return Err((
             StatusCode::FORBIDDEN,
             Json(json!({"error": "forbidden: requires admin role"})),
@@ -215,7 +221,7 @@ pub async fn deactivate_user(
     claims: AuthClaims,
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    if claims.0.role == "viewer" {
+    if claims.0.role != Role::Admin {
         return Err((
             StatusCode::FORBIDDEN,
             Json(json!({"error": "forbidden: requires admin role"})),
@@ -231,6 +237,77 @@ pub async fn deactivate_user(
         Err(_) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error": "failed to deactivate user"})),
+        )),
+    }
+}
+
+/// Update a user's role or password (admin only).
+///
+/// # Errors
+///
+/// Returns `403 Forbidden` if the caller's JWT role is `viewer`.
+/// Returns `404 Not Found` if the user is not found.
+/// Returns `500 Internal Server Error` if hashing or updating fails.
+#[utoipa::path(
+    put,
+    path = "/api/users/{id}",
+    request_body = UpdateUserRequest,
+    params(
+        ("id" = uuid::Uuid, Path, description = "User ID to update")
+    ),
+    responses(
+        (status = 200, description = "User updated successfully", body = UserResponse),
+        (status = 401, description = "Unauthorized – missing or invalid JWT"),
+        (status = 403, description = "Forbidden – requires admin role"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("bearerAuth" = [])
+    )
+)]
+pub async fn update_user(
+    State(state): State<AppState>,
+    claims: AuthClaims,
+    Path(id): Path<uuid::Uuid>,
+    Json(payload): Json<UpdateUserRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if claims.0.role != Role::Admin {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "forbidden: requires admin role"})),
+        ));
+    }
+
+    let password_hash = match payload.password {
+        Some(pw) => {
+            match tokio::task::spawn_blocking(move || may_auth::password::hash_password(&pw)).await
+            {
+                Ok(Ok(h)) => Some(h),
+                _ => {
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"error": "failed to hash password"})),
+                    ));
+                }
+            }
+        }
+        None => None,
+    };
+
+    match state
+        .user_repository
+        .update(id, payload.role, password_hash)
+        .await
+    {
+        Ok(user) => Ok((StatusCode::OK, Json(UserResponse::from(user)))),
+        Err(may_auth::error::AuthError::UserNotFound) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "user not found"})),
+        )),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "failed to update user"})),
         )),
     }
 }

@@ -1,6 +1,6 @@
 use crate::error::AuthError;
-use crate::models::User;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use crate::models::{Role, User};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -8,8 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Claims {
     pub sub: String,
-    pub role: String,
-    pub exp: u64,
+    pub role: Role,
+    pub exp: usize,
 }
 
 pub struct TokenService {
@@ -43,8 +43,8 @@ impl TokenService {
 
         let claims = Claims {
             sub: user.id.to_string(),
-            role: user.role.to_string(),
-            exp: now + self.expiry_secs,
+            role: user.role.clone(),
+            exp: now as usize + self.expiry_secs as usize,
         };
 
         encode(&Header::default(), &claims, &self.encoding_key).map_err(|_| AuthError::InvalidToken)

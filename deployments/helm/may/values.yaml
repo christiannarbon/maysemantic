@@ -2,6 +2,7 @@ identityDb:
   enabled: true
   storage: 1Gi
   user: may_admin
-  password: changeme
+  password: ""
   database: may_identity
+  migrateImage: "ghcr.io/christiannarbon/may-migrate:latest"
   # Credentials should be overridden in production via --set or a values overlay.

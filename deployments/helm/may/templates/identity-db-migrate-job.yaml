@@ -18,11 +18,8 @@ spec:
       restartPolicy: Never
       containers:
         - name: migrate
-          image: rust:slim
-          command:
-            - bash
-            - -c
-            - "cargo install sqlx-cli --no-default-features --features rustls,postgres && sqlx migrate run --source may_auth/migrations"
+          image: {{ .Values.identityDb.migrateImage }}
+          command: ["sqlx", "migrate", "run", "--source", "/migrations"]
           env:
             - name: DATABASE_URL
               value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Release.Name }}-identity-db:5432/$(POSTGRES_DB)"
