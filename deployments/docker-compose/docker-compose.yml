@@ -1,0 +1,50 @@
+name: maysemantic
+
+services:
+  may-identity-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${IDENTITY_DB_USER:-may_admin}
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${IDENTITY_DB_NAME:-may_identity}
+    ports:
+      - "5433:5432"
+    volumes:
+      - may-identity-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${IDENTITY_DB_USER:-may_admin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  may-identity-migrate:
+    image: rust:slim
+    working_dir: /app
+    volumes:
+      - ../..:/app
+    environment:
+      DATABASE_URL: postgres://${IDENTITY_DB_USER:-may_admin}:${IDENTITY_DB_PASSWORD:-changeme}@may-identity-db:5432/${IDENTITY_DB_NAME:-may_identity}
+    command: >
+      bash -c "cargo install sqlx-cli --no-default-features --features rustls,postgres && sqlx migrate run --source may_auth/migrations"
+    depends_on:
+      may-identity-db:
+        condition: service_healthy
+
+  may_pgwire:
+    image: rust:slim
+    working_dir: /app
+    volumes:
+      - ../..:/app
+    environment:
+      IDENTITY_DB_URL: postgres://${IDENTITY_DB_USER:-may_admin}:${IDENTITY_DB_PASSWORD:-changeme}@may-identity-db:5432/${IDENTITY_DB_NAME:-may_identity}
+    command: cargo run -p may_pgwire
+    ports:
+      - "5432:5432"
+    depends_on:
+      may-identity-db:
+        condition: service_healthy
+      may-identity-migrate:
+        condition: service_completed_successfully
+
+volumes:
+  may-identity-data:
