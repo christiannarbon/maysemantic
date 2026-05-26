@@ -1,0 +1,32 @@
+{{- if .Values.identityDb.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-identity-db-migrate
+  labels:
+    app: {{ .Release.Name }}-identity-db
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-identity-db
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: rust:slim
+          command:
+            - bash
+            - -c
+            - "cargo install sqlx-cli --no-default-features --features rustls,postgres && sqlx migrate run --source may_auth/migrations"
+          env:
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@{{ .Release.Name }}-identity-db:5432/$(POSTGRES_DB)"
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-identity-db
+{{- end }}

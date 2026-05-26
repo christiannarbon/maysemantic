@@ -1,0 +1,45 @@
+{{- if .Values.identityDb.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-identity-db
+  labels:
+    app: {{ .Release.Name }}-identity-db
+spec:
+  serviceName: {{ .Release.Name }}-identity-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-identity-db
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-identity-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-identity-db
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "{{ .Values.identityDb.user }}"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: {{ .Values.identityDb.storage }}
+{{- end }}

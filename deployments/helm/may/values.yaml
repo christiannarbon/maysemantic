@@ -1,0 +1,7 @@
+identityDb:
+  enabled: true
+  storage: 1Gi
+  user: may_admin
+  password: changeme
+  database: may_identity
+  # Credentials should be overridden in production via --set or a values overlay.
