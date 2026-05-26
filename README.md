@@ -5,70 +5,12 @@
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg?style=flat-square)](https://github.com/christiannarbon/may_core)
 [![Rustc](https://img.shields.io/badge/rust-1.75+-lightgray.svg?style=flat-square)](https://blog.rust-lang.org)
 
-The `may_core` crate provides the core State Manager (`StateMgr`) and generic semantic models for the `may` open-source semantic layer.
+`may` is basically a passion project of mine which is basically a semantic layer package. It is a work in progress and is not yet ready for production use. But my goal is that it should be able to support multiple data warehouses like BigQuery, Snowflake, and Postgres. In the long run, I'm hoping to also be able to support other data warehouses like Databricks and Redshift.
 
-## CLI Application
+## Documentation & Usage
 
-A unified interface for Analytics Engineers to locally validate and compile their semantic definitions.
+We maintain all detailed usage instructions, tutorials, and wiki documentation in the `docs/` directory.
 
-### Installation
-
-To install the `may` CLI tool locally, run:
-```bash
-cargo install --path cli
-```
-
-### Usage
-
-Once installed, you can use the CLI from anywhere:
-
-```bash
-# Display help and subcommands
-may --help
-
-# Validate models in the current directory (Outputs in Green/Red)
-may validate
-
-# Validate models in a specific directory
-may validate --path ./my_models
-
-# Run a semantic query (simulation)
-may run --query "Revenue by Region"
-
-# Compile models into optimized SQL
-may compile
-```
-
-> **Note on Terminal Output**: The `may` CLI uses color-coded output to enhance readability. Successful validations appear in **Green**, while parsing or syntax errors appear in **Red** with detailed file paths and error reasons.
-
-## JSON Schema Generation
-
-To provide autocomplete and validation for VS Code or other editors when editing `metrics.yml` files, you can generate the JSON Schema by running:
-
-```bash
-cargo run --bin generate_schema > metrics.schema.json
-```
-
-Once generated, you can use the schema in your YAML files to get IDE assistance:
-```yaml
-# yaml-language-server: $schema=./metrics.schema.json
-
-name: ecommerce_model
-entities:
-  # ...
-```
-
-## Parsing and Validation
-
-The `StateMgr` handles safely loading and validating YAML definitions into strict memory-safe Rust models.
-Invalid inputs trigger strict regex and `serde` validations dynamically without panicking.
-
-```rust
-use may_core::StateMgr;
-
-let state_mgr = StateMgr::new();
-match state_mgr.load_from_yaml(include_str!("../metrics.yml")) {
-    Ok(_) => println!("Successfully loaded metrics!"),
-    Err(e) => eprintln!("Failed to load metrics: {}", e),
-}
-```
+- **[CLI Usage & Installation](docs/usage/cli.md)**: How to install and use the `may` command-line tool.
+- **[IDE Integration & Schema](docs/usage/schema.md)**: How to generate JSON schemas for VS Code autocomplete in `metrics.yml`.
+- **[SDK & Core Parsing](docs/usage/sdk.md)**: How to embed the `StateMgr` safely in your Rust applications.
