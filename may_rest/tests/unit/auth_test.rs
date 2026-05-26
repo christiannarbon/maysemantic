@@ -11,8 +11,9 @@ use may_auth::{
     repository::UserRepository,
     token::TokenService,
 };
-use may_rest::routes::auth::{LoginRequest, LoginResponse};
+use may_rest::routes::auth::LoginResponse;
 use may_rest::{AppState, routes};
+use serial_test::serial;
 use std::sync::Arc;
 use tower::ServiceExt; // for `oneshot` and `ready`
 
@@ -30,7 +31,12 @@ impl UserRepository for MockUserRepository {
             .ok_or(AuthError::UserNotFound)
     }
 
-    async fn create(&self, _username: &str, _password_hash: &str, _role: Role) -> Result<User, AuthError> {
+    async fn create(
+        &self,
+        _username: &str,
+        _password_hash: &str,
+        _role: Role,
+    ) -> Result<User, AuthError> {
         Err(AuthError::InvalidCredentials)
     }
 
@@ -58,6 +64,7 @@ fn build_app(mock_repo: MockUserRepository) -> axum::Router {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_login_valid_credentials() {
     let password = "correct_password";
     let hashed_password = tokio::task::spawn_blocking(move || hash_password(password).unwrap())
@@ -78,16 +85,16 @@ async fn test_login_valid_credentials() {
     };
     let app = build_app(mock_repo);
 
-    let login_req = LoginRequest {
-        username: "test_user".to_string(),
-        password: "correct_password".to_string(),
-    };
+    let body = serde_json::json!({
+        "username": "test_user",
+        "password": "correct_password"
+    });
 
     let req = Request::builder()
         .method("POST")
         .uri("/api/auth/login")
         .header("content-type", "application/json")
-        .body(Body::from(serde_json::to_string(&login_req).unwrap()))
+        .body(Body::from(body.to_string()))
         .unwrap();
 
     let response = app.oneshot(req).await.unwrap();
@@ -99,6 +106,7 @@ async fn test_login_valid_credentials() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_login_invalid_password() {
     let password = "correct_password";
     let hashed_password = tokio::task::spawn_blocking(move || hash_password(password).unwrap())
@@ -119,16 +127,16 @@ async fn test_login_invalid_password() {
     };
     let app = build_app(mock_repo);
 
-    let login_req = LoginRequest {
-        username: "test_user".to_string(),
-        password: "wrong_password".to_string(),
-    };
+    let body = serde_json::json!({
+        "username": "test_user",
+        "password": "wrong_password"
+    });
 
     let req = Request::builder()
         .method("POST")
         .uri("/api/auth/login")
         .header("content-type", "application/json")
-        .body(Body::from(serde_json::to_string(&login_req).unwrap()))
+        .body(Body::from(body.to_string()))
         .unwrap();
 
     let response = app.oneshot(req).await.unwrap();
@@ -136,20 +144,21 @@ async fn test_login_invalid_password() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_login_non_existent_user() {
     let mock_repo = MockUserRepository { valid_user: None };
     let app = build_app(mock_repo);
 
-    let login_req = LoginRequest {
-        username: "nobody".to_string(),
-        password: "any_password".to_string(),
-    };
+    let body = serde_json::json!({
+        "username": "nobody",
+        "password": "any_password"
+    });
 
     let req = Request::builder()
         .method("POST")
         .uri("/api/auth/login")
         .header("content-type", "application/json")
-        .body(Body::from(serde_json::to_string(&login_req).unwrap()))
+        .body(Body::from(body.to_string()))
         .unwrap();
 
     let response = app.oneshot(req).await.unwrap();

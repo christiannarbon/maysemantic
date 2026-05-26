@@ -1,11 +1,15 @@
 use axum::Router;
 use may_auth::{repository::PgUserRepository, token::TokenService};
-use may_rest::{ApiDoc, AppState, routes};
+#[cfg(feature = "swagger")]
+use may_rest::ApiDoc;
+use may_rest::{AppState, routes};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+#[cfg(feature = "swagger")]
 use utoipa::OpenApi;
+#[cfg(feature = "swagger")]
 use utoipa_swagger_ui::SwaggerUi;
 
 #[tokio::main]
@@ -13,21 +17,12 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:may_password@localhost:5433/pagila".to_string());
+        .map_err(|_| anyhow::anyhow!("DATABASE_URL environment variable must be set"))?;
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
         .await?;
-
-    // In a real application, MAY_JWT_SECRET should be set in the environment.
-    if env::var("MAY_JWT_SECRET").is_err() {
-        tracing::warn!("MAY_JWT_SECRET not set, using a default secret for development");
-        #[allow(unsafe_code, reason = "set_var required for testing default logic")]
-        unsafe {
-            env::set_var("MAY_JWT_SECRET", "super_secret_development_key_123");
-        }
-    }
 
     let token_service = Arc::new(TokenService::new()?);
     let user_repository = Arc::new(PgUserRepository::new(pool));
@@ -38,14 +33,18 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let app = Router::new()
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .nest("/api", routes::router())
         .with_state(state);
 
-    let port = env::var("MAY_REST_PORT")
-        .unwrap_or_else(|_| "3000".to_string())
-        .parse::<u16>()
-        .unwrap_or(3000);
+    #[cfg(feature = "swagger")]
+    let app =
+        app.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()));
+
+    let port: u16 = env::var("MAY_REST_PORT")
+        .as_deref()
+        .unwrap_or("3000")
+        .parse()
+        .map_err(|_| anyhow::anyhow!("MAY_REST_PORT must be a valid port number (0–65535)"))?;
 
     let addr = format!("0.0.0.0:{port}");
     tracing::info!("May REST API listening on {}", addr);
