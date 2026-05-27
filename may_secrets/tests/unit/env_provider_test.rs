@@ -1,18 +1,34 @@
+#![allow(unsafe_code, reason = "std::env::set_var is unsafe but necessary for testing")]
 use may_secrets::{DwhSecret, EnvSecretsProvider, SecretsError, SecretsProvider};
 use serial_test::serial;
 use std::env;
+
+struct EnvGuard(Vec<&'static str>);
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        for key in &self.0 {
+            unsafe { env::remove_var(key) };
+        }
+    }
+}
 
 fn set_env(k: &str, v: &str) {
     unsafe { env::set_var(k, v) };
 }
 
-fn remove_env(k: &str) {
-    unsafe { env::remove_var(k) };
-}
-
 #[tokio::test]
 #[serial]
 async fn test_env_provider_username_password() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = EnvGuard(vec![
+        "MAY_SECRET_MY_TEST_TYPE",
+        "MAY_SECRET_MY_TEST_HOST",
+        "MAY_SECRET_MY_TEST_PORT",
+        "MAY_SECRET_MY_TEST_DATABASE",
+        "MAY_SECRET_MY_TEST_USERNAME",
+        "MAY_SECRET_MY_TEST_PASSWORD",
+    ]);
+
     set_env("MAY_SECRET_MY_TEST_TYPE", "username_password");
     set_env("MAY_SECRET_MY_TEST_HOST", "localhost");
     set_env("MAY_SECRET_MY_TEST_PORT", "5432");
@@ -40,21 +56,17 @@ async fn test_env_provider_username_password() -> Result<(), Box<dyn std::error:
         _ => return Err("Expected UsernamePassword variant".into()),
     }
 
-    remove_env("MAY_SECRET_MY_TEST_TYPE");
-    remove_env("MAY_SECRET_MY_TEST_HOST");
-    remove_env("MAY_SECRET_MY_TEST_PORT");
-    remove_env("MAY_SECRET_MY_TEST_DATABASE");
-    remove_env("MAY_SECRET_MY_TEST_USERNAME");
-    remove_env("MAY_SECRET_MY_TEST_PASSWORD");
-
     Ok(())
 }
 
 #[tokio::test]
 #[serial]
 async fn test_env_provider_missing_variable() {
+    let _guard = EnvGuard(vec![
+        "MAY_SECRET_MISSING_VAR_TYPE",
+        "MAY_SECRET_MISSING_VAR_JSON",
+    ]);
     set_env("MAY_SECRET_MISSING_VAR_TYPE", "service_account_key");
-    remove_env("MAY_SECRET_MISSING_VAR_JSON");
 
     let provider = EnvSecretsProvider::new();
     let result = provider.get_secret("missing-var").await;
@@ -65,13 +77,12 @@ async fn test_env_provider_missing_variable() {
         }
         _ => panic!("Expected MissingVariable error"),
     }
-
-    remove_env("MAY_SECRET_MISSING_VAR_TYPE");
 }
 
 #[tokio::test]
 #[serial]
 async fn test_env_provider_unknown_type() {
+    let _guard = EnvGuard(vec!["MAY_SECRET_UNKNOWN_TYPE_TYPE"]);
     set_env("MAY_SECRET_UNKNOWN_TYPE_TYPE", "invalid_type_here");
 
     let provider = EnvSecretsProvider::new();
@@ -83,6 +94,4 @@ async fn test_env_provider_unknown_type() {
         }
         _ => panic!("Expected InvalidConfig error"),
     }
-
-    remove_env("MAY_SECRET_UNKNOWN_TYPE_TYPE");
 }

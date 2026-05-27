@@ -11,7 +11,7 @@ fn test_dwh_secret_serialization() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let json = serde_json::to_string(&secret)?;
-    assert!(json.contains("UsernamePassword"));
+    assert!(json.contains("username_password"));
     assert!(json.contains("localhost"));
 
     let deserialized: DwhSecret = serde_json::from_str(&json)?;

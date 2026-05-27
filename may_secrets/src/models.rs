@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DwhSecret {
     UsernamePassword {
         host: String,

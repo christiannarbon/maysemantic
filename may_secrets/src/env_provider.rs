@@ -8,6 +8,7 @@ use std::env;
 pub struct EnvSecretsProvider;
 
 impl EnvSecretsProvider {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -23,20 +24,21 @@ impl EnvSecretsProvider {
 impl SecretsProvider for EnvSecretsProvider {
     async fn get_secret(&self, name: &str) -> Result<DwhSecret, SecretsError> {
         let prefix = format!("MAY_SECRET_{}", name.to_uppercase().replace('-', "_"));
-        let type_var = format!("{}_TYPE", prefix);
+        let type_var = format!("{prefix}_TYPE");
 
         let secret_type = Self::require_env(&type_var)?;
+        let secret_kind: crate::secret_kind::SecretKind = secret_type.parse()?;
 
-        match secret_type.as_str() {
-            "username_password" => {
-                let host = Self::require_env(&format!("{}_HOST", prefix))?;
-                let port_str = Self::require_env(&format!("{}_PORT", prefix))?;
+        match secret_kind {
+            crate::secret_kind::SecretKind::UsernamePassword => {
+                let host = Self::require_env(&format!("{prefix}_HOST"))?;
+                let port_str = Self::require_env(&format!("{prefix}_PORT"))?;
                 let port: u16 = port_str.parse().map_err(|_| {
-                    SecretsError::InvalidConfig(format!("Invalid port value: {}", port_str))
+                    SecretsError::InvalidConfig(format!("Invalid port value: {port_str}"))
                 })?;
-                let database = Self::require_env(&format!("{}_DATABASE", prefix))?;
-                let username = Self::require_env(&format!("{}_USERNAME", prefix))?;
-                let password = Self::require_env(&format!("{}_PASSWORD", prefix))?;
+                let database = Self::require_env(&format!("{prefix}_DATABASE"))?;
+                let username = Self::require_env(&format!("{prefix}_USERNAME"))?;
+                let password = Self::require_env(&format!("{prefix}_PASSWORD"))?;
 
                 Ok(DwhSecret::UsernamePassword {
                     host,
@@ -46,15 +48,15 @@ impl SecretsProvider for EnvSecretsProvider {
                     password,
                 })
             }
-            "service_account_key" => {
-                let json = Self::require_env(&format!("{}_JSON", prefix))?;
+            crate::secret_kind::SecretKind::ServiceAccountKey => {
+                let json = Self::require_env(&format!("{prefix}_JSON"))?;
                 Ok(DwhSecret::ServiceAccountKey { json })
             }
-            "key_pair" => {
-                let account = Self::require_env(&format!("{}_ACCOUNT", prefix))?;
-                let username = Self::require_env(&format!("{}_USERNAME", prefix))?;
-                let private_key = Self::require_env(&format!("{}_PRIVATE_KEY", prefix))?;
-                let passphrase = env::var(format!("{}_PASSPHRASE", prefix)).ok();
+            crate::secret_kind::SecretKind::KeyPair => {
+                let account = Self::require_env(&format!("{prefix}_ACCOUNT"))?;
+                let username = Self::require_env(&format!("{prefix}_USERNAME"))?;
+                let private_key = Self::require_env(&format!("{prefix}_PRIVATE_KEY"))?;
+                let passphrase = env::var(format!("{prefix}_PASSPHRASE")).ok();
 
                 Ok(DwhSecret::KeyPair {
                     account,
@@ -63,10 +65,6 @@ impl SecretsProvider for EnvSecretsProvider {
                     passphrase,
                 })
             }
-            _ => Err(SecretsError::InvalidConfig(format!(
-                "Unknown secret type: {}",
-                secret_type
-            ))),
         }
     }
 }
