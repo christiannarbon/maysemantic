@@ -24,9 +24,6 @@ mod tests {
     #[test]
     fn test_secrets_provider_object_safety() {
         // This test ensures the trait is object-safe, meaning it can be boxed.
-        let provider: Arc<dyn SecretsProvider> = Arc::new(MockProvider);
-
-        // Just verify it compiles and exists.
-        assert!(std::ptr::addr_of!(provider) != std::ptr::null());
+        let _provider: Arc<dyn SecretsProvider> = Arc::new(MockProvider);
     }
 }
