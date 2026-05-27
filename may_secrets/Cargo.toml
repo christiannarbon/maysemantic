@@ -1,0 +1,13 @@
+[package]
+name = "may_secrets"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+
+[dev-dependencies]
+serde_json = "1.0"

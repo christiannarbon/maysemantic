@@ -1,5 +1,5 @@
 [workspace]
-members = ["may_core", "may_cli", "may_pgwire", "may_auth", "may_rest"]
+members = ["may_core", "may_cli", "may_pgwire", "may_auth", "may_rest", "may_secrets"]
 resolver = "2"
 
 [workspace.dependencies]
