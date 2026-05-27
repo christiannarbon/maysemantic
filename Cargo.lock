@@ -1664,7 +1664,9 @@ dependencies = [
  "async-trait",
  "serde",
  "serde_json",
+ "serial_test",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
