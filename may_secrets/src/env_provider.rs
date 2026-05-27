@@ -24,7 +24,7 @@ impl SecretsProvider for EnvSecretsProvider {
     async fn get_secret(&self, name: &str) -> Result<DwhSecret, SecretsError> {
         let prefix = format!("MAY_SECRET_{}", name.to_uppercase().replace('-', "_"));
         let type_var = format!("{}_TYPE", prefix);
-        
+
         let secret_type = Self::require_env(&type_var)?;
 
         match secret_type.as_str() {
@@ -98,7 +98,13 @@ mod tests {
         let secret = provider.get_secret("my-test").await?;
 
         match secret {
-            DwhSecret::UsernamePassword { host, port, database, username, password } => {
+            DwhSecret::UsernamePassword {
+                host,
+                port,
+                database,
+                username,
+                password,
+            } => {
                 assert_eq!(host, "localhost");
                 assert_eq!(port, 5432);
                 assert_eq!(database, "mydb");
