@@ -1,4 +1,7 @@
-#![allow(unsafe_code, reason = "std::env::set_var is unsafe but necessary for testing")]
+#![allow(
+    unsafe_code,
+    reason = "std::env::set_var is unsafe but necessary for testing"
+)]
 use may_secrets::{DwhSecret, EnvSecretsProvider, SecretsError, SecretsProvider};
 use serial_test::serial;
 use std::env;
