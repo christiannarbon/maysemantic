@@ -37,7 +37,7 @@ impl Default for VaultConfig {
 }
 
 impl VaultConfig {
-    #[must_use] 
+    #[must_use]
     pub fn builder() -> VaultConfigBuilder {
         VaultConfigBuilder::default()
     }
@@ -151,16 +151,18 @@ impl VaultSecretsProvider {
                 {
                     let read_guard = self.approle_token.read().await;
                     if let Some((token, ts)) = &*read_guard
-                        && ts.elapsed() < Duration::from_secs(self.config.token_ttl_secs) {
-                            return Ok(token.clone());
-                        }
+                        && ts.elapsed() < Duration::from_secs(self.config.token_ttl_secs)
+                    {
+                        return Ok(token.clone());
+                    }
                 }
 
                 let mut write_guard = self.approle_token.write().await;
                 if let Some((token, ts)) = &*write_guard
-                    && ts.elapsed() < Duration::from_secs(self.config.token_ttl_secs) {
-                        return Ok(token.clone());
-                    }
+                    && ts.elapsed() < Duration::from_secs(self.config.token_ttl_secs)
+                {
+                    return Ok(token.clone());
+                }
 
                 let url = format!("{}/v1/auth/approle/login", self.config.address);
                 let req_body = AppRoleLoginRequest { role_id, secret_id };
