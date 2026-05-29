@@ -1,7 +1,7 @@
 use crate::error::SecretsError;
 use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum SecretKind {
     UsernamePassword,
     ServiceAccountKey,

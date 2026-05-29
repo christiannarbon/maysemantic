@@ -21,6 +21,7 @@ pub struct VaultConfig {
     pub mount: String,
     pub auth: VaultAuth,
     pub cache_ttl_secs: u64,
+    pub token_ttl_secs: u64,
 }
 
 impl Default for VaultConfig {
@@ -28,9 +29,94 @@ impl Default for VaultConfig {
         Self {
             address: "http://127.0.0.1:8200".to_string(),
             mount: "secret".to_string(),
-            auth: VaultAuth::Token(String::new()),
+            auth: VaultAuth::Token(std::env::var("VAULT_TOKEN").unwrap_or_default()),
             cache_ttl_secs: 300,
+            token_ttl_secs: 3600,
         }
+    }
+}
+
+impl VaultConfig {
+    #[must_use] 
+    pub fn builder() -> VaultConfigBuilder {
+        VaultConfigBuilder::default()
+    }
+}
+
+#[derive(Default)]
+pub struct VaultConfigBuilder {
+    address: Option<String>,
+    mount: Option<String>,
+    auth: Option<VaultAuth>,
+    cache_ttl_secs: Option<u64>,
+    token_ttl_secs: Option<u64>,
+}
+
+impl VaultConfigBuilder {
+    #[must_use]
+    pub fn address(mut self, address: impl Into<String>) -> Self {
+        self.address = Some(address.into());
+        self
+    }
+
+    #[must_use]
+    pub fn mount(mut self, mount: impl Into<String>) -> Self {
+        self.mount = Some(mount.into());
+        self
+    }
+
+    #[must_use]
+    pub fn auth(mut self, auth: VaultAuth) -> Self {
+        self.auth = Some(auth);
+        self
+    }
+
+    #[must_use]
+    pub fn token(mut self, token: impl Into<String>) -> Self {
+        self.auth = Some(VaultAuth::Token(token.into()));
+        self
+    }
+
+    #[must_use]
+    pub fn approle(mut self, role_id: impl Into<String>, secret_id: impl Into<String>) -> Self {
+        self.auth = Some(VaultAuth::AppRole {
+            role_id: role_id.into(),
+            secret_id: secret_id.into(),
+        });
+        self
+    }
+
+    #[must_use]
+    pub fn cache_ttl_secs(mut self, secs: u64) -> Self {
+        self.cache_ttl_secs = Some(secs);
+        self
+    }
+
+    #[must_use]
+    pub fn token_ttl_secs(mut self, secs: u64) -> Self {
+        self.token_ttl_secs = Some(secs);
+        self
+    }
+
+    /// Builds the `VaultConfig`.
+    ///
+    /// # Errors
+    /// Returns `SecretsError::InvalidConfig` if `address` or `auth` are missing.
+    pub fn build(self) -> Result<VaultConfig, SecretsError> {
+        let address = self
+            .address
+            .ok_or_else(|| SecretsError::InvalidConfig("Missing address".to_string()))?;
+        let auth = self
+            .auth
+            .ok_or_else(|| SecretsError::InvalidConfig("Missing auth".to_string()))?;
+
+        Ok(VaultConfig {
+            address,
+            mount: self.mount.unwrap_or_else(|| "secret".to_string()),
+            auth,
+            cache_ttl_secs: self.cache_ttl_secs.unwrap_or(300),
+            token_ttl_secs: self.token_ttl_secs.unwrap_or(3600),
+        })
     }
 }
 
@@ -38,7 +124,7 @@ pub struct VaultSecretsProvider {
     config: VaultConfig,
     client: Client,
     cache: RwLock<HashMap<String, (DwhSecret, Instant)>>,
-    approle_token: RwLock<Option<String>>,
+    approle_token: RwLock<Option<(String, Instant)>>,
 }
 
 impl VaultSecretsProvider {
@@ -64,15 +150,17 @@ impl VaultSecretsProvider {
             VaultAuth::AppRole { role_id, secret_id } => {
                 {
                     let read_guard = self.approle_token.read().await;
-                    if let Some(token) = &*read_guard {
-                        return Ok(token.clone());
-                    }
+                    if let Some((token, ts)) = &*read_guard
+                        && ts.elapsed() < Duration::from_secs(self.config.token_ttl_secs) {
+                            return Ok(token.clone());
+                        }
                 }
 
                 let mut write_guard = self.approle_token.write().await;
-                if let Some(token) = &*write_guard {
-                    return Ok(token.clone());
-                }
+                if let Some((token, ts)) = &*write_guard
+                    && ts.elapsed() < Duration::from_secs(self.config.token_ttl_secs) {
+                        return Ok(token.clone());
+                    }
 
                 let url = format!("{}/v1/auth/approle/login", self.config.address);
                 let req_body = AppRoleLoginRequest { role_id, secret_id };
@@ -94,7 +182,7 @@ impl VaultSecretsProvider {
                     let message = response
                         .text()
                         .await
-                        .unwrap_or_else(|_| "Unknown Vault error".to_string());
+                        .unwrap_or_else(|e| format!("Failed to read error body: {e}"));
                     return Err(SecretsError::VaultError {
                         status: status.as_u16(),
                         message,
@@ -106,7 +194,7 @@ impl VaultSecretsProvider {
                 })?;
 
                 let token = login_resp.auth.client_token;
-                *write_guard = Some(token.clone());
+                *write_guard = Some((token.clone(), Instant::now()));
                 Ok(token)
             }
         }
@@ -125,10 +213,6 @@ struct KvV2Data {
 
 #[async_trait]
 impl SecretsProvider for VaultSecretsProvider {
-    #[allow(
-        clippy::too_many_lines,
-        reason = "JSON extraction from Vault requires verbose match blocks"
-    )]
     async fn get_secret(&self, name: &str) -> Result<DwhSecret, SecretsError> {
         {
             let cache_read = self.cache.read().await;
@@ -163,10 +247,17 @@ impl SecretsProvider for VaultSecretsProvider {
                 return Err(SecretsError::SecretNotFound(name.to_string()));
             }
 
+            if status == StatusCode::FORBIDDEN
+                && matches!(self.config.auth, VaultAuth::AppRole { .. })
+            {
+                let mut guard = self.approle_token.write().await;
+                *guard = None;
+            }
+
             let message = response
                 .text()
                 .await
-                .unwrap_or_else(|_| "Unknown Vault error".to_string());
+                .unwrap_or_else(|e| format!("Failed to read error body: {e}"));
 
             return Err(SecretsError::VaultError {
                 status: status.as_u16(),
@@ -192,69 +283,7 @@ impl SecretsProvider for VaultSecretsProvider {
 
         let secret_kind: SecretKind = type_val.parse()?;
 
-        let extract_str = |key: &str| -> Result<String, SecretsError> {
-            map.get(key)
-                .and_then(|v| v.as_str())
-                .map(ToString::to_string)
-                .ok_or_else(|| {
-                    SecretsError::InvalidConfig(format!("Missing or invalid field '{key}'"))
-                })
-        };
-
-        let secret = match secret_kind {
-            SecretKind::UsernamePassword => {
-                let host = extract_str("host")?;
-                let port_val = map
-                    .get("port")
-                    .ok_or_else(|| SecretsError::InvalidConfig("Missing 'port'".to_string()))?;
-
-                let port = if let Some(n) = port_val.as_u64() {
-                    u16::try_from(n).map_err(|_| {
-                        SecretsError::InvalidConfig("Port value too large".to_string())
-                    })?
-                } else if let Some(s) = port_val.as_str() {
-                    s.parse().map_err(|_| {
-                        SecretsError::InvalidConfig("Invalid port string".to_string())
-                    })?
-                } else {
-                    return Err(SecretsError::InvalidConfig(
-                        "Invalid port format".to_string(),
-                    ));
-                };
-
-                let database = extract_str("database")?;
-                let username = extract_str("username")?;
-                let password = extract_str("password")?;
-
-                DwhSecret::UsernamePassword {
-                    host,
-                    port,
-                    database,
-                    username,
-                    password,
-                }
-            }
-            SecretKind::ServiceAccountKey => {
-                let json = extract_str("json")?;
-                DwhSecret::ServiceAccountKey { json }
-            }
-            SecretKind::KeyPair => {
-                let account = extract_str("account")?;
-                let username = extract_str("username")?;
-                let private_key = extract_str("private_key")?;
-                let passphrase = map
-                    .get("passphrase")
-                    .and_then(|v| v.as_str())
-                    .map(ToString::to_string);
-
-                DwhSecret::KeyPair {
-                    account,
-                    username,
-                    private_key,
-                    passphrase,
-                }
-            }
-        };
+        let secret = crate::secret_data::build_dwh_secret(secret_kind, secret_data)?;
 
         let mut cache_write = self.cache.write().await;
         cache_write.insert(name.to_string(), (secret.clone(), Instant::now()));
@@ -277,4 +306,13 @@ struct AppRoleLoginResponse {
 #[derive(Deserialize)]
 struct AppRoleAuth {
     client_token: String,
+}
+
+impl std::fmt::Debug for VaultSecretsProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VaultSecretsProvider")
+            .field("config", &self.config)
+            .field("approle_token", &"[REDACTED]")
+            .finish_non_exhaustive()
+    }
 }
