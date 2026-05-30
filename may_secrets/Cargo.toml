@@ -3,6 +3,7 @@ name = "may_secrets"
 version = "0.1.0"
 edition = "2024"
 publish = false
+build = "build.rs"
 
 [dependencies]
 async-trait = "0.1"
@@ -14,7 +15,13 @@ tokio = { workspace = true }
 tracing = "0.1"
 schemars = "0.8"
 validator = { version = "0.19", features = ["derive"] }
+# TODO: gate behind a `bootstrap` feature flag to keep the core library lean
 serde_norway = "0.9"
+
+[build-dependencies]
+schemars = "0.8"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 serial_test = "3.1"

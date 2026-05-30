@@ -60,10 +60,11 @@ fn validate_config(config: &MaySecretsConfig) -> Result<(), ValidationError> {
             }
         }
         VaultAuthMethod::AppRole => {
-            if config.role_id.is_none() || config.secret_id.is_none() {
-                return Err(ValidationError::new(
-                    "role_id_and_secret_id_required_for_approle_auth",
-                ));
+            if config.role_id.is_none() {
+                return Err(ValidationError::new("role_id_required_for_approle_auth"));
+            }
+            if config.secret_id.is_none() {
+                return Err(ValidationError::new("secret_id_required_for_approle_auth"));
             }
         }
     }
@@ -74,8 +75,6 @@ fn validate_config(config: &MaySecretsConfig) -> Result<(), ValidationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use std::path::PathBuf;
 
     #[test]
     fn test_valid_managed_config() {
@@ -141,16 +140,23 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_schema() {
-        let schema = schemars::schema_for!(MaySecretsConfig);
-        let schema_json = serde_json::to_string_pretty(&schema).unwrap();
+    fn test_invalid_approle_missing_role_id() {
+        let yaml = r#"
+        mode: byov
+        vault_address: "https://vault.example.com"
+        auth_method: approle
+        secret_id: "my-secret"
+        "#;
+        let config: MaySecretsConfig = serde_norway::from_str(yaml).unwrap();
+        let err = config.validate().unwrap_err();
+        assert!(err.field_errors().contains_key("__all__"));
 
-        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.pop(); // Go up to workspace root
-        path.push("docs");
-        fs::create_dir_all(&path).unwrap();
-        path.push("may_secrets.schema.json");
-
-        fs::write(path, schema_json).unwrap();
+        let field_errors = err.field_errors();
+        let all_errors = field_errors.get("__all__").unwrap();
+        assert!(
+            all_errors
+                .iter()
+                .any(|e| e.code == "role_id_required_for_approle_auth")
+        );
     }
 }

@@ -6,6 +6,12 @@ use crate::vault_provider::{VaultAuth, VaultConfig, VaultSecretsProvider};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::fs;
+use validator::Validate as _;
+
+/// The well-known internal Vault address used when `mode = managed`.
+/// In managed deployments, the `may-vault` Kubernetes service is provisioned
+/// by the platform and is always reachable at this address.
+const MANAGED_VAULT_ADDRESS: &str = "http://may-vault:8200";
 
 /// Bootstraps the secrets provider based on the provided configuration file path.
 ///
@@ -37,8 +43,12 @@ pub async fn bootstrap_secrets_provider(
     let config: MaySecretsConfig = serde_norway::from_str(&config_content)
         .map_err(|e| SecretsError::InvalidConfig(format!("Failed to parse secrets config: {e}")))?;
 
+    config
+        .validate()
+        .map_err(|e| SecretsError::InvalidConfig(format!("Invalid secrets configuration: {e}")))?;
+
     let address = match config.mode {
-        SecretsMode::Managed => "http://may-vault:8200".to_string(),
+        SecretsMode::Managed => MANAGED_VAULT_ADDRESS.to_string(),
         SecretsMode::Byov => config.vault_address.ok_or_else(|| {
             SecretsError::InvalidConfig("Missing vault_address for Byov mode".to_string())
         })?,

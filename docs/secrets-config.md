@@ -12,6 +12,10 @@ You have two operation modes to choose from:
 
 When operating in managed mode, you only need to provide an authentication token. May's infrastructure handles routing to the correct internal Vault instance.
 
+> **Note:** In managed mode, May connects to the internal Vault service at
+> `http://may-vault:8200`. This Kubernetes service is provisioned automatically
+> by the May platform. No `vault_address` field is required or read.
+
 ```yaml
 # may_secrets.yaml
 mode: managed
@@ -89,3 +93,18 @@ secrets:
     role_id: "00000000-0000-0000-0000-000000000000"
     secret_id: "11111111-1111-1111-1111-111111111111"
 ```
+
+---
+
+## Field Reference
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `mode` | `managed` \| `byov` | ✅ | — | Selects provider mode |
+| `vault_address` | URL string | When `mode: byov` | — | Full address of the Vault server |
+| `vault_mount` | string | ❌ | `secret` | KV-v2 mount path |
+| `auth_method` | `token` \| `approle` | ✅ | — | Vault authentication method |
+| `token` | string | When `auth_method: token` | — | Static Vault token |
+| `role_id` | string | When `auth_method: approle` | — | AppRole role ID |
+| `secret_id` | string | When `auth_method: approle` | — | AppRole secret ID |
+| `cache_ttl_secs` | integer ≥ 30 | ❌ | `300` | Secret cache lifetime in seconds |
