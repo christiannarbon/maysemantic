@@ -11,10 +11,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
 tokio = { workspace = true }
+tracing = "0.1"
+schemars = "0.8"
+validator = { version = "0.19", features = ["derive"] }
+serde_norway = "0.9"
 
 [dev-dependencies]
 serial_test = "3.1"
 wiremock = "0.6"
+tempfile = "3.10"
 
 [lints]
 workspace = true
