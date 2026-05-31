@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: may-vault-data
+  name: {{ .Release.Name }}-vault-data
   labels:
-    app: may-vault
+    app: {{ .Release.Name }}-vault
 spec:
   accessModes:
     - ReadWriteOnce

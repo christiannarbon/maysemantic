@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: may-vault
+  name: {{ .Release.Name }}-vault
   labels:
-    app: may-vault
+    app: {{ .Release.Name }}-vault
 spec:
   ports:
     - port: 8200
@@ -12,5 +12,5 @@ spec:
       protocol: TCP
       name: vault
   selector:
-    app: may-vault
+    app: {{ .Release.Name }}-vault
 {{- end }}

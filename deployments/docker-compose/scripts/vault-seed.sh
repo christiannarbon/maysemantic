@@ -1,12 +1,20 @@
 #!/bin/sh
-set -e
+set -eu
 
-export VAULT_ADDR='http://may-vault:8200'
+VAULT_ADDR="${VAULT_ADDR:-http://may-vault:8200}"
+export VAULT_ADDR
 export VAULT_TOKEN=${VAULT_DEV_ROOT_TOKEN_ID}
 
 echo "Waiting for Vault to be ready..."
-until wget --spider -q ${VAULT_ADDR}/v1/sys/health; do
-    echo "Waiting for vault..."
+RETRIES=0
+MAX_RETRIES=30
+until wget --spider -q "${VAULT_ADDR}/v1/sys/health"; do
+    RETRIES=$((RETRIES + 1))
+    if [ "$RETRIES" -ge "$MAX_RETRIES" ]; then
+        echo "ERROR: Vault did not become ready after ${MAX_RETRIES} attempts. Aborting."
+        exit 1
+    fi
+    echo "Waiting for vault... ($RETRIES/$MAX_RETRIES)"
     sleep 2
 done
 echo "Vault is ready."
@@ -18,6 +26,7 @@ vault secrets list | grep -q '^secret/' || vault secrets enable -path=secret kv-
 echo "Writing secrets..."
 
 # PostgreSQL credentials
+echo "Writing pagila secrets..."
 vault kv put secret/dev/pagila \
     host="postgres.internal" \
     user="postgres" \
@@ -25,6 +34,7 @@ vault kv put secret/dev/pagila \
     database="pagila"
 
 # GCP service account key
+echo "Writing bigquery secrets..."
 vault kv put secret/dev/bigquery \
     type="service_account" \
     project_id="may-analytics-dev" \
@@ -33,6 +43,7 @@ vault kv put secret/dev/bigquery \
     client_email="dev-sa@may-analytics-dev.iam.gserviceaccount.com"
 
 # Snowflake credentials
+echo "Writing snowflake secrets..."
 vault kv put secret/dev/snowflake \
     account="xyz12345.us-east-1" \
     user="may_service" \

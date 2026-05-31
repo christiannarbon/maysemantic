@@ -127,7 +127,7 @@ jobs:
           version: 'latest'
 
       - name: Helm Lint
-        run: helm lint deployments/helm/may
+        run: helm lint --strict deployments/helm/may --set identityDb.password=dummy
 
       - name: Helm Template
         run: helm template deployments/helm/may --set identityDb.password=dummy
@@ -163,7 +163,7 @@ jobs:
   cache-cleanup:
     name: Automated Cache Cleanup
     runs-on: ubuntu-latest
-    needs: [build, integration-test]
+    needs: [build, integration-test, helm]
     if: always()
     steps:
       - name: Cleanup old caches
