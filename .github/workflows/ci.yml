@@ -113,6 +113,25 @@ jobs:
         if: always()
         run: docker rm -f pgwire-test || true
 
+  helm:
+    name: Helm Lint and Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4.2.0
+        with:
+          version: 'latest'
+
+      - name: Helm Lint
+        run: helm lint deployments/helm/may
+
+      - name: Helm Template
+        run: helm template deployments/helm/may --set identityDb.password=dummy
+
   integration-test:
     name: Pagila Integration Tests
     runs-on: ubuntu-latest
