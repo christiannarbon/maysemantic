@@ -6,3 +6,13 @@ identityDb:
   database: may_identity
   migrateImage: "ghcr.io/christiannarbon/may-migrate:latest"
   # Credentials should be overridden in production via --set or a values overlay.
+
+vault:
+  enabled: true
+  storage: 1Gi
+  image: hashicorp/vault:1.17
+  # The root token must be set via a pre-existing Kubernetes Secret in production.
+  rootTokenSecret: "vault-root-token"
+  # To unseal Vault in production, you must manually execute:
+  # kubectl exec -it deploy/may-vault -- vault operator init
+  # kubectl exec -it deploy/may-vault -- vault operator unseal

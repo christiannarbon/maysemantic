@@ -1,0 +1,16 @@
+{{- if .Values.vault.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: may-vault
+  labels:
+    app: may-vault
+spec:
+  ports:
+    - port: 8200
+      targetPort: 8200
+      protocol: TCP
+      name: vault
+  selector:
+    app: may-vault
+{{- end }}
