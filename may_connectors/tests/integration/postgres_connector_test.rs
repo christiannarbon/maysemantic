@@ -43,7 +43,9 @@ async fn test_postgres_connector_executes_query() -> Result<(), Box<dyn std::err
     let secrets = Arc::new(EnvSecretsProvider::new());
     let connector = PostgresConnector::new("pagila", secrets);
 
-    let mut stream = connector.execute("SELECT actor_id, first_name, last_name FROM actor LIMIT 10").await?;
+    let mut stream = connector
+        .execute("SELECT actor_id, first_name, last_name FROM actor LIMIT 10")
+        .await?;
 
     let mut row_count = 0;
     let mut first_row_cols = 0;
