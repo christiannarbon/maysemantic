@@ -14,5 +14,6 @@ thiserror = "2.0"
 tokio = { version = "1.0", features = ["sync", "rt", "net", "macros"] }
 tokio-postgres = "0.7.17"
 tokio-postgres-rustls = "0.14.0"
+tracing = "0.1"
 [lints]
 workspace = true

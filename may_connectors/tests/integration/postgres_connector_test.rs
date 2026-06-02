@@ -2,13 +2,21 @@ use futures::StreamExt;
 use may_connectors::{ConnectorError, PostgresConnector, WarehouseConnector};
 use may_secrets::EnvSecretsProvider;
 use std::env;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
+
+static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+fn init_crypto() {
+    static CRYPTO_INIT: OnceLock<()> = OnceLock::new();
+    CRYPTO_INIT.get_or_init(|| {
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Failed to install rustls crypto provider");
+    });
+}
 
 #[allow(unsafe_code, reason = "setting environment variables for test setup")]
 fn setup_pagila_env() {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .ok();
     unsafe {
         env::set_var("MAY_SECRET_PAGILA_TYPE", "username_password");
         env::set_var("MAY_SECRET_PAGILA_HOST", "127.0.0.1");
@@ -20,16 +28,22 @@ fn setup_pagila_env() {
 }
 
 #[tokio::test]
+#[allow(
+    clippy::await_holding_lock,
+    reason = "Integration tests must serialize env mutations across awaits"
+)]
 async fn test_postgres_connector_executes_query() -> Result<(), Box<dyn std::error::Error>> {
     if env::var("PAGILA_TESTS").is_err() {
         return Ok(());
     }
+    let _guard = ENV_LOCK.lock().unwrap();
+    init_crypto();
     setup_pagila_env();
 
     let secrets = Arc::new(EnvSecretsProvider::new());
-    let connector = PostgresConnector::new("pagila".to_string(), secrets);
+    let connector = PostgresConnector::new("pagila", secrets);
 
-    let mut stream = connector.execute("SELECT * FROM actor LIMIT 10").await?;
+    let mut stream = connector.execute("SELECT actor_id, first_name, last_name FROM actor LIMIT 10").await?;
 
     let mut row_count = 0;
     let mut first_row_cols = 0;
@@ -48,14 +62,20 @@ async fn test_postgres_connector_executes_query() -> Result<(), Box<dyn std::err
 }
 
 #[tokio::test]
+#[allow(
+    clippy::await_holding_lock,
+    reason = "Integration tests must serialize env mutations across awaits"
+)]
 async fn test_postgres_connector_handles_invalid_query() -> Result<(), Box<dyn std::error::Error>> {
     if env::var("PAGILA_TESTS").is_err() {
         return Ok(());
     }
+    let _guard = ENV_LOCK.lock().unwrap();
+    init_crypto();
     setup_pagila_env();
 
     let secrets = Arc::new(EnvSecretsProvider::new());
-    let connector = PostgresConnector::new("pagila".to_string(), secrets);
+    let connector = PostgresConnector::new("pagila", secrets);
 
     let mut stream = match connector.execute("SELECT * FROM nonexistent_table").await {
         Ok(s) => s,
@@ -73,15 +93,18 @@ async fn test_postgres_connector_handles_invalid_query() -> Result<(), Box<dyn s
 }
 
 #[tokio::test]
+#[allow(
+    clippy::await_holding_lock,
+    reason = "Integration tests must serialize env mutations across awaits"
+)]
 async fn test_postgres_connector_handles_connection_failure()
 -> Result<(), Box<dyn std::error::Error>> {
     if env::var("PAGILA_TESTS").is_err() {
         return Ok(());
     }
+    let _guard = ENV_LOCK.lock().unwrap();
+    init_crypto();
 
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .ok();
     #[allow(unsafe_code, reason = "setting environment variables for test setup")]
     unsafe {
         env::set_var("MAY_SECRET_BAD_DB_TYPE", "username_password");
@@ -93,7 +116,7 @@ async fn test_postgres_connector_handles_connection_failure()
     }
 
     let secrets = Arc::new(EnvSecretsProvider::new());
-    let connector = PostgresConnector::new("bad_db".to_string(), secrets);
+    let connector = PostgresConnector::new("bad_db", secrets);
 
     let result = connector.execute("SELECT 1").await;
     assert!(matches!(result, Err(ConnectorError::ConnectionFailed(_))));
