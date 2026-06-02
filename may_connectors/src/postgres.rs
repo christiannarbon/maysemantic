@@ -25,7 +25,10 @@ impl PostgresConnector {
 }
 
 #[async_trait]
-#[allow(clippy::too_many_lines, reason = "extensive match block for postgres types")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "extensive match block for postgres types"
+)]
 impl WarehouseConnector for PostgresConnector {
     async fn execute(&self, sql: &str) -> Result<QueryResult, ConnectorError> {
         let secret = self
