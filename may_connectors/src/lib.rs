@@ -4,6 +4,7 @@ pub mod models;
 pub mod registry;
 pub mod traits;
 
+pub use dwh::bigquery::BigQueryConnector;
 pub use dwh::postgres::PostgresConnector;
 pub use error::ConnectorError;
 pub use models::{ColumnValue, QueryResult, Row};
