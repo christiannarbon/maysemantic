@@ -40,6 +40,7 @@ struct BqSchema {
 
 #[derive(Deserialize, Debug)]
 struct BqField {
+    name: String,
     #[serde(rename = "type")]
     field_type: String,
 }
@@ -59,7 +60,11 @@ struct BqCell {
 /// # Errors
 ///
 /// Returns an error if parsing the value fails for the expected field type.
-pub fn map_cell(value: &Value, field_type: &str) -> Result<ColumnValue, ConnectorError> {
+fn map_cell(
+    value: &Value,
+    field_type: &str,
+    col_name: &str,
+) -> Result<ColumnValue, ConnectorError> {
     if value.is_null() {
         return Ok(ColumnValue::Null);
     }
@@ -73,26 +78,32 @@ pub fn map_cell(value: &Value, field_type: &str) -> Result<ColumnValue, Connecto
         }
         "INTEGER" | "INT64" => {
             let n = if let Some(s) = value.as_str() {
-                s.parse::<i64>()
-                    .map_err(|_| ConnectorError::QueryFailed(format!("Invalid integer: {s}")))?
+                s.parse::<i64>().map_err(|_| {
+                    ConnectorError::QueryFailed(format!(
+                        "Invalid integer for column '{col_name}': {s}"
+                    ))
+                })?
             } else if let Some(n) = value.as_i64() {
                 n
             } else {
                 return Err(ConnectorError::QueryFailed(format!(
-                    "Invalid integer: {value:?}"
+                    "Invalid integer for column '{col_name}': {value:?}"
                 )));
             };
             Ok(ColumnValue::Int64(n))
         }
         "FLOAT" | "FLOAT64" => {
             let f = if let Some(s) = value.as_str() {
-                s.parse::<f64>()
-                    .map_err(|_| ConnectorError::QueryFailed(format!("Invalid float: {s}")))?
+                s.parse::<f64>().map_err(|_| {
+                    ConnectorError::QueryFailed(format!(
+                        "Invalid float for column '{col_name}': {s}"
+                    ))
+                })?
             } else if let Some(f) = value.as_f64() {
                 f
             } else {
                 return Err(ConnectorError::QueryFailed(format!(
-                    "Invalid float: {value:?}"
+                    "Invalid float for column '{col_name}': {value:?}"
                 )));
             };
             Ok(ColumnValue::Float64(f))
@@ -104,18 +115,20 @@ pub fn map_cell(value: &Value, field_type: &str) -> Result<ColumnValue, Connecto
                 b
             } else {
                 return Err(ConnectorError::QueryFailed(format!(
-                    "Invalid bool: {value:?}"
+                    "Invalid bool for column '{col_name}': {value:?}"
                 )));
             };
             Ok(ColumnValue::Bool(b))
         }
         "BYTES" => {
-            let s = value
-                .as_str()
-                .ok_or_else(|| ConnectorError::QueryFailed("Expected string for BYTES".into()))?;
-            let decoded = general_purpose::STANDARD
-                .decode(s)
-                .map_err(|e| ConnectorError::QueryFailed(format!("Invalid base64: {e}")))?;
+            let s = value.as_str().ok_or_else(|| {
+                ConnectorError::QueryFailed(format!(
+                    "Expected string for BYTES column '{col_name}'"
+                ))
+            })?;
+            let decoded = general_purpose::STANDARD.decode(s).map_err(|e| {
+                ConnectorError::QueryFailed(format!("Invalid base64 for column '{col_name}': {e}"))
+            })?;
             Ok(ColumnValue::Bytes(decoded))
         }
         _ => Ok(ColumnValue::Text(value.to_string())),
@@ -127,25 +140,66 @@ pub struct BigQueryConnector {
     secret_name: String,
     secrets: Arc<dyn SecretsProvider>,
     auth_manager: RwLock<Option<Arc<dyn gcp_auth::TokenProvider>>>,
+    // NOTE: Manual caching is used on top of gcp_auth because the 60-second
+    // pre-emptive refresh buffer is a deliberate product decision.
     token_cache: Arc<RwLock<Option<CachedToken>>>,
     client: Client,
 }
 
+async fn fetch_or_refresh_token(
+    token_cache: &Arc<RwLock<Option<CachedToken>>>,
+    auth_manager: &Arc<dyn gcp_auth::TokenProvider>,
+) -> Result<String, ConnectorError> {
+    {
+        let cache = token_cache.read().await;
+        if let Some(cached) = cache.as_ref() {
+            #[allow(clippy::collapsible_if, reason = "nested if is clearer")]
+            if Utc::now() + chrono::Duration::seconds(60) < cached.expires_at {
+                return Ok(cached.token.clone());
+            }
+        }
+    }
+
+    let token_arc = auth_manager
+        .token(&["https://www.googleapis.com/auth/bigquery"])
+        .await
+        .map_err(|e| ConnectorError::ConnectionFailed(format!("Failed to get oauth token: {e}")))?;
+
+    let token_str = token_arc.as_str().to_owned();
+
+    let mut cache = token_cache.write().await;
+    *cache = Some(CachedToken {
+        token: token_str.clone(),
+        expires_at: token_arc.expires_at(),
+    });
+
+    Ok(token_str)
+}
+
 impl BigQueryConnector {
-    #[must_use]
+    /// Creates a new `BigQueryConnector`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `ConnectorError::ConnectionFailed` if the underlying HTTP client cannot be built.
     pub fn new(
         project_id: impl Into<String>,
         secret_name: impl Into<String>,
         secrets: Arc<dyn SecretsProvider>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ConnectorError> {
+        let client = reqwest::ClientBuilder::new()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| ConnectorError::ConnectionFailed(e.to_string()))?;
+
+        Ok(Self {
             project_id: project_id.into(),
             secret_name: secret_name.into(),
             secrets,
             auth_manager: RwLock::new(None),
             token_cache: Arc::new(RwLock::new(None)),
-            client: Client::new(),
-        }
+            client,
+        })
     }
 
     async fn get_token(&self) -> Result<String, ConnectorError> {
@@ -159,47 +213,47 @@ impl BigQueryConnector {
             }
         }
 
-        let mut auth_mgr_lock = self.auth_manager.write().await;
-        if auth_mgr_lock.is_none() {
-            let secret = self
-                .secrets
-                .get_secret(&self.secret_name)
-                .await
-                .map_err(|e| ConnectorError::ConnectionFailed(e.to_string()))?;
+        let auth_manager = {
+            let lock = self.auth_manager.read().await;
+            if let Some(am) = lock.as_ref() {
+                am.clone()
+            } else {
+                drop(lock);
+                let mut write_lock = self.auth_manager.write().await;
+                if write_lock.is_none() {
+                    let secret = self
+                        .secrets
+                        .get_secret(&self.secret_name)
+                        .await
+                        .map_err(|e| ConnectorError::ConnectionFailed(e.to_string()))?;
 
-            let DwhSecret::ServiceAccountKey { json } = secret else {
-                return Err(ConnectorError::ConnectionFailed(
-                    "Expected ServiceAccountKey secret for BigQuery".to_string(),
-                ));
-            };
+                    let DwhSecret::ServiceAccountKey { json } = secret else {
+                        return Err(ConnectorError::ConnectionFailed(
+                            "Expected ServiceAccountKey secret for BigQuery".to_string(),
+                        ));
+                    };
 
-            let sa = gcp_auth::CustomServiceAccount::from_json(&json).map_err(|e| {
-                ConnectorError::ConnectionFailed(format!("Failed to parse SA json: {e}"))
-            })?;
+                    let sa = gcp_auth::CustomServiceAccount::from_json(&json).map_err(|e| {
+                        ConnectorError::ConnectionFailed(format!("Failed to parse SA json: {e}"))
+                    })?;
 
-            *auth_mgr_lock = Some(Arc::new(sa));
-        }
+                    *write_lock = Some(Arc::new(sa));
+                }
+                write_lock
+                    .as_ref()
+                    .ok_or_else(|| {
+                        ConnectorError::ConnectionFailed(
+                            "auth_manager not initialised — this is a bug".to_string(),
+                        )
+                    })?
+                    .clone()
+            }
+        };
 
-        let auth_manager = auth_mgr_lock.as_ref().unwrap();
-        let token_arc = auth_manager
-            .token(&["https://www.googleapis.com/auth/bigquery"])
-            .await
-            .map_err(|e| {
-                ConnectorError::ConnectionFailed(format!("Failed to get oauth token: {e}"))
-            })?;
-
-        let token_str = token_arc.as_str().to_string();
-
-        let mut cache = self.token_cache.write().await;
-        *cache = Some(CachedToken {
-            token: token_str.clone(),
-            expires_at: token_arc.expires_at(),
-        });
-
-        Ok(token_str)
+        fetch_or_refresh_token(&self.token_cache, &auth_manager).await
     }
 
-    #[doc(hidden)]
+    #[cfg(test)]
     pub async fn seed_cache_for_test(&self, token: String, expires_in_seconds: i64) {
         let mut cache = self.token_cache.write().await;
         *cache = Some(CachedToken {
@@ -222,9 +276,12 @@ impl WarehouseConnector for BigQueryConnector {
             "https://bigquery.googleapis.com/bigquery/v2/projects/{}/queries",
             self.project_id
         );
+        // NOTE: We intentionally use the runQuery endpoint here as a shortcut
+        // instead of the jobs.insert API.
         let body = serde_json::json!({
             "query": sql,
-            "useLegacySql": false
+            "useLegacySql": false,
+            "timeoutMs": 30_000
         });
 
         let res = self
@@ -258,32 +315,6 @@ impl WarehouseConnector for BigQueryConnector {
         let stream = stream! {
             let mut current_res = bq_res;
 
-            // Helper to get token inside stream
-            let get_stream_token = || async {
-                {
-                    let cache = token_cache.read().await;
-                    if let Some(cached) = cache.as_ref() {
-                        #[allow(clippy::collapsible_if, reason = "nested if is clearer")]
-                        if Utc::now() + chrono::Duration::seconds(60) < cached.expires_at {
-                            return Ok(cached.token.clone());
-                        }
-                    }
-                }
-                let token_arc = auth_manager
-                    .token(&["https://www.googleapis.com/auth/bigquery"])
-                    .await
-                    .map_err(|e| {
-                        ConnectorError::ConnectionFailed(format!("Failed to get oauth token: {e}"))
-                    })?;
-                let token_str = token_arc.as_str().to_string();
-                let mut cache = token_cache.write().await;
-                *cache = Some(CachedToken {
-                    token: token_str.clone(),
-                    expires_at: token_arc.expires_at(),
-                });
-                Ok(token_str)
-            };
-
             loop {
                 while !current_res.job_complete {
                     let job_id = &current_res.job_reference.job_id;
@@ -292,7 +323,7 @@ impl WarehouseConnector for BigQueryConnector {
                         "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/queries/{job_id}"
                     );
 
-                    let token = match get_stream_token().await {
+                    let token = match fetch_or_refresh_token(&token_cache, &auth_manager).await {
                         Ok(t) => t,
                         Err(e) => {
                             yield Err(e);
@@ -336,7 +367,7 @@ impl WarehouseConnector for BigQueryConnector {
                         let mut out_row = Vec::with_capacity(schema.fields.len());
                         for (i, cell) in row.f.iter().enumerate() {
                             let field = &schema.fields[i];
-                            match map_cell(&cell.v, &field.field_type) {
+                            match map_cell(&cell.v, &field.field_type, &field.name) {
                                 Ok(val) => out_row.push(val),
                                 Err(e) => {
                                     yield Err(e);
@@ -355,7 +386,7 @@ impl WarehouseConnector for BigQueryConnector {
                         "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/queries/{job_id}?pageToken={page_token}"
                     );
 
-                    let token = match get_stream_token().await {
+                    let token = match fetch_or_refresh_token(&token_cache, &auth_manager).await {
                         Ok(t) => t,
                         Err(e) => {
                             yield Err(e);
@@ -391,5 +422,76 @@ impl WarehouseConnector for BigQueryConnector {
         };
 
         Ok(Box::pin(stream))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use may_secrets::{DwhSecret, SecretsProvider};
+    use serde_json::json;
+    use std::sync::Mutex;
+
+    struct MockSecretsProvider {
+        called: Mutex<bool>,
+    }
+
+    #[async_trait]
+    impl SecretsProvider for MockSecretsProvider {
+        async fn get_secret(&self, _name: &str) -> Result<DwhSecret, may_secrets::SecretsError> {
+            *self.called.lock().unwrap() = true;
+            Ok(DwhSecret::ServiceAccountKey {
+                json: "invalid json".to_string(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_bigquery_connector_caching_logic() {
+        let secrets = Arc::new(MockSecretsProvider {
+            called: Mutex::new(false),
+        });
+        let connector = BigQueryConnector::new("proj-123", "secret-456", secrets.clone()).unwrap();
+
+        // Seed cache with a valid-looking token and an expiry way in the future (3600 seconds)
+        connector
+            .seed_cache_for_test("cached-token".to_string(), 3600)
+            .await;
+
+        // Because the cache is valid, `execute` will use it to make an HTTP request to BQ with the fake token, which fails with 401 Unauthenticated
+        let stream_res = connector.execute("SELECT 1").await;
+        match stream_res {
+            Err(err) => {
+                assert!(matches!(err, ConnectorError::QueryFailed(_)));
+            }
+            Ok(_) => panic!("Expected error, got Ok"),
+        }
+
+        // Now seed cache with an expired token (expires in 30 seconds, less than 60s TTL)
+        connector
+            .seed_cache_for_test("expired-token".to_string(), 30)
+            .await;
+
+        let stream_res = connector.execute("SELECT 1").await;
+
+        // Because the cache is expired, it will try to get a new token using the invalid JSON, failing with ConnectionFailed
+        match stream_res {
+            Err(err) => {
+                assert!(matches!(err, ConnectorError::ConnectionFailed(_)));
+            }
+            Ok(_) => panic!("Expected error, got Ok"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_bigquery_null_value_mapping() {
+        let null_val = json!(null);
+        let res = map_cell(&null_val, "STRING", "test_col").unwrap();
+        assert!(matches!(res, ColumnValue::Null));
+
+        let nested_val = json!({"foo": "bar"});
+        let res2 = map_cell(&nested_val, "RECORD", "test_col").unwrap();
+        assert!(matches!(res2, ColumnValue::Text(s) if s == "{\"foo\":\"bar\"}"));
     }
 }
