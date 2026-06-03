@@ -7,6 +7,7 @@ edition = "2024"
 async-stream = "0.3.6"
 async-trait = "0.1"
 base64 = "0.22.1"
+chrono = "0.4.44"
 futures = "0.3"
 gcp_auth = "0.12.6"
 may_secrets = { version = "0.1.0", path = "../may_secrets" }

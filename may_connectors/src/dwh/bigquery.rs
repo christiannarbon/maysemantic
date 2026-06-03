@@ -4,12 +4,18 @@ use crate::traits::WarehouseConnector;
 use async_stream::stream;
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
+use chrono::{DateTime, Utc};
 use may_secrets::{DwhSecret, SecretsProvider};
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+struct CachedToken {
+    token: String,
+    expires_at: DateTime<Utc>,
+}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -48,7 +54,12 @@ struct BqCell {
     v: Value,
 }
 
-fn map_cell(value: &Value, field_type: &str) -> Result<ColumnValue, ConnectorError> {
+/// Maps a `BigQuery` JSON cell to a `ColumnValue`.
+///
+/// # Errors
+///
+/// Returns an error if parsing the value fails for the expected field type.
+pub fn map_cell(value: &Value, field_type: &str) -> Result<ColumnValue, ConnectorError> {
     if value.is_null() {
         return Ok(ColumnValue::Null);
     }
@@ -107,7 +118,7 @@ fn map_cell(value: &Value, field_type: &str) -> Result<ColumnValue, ConnectorErr
                 .map_err(|e| ConnectorError::QueryFailed(format!("Invalid base64: {e}")))?;
             Ok(ColumnValue::Bytes(decoded))
         }
-        _ => Err(ConnectorError::UnsupportedType(field_type.to_string())),
+        _ => Ok(ColumnValue::Text(value.to_string())),
     }
 }
 
@@ -116,6 +127,7 @@ pub struct BigQueryConnector {
     secret_name: String,
     secrets: Arc<dyn SecretsProvider>,
     auth_manager: RwLock<Option<Arc<dyn gcp_auth::TokenProvider>>>,
+    token_cache: Arc<RwLock<Option<CachedToken>>>,
     client: Client,
 }
 
@@ -131,11 +143,22 @@ impl BigQueryConnector {
             secret_name: secret_name.into(),
             secrets,
             auth_manager: RwLock::new(None),
+            token_cache: Arc::new(RwLock::new(None)),
             client: Client::new(),
         }
     }
 
     async fn get_token(&self) -> Result<String, ConnectorError> {
+        {
+            let cache = self.token_cache.read().await;
+            if let Some(cached) = cache.as_ref() {
+                #[allow(clippy::collapsible_if, reason = "nested if is clearer")]
+                if Utc::now() + chrono::Duration::seconds(60) < cached.expires_at {
+                    return Ok(cached.token.clone());
+                }
+            }
+        }
+
         let mut auth_mgr_lock = self.auth_manager.write().await;
         if auth_mgr_lock.is_none() {
             let secret = self
@@ -158,14 +181,31 @@ impl BigQueryConnector {
         }
 
         let auth_manager = auth_mgr_lock.as_ref().unwrap();
-        let token = auth_manager
+        let token_arc = auth_manager
             .token(&["https://www.googleapis.com/auth/bigquery"])
             .await
             .map_err(|e| {
                 ConnectorError::ConnectionFailed(format!("Failed to get oauth token: {e}"))
             })?;
 
-        Ok(token.as_str().to_string())
+        let token_str = token_arc.as_str().to_string();
+
+        let mut cache = self.token_cache.write().await;
+        *cache = Some(CachedToken {
+            token: token_str.clone(),
+            expires_at: token_arc.expires_at(),
+        });
+
+        Ok(token_str)
+    }
+
+    #[doc(hidden)]
+    pub async fn seed_cache_for_test(&self, token: String, expires_in_seconds: i64) {
+        let mut cache = self.token_cache.write().await;
+        *cache = Some(CachedToken {
+            token,
+            expires_at: Utc::now() + chrono::Duration::seconds(expires_in_seconds),
+        });
     }
 }
 
@@ -213,8 +253,36 @@ impl WarehouseConnector for BigQueryConnector {
             lock.as_ref().unwrap().clone()
         };
 
+        let token_cache = self.token_cache.clone();
+
         let stream = stream! {
             let mut current_res = bq_res;
+
+            // Helper to get token inside stream
+            let get_stream_token = || async {
+                {
+                    let cache = token_cache.read().await;
+                    if let Some(cached) = cache.as_ref() {
+                        #[allow(clippy::collapsible_if, reason = "nested if is clearer")]
+                        if Utc::now() + chrono::Duration::seconds(60) < cached.expires_at {
+                            return Ok(cached.token.clone());
+                        }
+                    }
+                }
+                let token_arc = auth_manager
+                    .token(&["https://www.googleapis.com/auth/bigquery"])
+                    .await
+                    .map_err(|e| {
+                        ConnectorError::ConnectionFailed(format!("Failed to get oauth token: {e}"))
+                    })?;
+                let token_str = token_arc.as_str().to_string();
+                let mut cache = token_cache.write().await;
+                *cache = Some(CachedToken {
+                    token: token_str.clone(),
+                    expires_at: token_arc.expires_at(),
+                });
+                Ok(token_str)
+            };
 
             loop {
                 while !current_res.job_complete {
@@ -224,10 +292,10 @@ impl WarehouseConnector for BigQueryConnector {
                         "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/queries/{job_id}"
                     );
 
-                    let token = match auth_manager.token(&["https://www.googleapis.com/auth/bigquery"]).await {
+                    let token = match get_stream_token().await {
                         Ok(t) => t,
                         Err(e) => {
-                            yield Err(ConnectorError::QueryFailed(format!("Failed to get token during poll: {e}")));
+                            yield Err(e);
                             return;
                         }
                     };
@@ -287,10 +355,10 @@ impl WarehouseConnector for BigQueryConnector {
                         "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/queries/{job_id}?pageToken={page_token}"
                     );
 
-                    let token = match auth_manager.token(&["https://www.googleapis.com/auth/bigquery"]).await {
+                    let token = match get_stream_token().await {
                         Ok(t) => t,
                         Err(e) => {
-                            yield Err(ConnectorError::QueryFailed(format!("Failed to get token during pagination: {e}")));
+                            yield Err(e);
                             return;
                         }
                     };
