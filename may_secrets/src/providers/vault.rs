@@ -1,7 +1,7 @@
 use crate::error::SecretsError;
-use crate::models::DwhSecret;
+use crate::models::dwh::DwhSecret;
+use crate::models::kind::SecretKind;
 use crate::provider::SecretsProvider;
-use crate::secret_kind::SecretKind;
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -285,7 +285,7 @@ impl SecretsProvider for VaultSecretsProvider {
 
         let secret_kind: SecretKind = type_val.parse()?;
 
-        let secret = crate::secret_data::build_dwh_secret(secret_kind, secret_data)?;
+        let secret = crate::models::data::build_dwh_secret(secret_kind, secret_data)?;
 
         let mut cache_write = self.cache.write().await;
         cache_write.insert(name.to_string(), (secret.clone(), Instant::now()));

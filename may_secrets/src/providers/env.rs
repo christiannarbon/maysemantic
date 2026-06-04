@@ -1,5 +1,5 @@
 use crate::error::SecretsError;
-use crate::models::DwhSecret;
+use crate::models::dwh::DwhSecret;
 use crate::provider::SecretsProvider;
 use async_trait::async_trait;
 use std::env;
@@ -27,10 +27,10 @@ impl SecretsProvider for EnvSecretsProvider {
         let type_var = format!("{prefix}_TYPE");
 
         let secret_type = Self::require_env(&type_var)?;
-        let secret_kind: crate::secret_kind::SecretKind = secret_type.parse()?;
+        let secret_kind: crate::models::kind::SecretKind = secret_type.parse()?;
 
         match secret_kind {
-            crate::secret_kind::SecretKind::UsernamePassword => {
+            crate::models::kind::SecretKind::UsernamePassword => {
                 let host = Self::require_env(&format!("{prefix}_HOST"))?;
                 let port_str = Self::require_env(&format!("{prefix}_PORT"))?;
                 let port: u16 = port_str.parse().map_err(|_| {
@@ -48,11 +48,11 @@ impl SecretsProvider for EnvSecretsProvider {
                     password,
                 })
             }
-            crate::secret_kind::SecretKind::ServiceAccountKey => {
+            crate::models::kind::SecretKind::ServiceAccountKey => {
                 let json = Self::require_env(&format!("{prefix}_JSON"))?;
                 Ok(DwhSecret::ServiceAccountKey { json })
             }
-            crate::secret_kind::SecretKind::KeyPair => {
+            crate::models::kind::SecretKind::KeyPair => {
                 let account = Self::require_env(&format!("{prefix}_ACCOUNT"))?;
                 let username = Self::require_env(&format!("{prefix}_USERNAME"))?;
                 let private_key = Self::require_env(&format!("{prefix}_PRIVATE_KEY"))?;

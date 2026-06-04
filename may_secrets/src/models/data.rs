@@ -1,6 +1,6 @@
 use crate::error::SecretsError;
-use crate::models::DwhSecret;
-use crate::secret_kind::SecretKind;
+use crate::models::dwh::DwhSecret;
+use crate::models::kind::SecretKind;
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 

@@ -1,8 +1,8 @@
 use crate::config::{MaySecretsConfig, SecretsMode, VaultAuthMethod};
-use crate::env_provider::EnvSecretsProvider;
 use crate::error::SecretsError;
 use crate::provider::SecretsProvider;
-use crate::vault_provider::{VaultAuth, VaultConfig, VaultSecretsProvider};
+use crate::providers::env::EnvSecretsProvider;
+use crate::providers::vault::{VaultAuth, VaultConfig, VaultSecretsProvider};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::fs;

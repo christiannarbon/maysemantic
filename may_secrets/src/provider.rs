@@ -1,5 +1,5 @@
 use crate::error::SecretsError;
-use crate::models::DwhSecret;
+use crate::models::dwh::DwhSecret;
 use async_trait::async_trait;
 
 #[async_trait]
