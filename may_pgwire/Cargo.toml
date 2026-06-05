@@ -16,7 +16,8 @@ sqlparser = "0.62.0"
 may_auth = { path = "../may_auth" }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono"] }
 uuid = "1.23.1"
-
+may_connectors = { path = "../may_connectors" }
+may_secrets = { path = "../may_secrets" }
 [dev-dependencies]
 tokio-postgres = "0.7"
 uuid = { version = "1.23.1", features = ["v4"] }

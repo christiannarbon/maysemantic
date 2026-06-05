@@ -44,6 +44,7 @@ impl UserRepository for DenyAllRepository {
 pub async fn run_server(
     listener: TcpListener,
     database_url: Option<String>,
+    secrets: Arc<dyn may_secrets::SecretsProvider>,
     mut shutdown_rx: broadcast::Receiver<()>,
 ) -> Result<()> {
     info!("Loading semantic models from current directory...");
@@ -57,8 +58,18 @@ pub async fn run_server(
         );
     }
 
+    let mut registry = may_connectors::ConnectorRegistry::new();
+    if let Ok(models) = state_mgr.get_all_models() {
+        for model in models {
+            // Default to PostgresConnector for now
+            let connector = Arc::new(may_connectors::PostgresConnector::new("mock_secret", secrets.clone()));
+            registry.register(&model.name, connector);
+        }
+    }
+    let connectors = Arc::new(registry);
+
     let shared_state = Arc::new(state_mgr);
-    let processor = Arc::new(QueryProcessor::new(shared_state));
+    let processor = Arc::new(QueryProcessor::new(shared_state, connectors));
 
     let db_url_opt = database_url.or_else(|| env::var("DATABASE_URL").ok());
     let repository: Arc<dyn UserRepository + Send + Sync> = match db_url_opt {

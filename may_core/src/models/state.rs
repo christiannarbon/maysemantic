@@ -109,6 +109,16 @@ impl StateMgr {
         Ok(state.models.get(name).cloned())
     }
 
+    pub fn get_all_models(&self) -> Result<Vec<SemanticModel>, StateError> {
+        let state = self.state.read().map_err(|_| StateError::LockError)?;
+        Ok(state.models.values().cloned().collect())
+    }
+
+    pub fn get_default_model(&self) -> Result<Option<SemanticModel>, StateError> {
+        let state = self.state.read().map_err(|_| StateError::LockError)?;
+        Ok(state.models.values().next().cloned())
+    }
+
     /// Returns aggregate counts of models, entities, and metrics in the current state.
     pub fn get_stats(&self) -> Result<StateStats, StateError> {
         let state = self.state.read().map_err(|_| StateError::LockError)?;

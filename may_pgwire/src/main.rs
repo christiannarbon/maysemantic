@@ -20,8 +20,10 @@ async fn main() -> Result<()> {
 
     let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
 
+    let secrets = std::sync::Arc::new(may_secrets::EnvSecretsProvider::new());
+    
     let server_task = tokio::spawn(async move {
-        if let Err(e) = server::run_server(listener, None, shutdown_rx).await {
+        if let Err(e) = server::run_server(listener, None, secrets, shutdown_rx).await {
             tracing::error!("Server error: {:?}", e);
         }
     });

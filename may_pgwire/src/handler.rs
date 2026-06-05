@@ -22,11 +22,15 @@ use tracing::{debug, info, warn};
 
 pub struct QueryProcessor {
     state_mgr: Arc<StateMgr>,
+    connectors: Arc<may_connectors::ConnectorRegistry>,
 }
 
 impl QueryProcessor {
-    pub fn new(state_mgr: Arc<StateMgr>) -> Self {
-        Self { state_mgr }
+    pub fn new(
+        state_mgr: Arc<StateMgr>,
+        connectors: Arc<may_connectors::ConnectorRegistry>,
+    ) -> Self {
+        Self { state_mgr, connectors }
     }
 }
 
@@ -219,7 +223,6 @@ impl SimpleQueryHandler for QueryProcessor {
 
         let is_version_query = upper_query.contains("VERSION()");
         let is_select_1 = upper_query == "SELECT 1;" || upper_query == "SELECT 1";
-        drop(upper_query);
 
         if is_version_query {
             let field_info =
@@ -255,44 +258,129 @@ impl SimpleQueryHandler for QueryProcessor {
             ))]);
         }
 
-        let _stats = self.state_mgr.get_stats().map_err(|e| {
-            PgWireError::UserError(Box::new(ErrorInfo::new(
-                "ERROR".to_owned(),
-                "XX000".to_owned(),
-                e.to_string(),
-            )))
-        })?;
+        let data_source_name = match self.state_mgr.get_default_model() {
+            Ok(Some(model)) => model.name,
+            _ => {
+                let error_info = ErrorInfo::new(
+                    "ERROR".to_owned(),
+                    "XX000".to_owned(),
+                    "No semantic model loaded, cannot determine data source.".to_owned(),
+                );
+                return Err(PgWireError::UserError(Box::new(error_info)));
+            }
+        };
 
-        info!("Returning a generic mock tabular response for query execution.");
+        let connector = match self.connectors.get(&data_source_name) {
+            Some(c) => c,
+            None => {
+                let error_info = ErrorInfo::new(
+                    "ERROR".to_owned(),
+                    "XX000".to_owned(),
+                    format!("No connector registered for data source: {}", data_source_name),
+                );
+                return Err(PgWireError::UserError(Box::new(error_info)));
+            }
+        };
 
-        let field_id = FieldInfo::new("id".into(), None, None, Type::INT8, FieldFormat::Text);
-        let field_name =
-            FieldInfo::new("name".into(), None, None, Type::VARCHAR, FieldFormat::Text);
-        let field_active = FieldInfo::new(
-            "is_active".into(),
-            None,
-            None,
-            Type::BOOL,
-            FieldFormat::Text,
-        );
-        let schema = Arc::new(vec![field_id, field_name, field_active]);
+        // Determine if this is an explicit query vs semantic query (currently hardcoded as explicit)
+        let mut query_result = connector
+            .execute(&upper_query)
+            .await
+            .map_err(|e| {
+                PgWireError::UserError(Box::new(ErrorInfo::new(
+                    "ERROR".to_owned(),
+                    "XX000".to_owned(),
+                    format!("Connector error: {:?}", e),
+                )))
+            })?;
 
-        let mut encoder1 = DataRowEncoder::new(schema.clone());
-        encoder1.encode_field(&Some(1_i64))?;
-        encoder1.encode_field(&Some("Alice"))?;
-        encoder1.encode_field(&Some(true))?;
-        let row1 = encoder1.finish();
+        use futures::StreamExt;
+        
+        // Peek at the first row to determine column count and build a schema
+        let first_row = match query_result.next().await {
+            Some(Ok(row)) => row,
+            Some(Err(e)) => {
+                return Err(PgWireError::UserError(Box::new(ErrorInfo::new(
+                    "ERROR".to_owned(),
+                    "XX000".to_owned(),
+                    format!("Query error: {:?}", e),
+                ))));
+            }
+            None => {
+                // Empty result, return empty schema
+                return Ok(vec![Response::Query(QueryResponse::new(Arc::new(vec![]), stream::empty()))]);
+            }
+        };
 
-        let mut encoder2 = DataRowEncoder::new(schema.clone());
-        encoder2.encode_field(&Some(2_i64))?;
-        encoder2.encode_field(&Some("Bob"))?;
-        encoder2.encode_field(&Some(false))?;
-        let row2 = encoder2.finish();
+        let field_infos: Vec<FieldInfo> = (0..first_row.len())
+            .map(|i| {
+                FieldInfo::new(
+                    format!("col_{}", i),
+                    None,
+                    None,
+                    Type::TEXT,
+                    FieldFormat::Text,
+                )
+            })
+            .collect();
+        
+        let schema_ref = Arc::new(field_infos);
+        let mut data_rows = Vec::new();
 
-        Ok(vec![Response::Query(QueryResponse::new(
-            schema,
-            stream::iter(vec![row1, row2]),
-        ))])
+        // Process first row
+        let mut encoder = DataRowEncoder::new(schema_ref.clone());
+        for val in &first_row {
+            let s = match val {
+                may_connectors::models::ColumnValue::Null => "NULL".to_owned(),
+                may_connectors::models::ColumnValue::Int64(i) => i.to_string(),
+                may_connectors::models::ColumnValue::Float64(f) => f.to_string(),
+                may_connectors::models::ColumnValue::Text(t) => t.clone(),
+                may_connectors::models::ColumnValue::Bool(b) => b.to_string(),
+                may_connectors::models::ColumnValue::Bytes(_) => "<bytes>".to_owned(),
+                _ => "UNKNOWN".to_owned(),
+            };
+            encoder.encode_field(&Some(s)).map_err(|e| {
+                PgWireError::UserError(Box::new(ErrorInfo::new(
+                    "ERROR".to_owned(),
+                    "XX000".to_owned(),
+                    format!("Encoding error: {:?}", e),
+                )))
+            })?;
+        }
+        data_rows.push(encoder.finish());
+
+        // Process remaining rows
+        while let Some(res) = query_result.next().await {
+            let row = res.map_err(|e| {
+                PgWireError::UserError(Box::new(ErrorInfo::new(
+                    "ERROR".to_owned(),
+                    "XX000".to_owned(),
+                    format!("Query error: {:?}", e),
+                )))
+            })?;
+            let mut encoder = DataRowEncoder::new(schema_ref.clone());
+            for val in &row {
+                let s = match val {
+                    may_connectors::models::ColumnValue::Null => "NULL".to_owned(),
+                    may_connectors::models::ColumnValue::Int64(i) => i.to_string(),
+                    may_connectors::models::ColumnValue::Float64(f) => f.to_string(),
+                    may_connectors::models::ColumnValue::Text(t) => t.clone(),
+                    may_connectors::models::ColumnValue::Bool(b) => b.to_string(),
+                    may_connectors::models::ColumnValue::Bytes(_) => "<bytes>".to_owned(),
+                    _ => "UNKNOWN".to_owned(),
+                };
+                encoder.encode_field(&Some(s)).map_err(|e| {
+                    PgWireError::UserError(Box::new(ErrorInfo::new(
+                        "ERROR".to_owned(),
+                        "XX000".to_owned(),
+                        format!("Encoding error: {:?}", e),
+                    )))
+                })?;
+            }
+            data_rows.push(encoder.finish());
+        }
+
+        Ok(vec![Response::Query(QueryResponse::new(schema_ref, stream::iter(data_rows)))])
     }
 }
 

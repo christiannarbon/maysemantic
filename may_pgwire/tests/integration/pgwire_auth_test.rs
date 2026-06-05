@@ -44,7 +44,8 @@ async fn setup_db_and_server() -> (String, String, broadcast::Sender<()>, u16) {
     let database_url_clone = database_url.clone();
     tokio::spawn(async move {
         let _ = tracing_subscriber::fmt::try_init();
-        if let Err(e) = run_server(listener, Some(database_url_clone), shutdown_rx).await {
+        let secrets = std::sync::Arc::new(may_secrets::EnvSecretsProvider::new());
+        if let Err(e) = run_server(listener, Some(database_url_clone), secrets, shutdown_rx).await {
             eprintln!("Server crashed: {:?}", e);
         }
     });
