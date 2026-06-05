@@ -26,6 +26,8 @@ pub struct SnowflakeConnector {
     secret_name: String,
     secrets: Arc<dyn SecretsProvider>,
     http_client: Client,
+    pub(crate) base_url_override: Option<String>,
+    pub(crate) delay_ms_override: Option<u64>,
 }
 
 impl SnowflakeConnector {
@@ -53,7 +55,17 @@ impl SnowflakeConnector {
             secret_name: secret_name.into(),
             secrets,
             http_client,
+            base_url_override: None,
+            delay_ms_override: None,
         })
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_test_overrides(mut self, url: String, delay_ms: u64) -> Self {
+        self.base_url_override = Some(url);
+        self.delay_ms_override = Some(delay_ms);
+        self
     }
 
     #[doc(hidden)]
@@ -132,6 +144,7 @@ impl SnowflakeConnector {
 fn map_cell(
     value: &Value,
     field_type: &str,
+    scale: Option<i64>,
     col_name: &str,
 ) -> Result<ColumnValue, ConnectorError> {
     if value.is_null() {
@@ -146,19 +159,26 @@ fn map_cell(
 
     let field_type_upper = field_type.to_uppercase();
     match field_type_upper.as_str() {
-        "TEXT" | "VARCHAR" => Ok(ColumnValue::Text(val_str.to_string())),
         "FIXED" | "NUMBER" => {
-            if let Ok(i) = val_str.parse::<i64>() {
-                Ok(ColumnValue::Int64(i))
-            } else if let Ok(f) = val_str.parse::<f64>() {
-                Ok(ColumnValue::Float64(f))
+            if scale.unwrap_or(0) == 0 {
+                if let Ok(i) = val_str.parse::<i64>() {
+                    Ok(ColumnValue::Int64(i))
+                } else {
+                    Err(ConnectorError::QueryFailed(format!(
+                        "Failed to parse FIXED (scale=0) for column '{col_name}': {val_str}"
+                    )))
+                }
             } else {
-                Err(ConnectorError::QueryFailed(format!(
-                    "Failed to parse NUMBER/FIXED for column '{col_name}': {val_str}"
-                )))
+                if let Ok(f) = val_str.parse::<f64>() {
+                    Ok(ColumnValue::Float64(f))
+                } else {
+                    Err(ConnectorError::QueryFailed(format!(
+                        "Failed to parse FIXED (scale>0) for column '{col_name}': {val_str}"
+                    )))
+                }
             }
         }
-        "REAL" | "FLOAT" => {
+        "REAL" | "FLOAT" | "DOUBLE" => {
             if let Ok(f) = val_str.parse::<f64>() {
                 Ok(ColumnValue::Float64(f))
             } else {
@@ -175,13 +195,14 @@ fn map_cell(
             ))),
         },
         "BINARY" => {
-            // Snowflake returns binary as hex strings
-            Ok(ColumnValue::Bytes(val_str.as_bytes().to_vec()))
+            let bytes = B64_STANDARD.decode(val_str).map_err(|e| {
+                ConnectorError::QueryFailed(format!(
+                    "Failed to decode base64 BINARY for column '{col_name}': {e}"
+                ))
+            })?;
+            Ok(ColumnValue::Bytes(bytes))
         }
-        _ => {
-            // Default to text if type is unknown
-            Ok(ColumnValue::Text(val_str.to_string()))
-        }
+        _ => Ok(ColumnValue::Text(val_str.to_string())),
     }
 }
 
@@ -196,9 +217,15 @@ impl WarehouseConnector for SnowflakeConnector {
         let account = self.account.clone();
         let client = self.http_client.clone();
         let sql = sql.to_string();
+        let base_url = self.base_url_override.clone();
+        let delay_ms_override = self.delay_ms_override;
 
         let stream = stream! {
-            let url = format!("https://{account}.snowflakecomputing.com/api/v2/statements");
+            let url = if let Some(base) = &base_url {
+                format!("{base}/api/v2/statements")
+            } else {
+                format!("https://{account}.snowflakecomputing.com/api/v2/statements")
+            };
             let body = serde_json::json!({
                 "statement": sql,
                 "timeout": 60
@@ -224,7 +251,7 @@ impl WarehouseConnector for SnowflakeConnector {
             let status = res.status();
             let is_async = status == reqwest::StatusCode::ACCEPTED;
 
-            if !status.is_success() {
+            if !status.is_success() && status != reqwest::StatusCode::ACCEPTED {
                 let err_text = res.text().await.unwrap_or_default();
                 yield Err(ConnectorError::QueryFailed(format!("Initial request failed: {err_text}")));
                 return;
@@ -238,18 +265,32 @@ impl WarehouseConnector for SnowflakeConnector {
                 }
             };
 
+            let statement_handle = json.get("statementHandle").and_then(Value::as_str).unwrap_or("").to_string();
+
             // If async (202), poll until completion
             if is_async {
-                let Some(sh) = json.get("statementHandle").and_then(Value::as_str) else {
+                if statement_handle.is_empty() {
                     yield Err(ConnectorError::QueryFailed("No statementHandle found in 202 response".to_string()));
                     return;
-                };
-                let statement_handle = sh.to_string();
+                }
+
+                let mut retries = 0;
+                let max_retries = 10;
+                let mut delay_ms = delay_ms_override.unwrap_or(500);
 
                 loop {
-                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    if retries >= max_retries {
+                        yield Err(ConnectorError::Timeout);
+                        return;
+                    }
 
-                    let poll_url = format!("https://{account}.snowflakecomputing.com/api/v2/statements/{statement_handle}");
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+
+                    let poll_url = if let Some(base) = &base_url {
+                        format!("{base}/api/v2/statements/{statement_handle}")
+                    } else {
+                        format!("https://{account}.snowflakecomputing.com/api/v2/statements/{statement_handle}")
+                    };
                     let poll_res = match client
                         .get(&poll_url)
                         .header("Authorization", format!("Bearer {jwt_token}"))
@@ -268,6 +309,8 @@ impl WarehouseConnector for SnowflakeConnector {
                     let poll_status = poll_res.status();
 
                     if poll_status == reqwest::StatusCode::ACCEPTED {
+                        retries += 1;
+                        delay_ms *= 2;
                         continue;
                     }
                     if poll_status.is_success() {
@@ -286,25 +329,40 @@ impl WarehouseConnector for SnowflakeConnector {
                 }
             }
 
+            // Check if status is explicitly "FAILED"
+            let sf_code = json.get("code").and_then(Value::as_str).unwrap_or("");
+            if sf_code.eq_ignore_ascii_case("failed") {
+                let msg = json.get("message").and_then(Value::as_str).unwrap_or("Unknown failure");
+                yield Err(ConnectorError::QueryFailed(msg.to_string()));
+                return;
+            }
+
             // Extract metadata and data
             let Some(metadata) = json.get("resultSetMetaData").and_then(|m| m.get("rowType")).and_then(Value::as_array) else {
-                // It's possible the query returned no results, e.g. an INSERT.
                 return;
             };
 
             let mut col_names = Vec::new();
             let mut col_types = Vec::new();
+            let mut col_scales = Vec::new();
 
             for col in metadata {
                 let name = col.get("name").and_then(Value::as_str).unwrap_or("unknown").to_string();
                 let c_type = col.get("type").and_then(Value::as_str).unwrap_or("TEXT").to_string();
+                let scale = col.get("scale").and_then(Value::as_i64);
                 col_names.push(name);
                 col_types.push(c_type);
+                col_scales.push(scale);
             }
 
-            // Handle multiple partitions if they exist, or just inline data
-            // Snowflake sometimes paginates the data via partitionInfo. For simplicity we map the inline "data".
-            // A production-grade implementation would fetch all partitions if "partitionInfo" is present.
+            let mut partitions = Vec::new();
+            if let Some(partition_info) = json.get("resultSetMetaData").and_then(|m| m.get("partitionInfo")).and_then(Value::as_array) {
+                for _ in partition_info {
+                     partitions.push(());
+                }
+            }
+
+            // First partition is inline in "data" array
             if let Some(data) = json.get("data").and_then(Value::as_array) {
                 for row_val in data {
                     if let Some(row_arr) = row_val.as_array() {
@@ -312,7 +370,8 @@ impl WarehouseConnector for SnowflakeConnector {
                         for (i, cell) in row_arr.iter().enumerate() {
                             let col_name = col_names.get(i).map_or("unknown", String::as_str);
                             let col_type = col_types.get(i).map_or("TEXT", String::as_str);
-                            match map_cell(cell, col_type, col_name) {
+                            let col_scale = col_scales.get(i).copied().flatten();
+                            match map_cell(cell, col_type, col_scale, col_name) {
                                 Ok(val) => row.push(val),
                                 Err(e) => {
                                     yield Err(e);
@@ -321,6 +380,66 @@ impl WarehouseConnector for SnowflakeConnector {
                             }
                         }
                         yield Ok(row);
+                    }
+                }
+            }
+
+            // If there are more partitions
+            if partitions.len() > 1 {
+                for partition_idx in 1..partitions.len() {
+                    let partition_url = if let Some(base) = &base_url {
+                        format!("{base}/api/v2/statements/{statement_handle}?partition={partition_idx}")
+                    } else {
+                        format!("https://{account}.snowflakecomputing.com/api/v2/statements/{statement_handle}?partition={partition_idx}")
+                    };
+                    let part_res = match client
+                        .get(&partition_url)
+                        .header("Authorization", format!("Bearer {jwt_token}"))
+                        .header("Accept", "application/json")
+                        .header("X-Snowflake-Authorization-Type", "KEYPAIR_JWT")
+                        .send()
+                        .await
+                    {
+                        Ok(r) => r,
+                        Err(e) => {
+                            yield Err(ConnectorError::ConnectionFailed(format!("Partition fetch failed: {e}")));
+                            return;
+                        }
+                    };
+
+                    if !part_res.status().is_success() {
+                        let err_text = part_res.text().await.unwrap_or_default();
+                        yield Err(ConnectorError::QueryFailed(format!("Failed to fetch partition {partition_idx}: {err_text}")));
+                        return;
+                    }
+
+                    let part_json: Value = match part_res.json().await {
+                        Ok(j) => j,
+                        Err(e) => {
+                            yield Err(ConnectorError::QueryFailed(format!("Failed to parse partition JSON: {e}")));
+                            return;
+                        }
+                    };
+
+                    if let Some(data) = part_json.get("data").and_then(Value::as_array) {
+                        for row_val in data {
+                            if let Some(row_arr) = row_val.as_array() {
+                                let mut row = Row::new();
+                                for (i, cell) in row_arr.iter().enumerate() {
+                                    let col_name = col_names.get(i).map_or("unknown", String::as_str);
+                                    let col_type = col_types.get(i).map_or("TEXT", String::as_str);
+                                    let col_scale = col_scales.get(i).copied().flatten();
+                                    match map_cell(cell, col_type, col_scale, col_name) {
+                                        Ok(val) => row.push(val),
+                                        Err(e) => {
+                                            yield Err(e);
+                                            return;
+                                        }
+                                    }
+                                }
+                                yield Ok(row);
+                            }
+                        }
                     }
                 }
             }
