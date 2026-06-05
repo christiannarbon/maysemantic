@@ -98,7 +98,14 @@ jobs:
           # Smoke-test the wire protocol with SELECT 1 (no auth DB required)
           RESULT=$(PGPASSWORD='' psql -h 127.0.0.1 -p 5432 -U postgres -d postgres \
             --no-password -c 'SELECT 1;' -t 2>&1 || true)
-          echo "Query Result: $RESULT"
+          # Strip whitespace from RESULT
+          RESULT=$(echo "$RESULT" | xargs)
+          echo "Query Result: '$RESULT'"
+          
+          if [ -z "$RESULT" ]; then
+            echo "Verification failed: Expected RESULT to be non-empty"
+            exit 1
+          fi
 
           # Verify that the semantic model was loaded successfully from demos/valid_demo
           if docker logs pgwire-test 2>&1 | grep -q "Successfully loaded 1 models"; then
