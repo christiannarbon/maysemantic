@@ -144,6 +144,7 @@ pub struct BigQueryConnector {
     // pre-emptive refresh buffer is a deliberate product decision.
     token_cache: Arc<RwLock<Option<CachedToken>>>,
     client: Client,
+    pub(crate) base_url_override: Option<String>,
 }
 
 async fn fetch_or_refresh_token(
@@ -199,7 +200,15 @@ impl BigQueryConnector {
             auth_manager: RwLock::new(None),
             token_cache: Arc::new(RwLock::new(None)),
             client,
+            base_url_override: None,
         })
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_test_overrides(mut self, url: String) -> Self {
+        self.base_url_override = Some(url);
+        self
     }
 
     async fn get_token(&self) -> Result<String, ConnectorError> {
@@ -253,7 +262,7 @@ impl BigQueryConnector {
         fetch_or_refresh_token(&self.token_cache, &auth_manager).await
     }
 
-    #[cfg(test)]
+    #[doc(hidden)]
     pub async fn seed_cache_for_test(&self, token: String, expires_in_seconds: i64) {
         let mut cache = self.token_cache.write().await;
         *cache = Some(CachedToken {
@@ -272,10 +281,14 @@ impl WarehouseConnector for BigQueryConnector {
     async fn execute(&self, sql: &str) -> Result<QueryResult, ConnectorError> {
         let token = self.get_token().await?;
 
-        let url = format!(
-            "https://bigquery.googleapis.com/bigquery/v2/projects/{}/queries",
-            self.project_id
-        );
+        let url = if let Some(base) = &self.base_url_override {
+            format!("{base}/bigquery/v2/projects/{}/queries", self.project_id)
+        } else {
+            format!(
+                "https://bigquery.googleapis.com/bigquery/v2/projects/{}/queries",
+                self.project_id
+            )
+        };
         // NOTE: We intentionally use the runQuery endpoint here as a shortcut
         // instead of the jobs.insert API.
         let body = serde_json::json!({
@@ -311,6 +324,7 @@ impl WarehouseConnector for BigQueryConnector {
         };
 
         let token_cache = self.token_cache.clone();
+        let base_url_override = self.base_url_override.clone();
 
         let stream = stream! {
             let mut current_res = bq_res;
@@ -319,9 +333,13 @@ impl WarehouseConnector for BigQueryConnector {
                 while !current_res.job_complete {
                     let job_id = &current_res.job_reference.job_id;
 
-                    let poll_url = format!(
-                        "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/queries/{job_id}"
-                    );
+                    let poll_url = if let Some(base) = &base_url_override {
+                        format!("{base}/bigquery/v2/projects/{project_id}/queries/{job_id}")
+                    } else {
+                        format!(
+                            "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/queries/{job_id}"
+                        )
+                    };
 
                     let token = match fetch_or_refresh_token(&token_cache, &auth_manager).await {
                         Ok(t) => t,
@@ -382,9 +400,13 @@ impl WarehouseConnector for BigQueryConnector {
                 if let Some(page_token) = current_res.page_token {
                     let job_id = &current_res.job_reference.job_id;
 
-                    let next_url = format!(
-                        "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/queries/{job_id}?pageToken={page_token}"
-                    );
+                    let next_url = if let Some(base) = &base_url_override {
+                        format!("{base}/bigquery/v2/projects/{project_id}/queries/{job_id}?pageToken={page_token}")
+                    } else {
+                        format!(
+                            "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/queries/{job_id}?pageToken={page_token}"
+                        )
+                    };
 
                     let token = match fetch_or_refresh_token(&token_cache, &auth_manager).await {
                         Ok(t) => t,
@@ -426,5 +448,18 @@ impl WarehouseConnector for BigQueryConnector {
 }
 
 #[cfg(test)]
-#[path = "bigquery_tests.rs"]
-mod tests;
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_bigquery_null_value_mapping() {
+        let null_val = json!(null);
+        let res = map_cell(&null_val, "STRING", "test_col").unwrap();
+        assert!(matches!(res, ColumnValue::Null));
+
+        let nested_val = json!({"foo": "bar"});
+        let res2 = map_cell(&nested_val, "RECORD", "test_col").unwrap();
+        assert!(matches!(res2, ColumnValue::Text(s) if s == "{\"foo\":\"bar\"}"));
+    }
+}
