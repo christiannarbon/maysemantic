@@ -62,7 +62,10 @@ pub async fn run_server(
     if let Ok(models) = state_mgr.get_all_models() {
         for model in models {
             // Default to PostgresConnector for now
-            let connector = Arc::new(may_connectors::PostgresConnector::new("mock_secret", secrets.clone()));
+            let connector = Arc::new(may_connectors::PostgresConnector::new(
+                "mock_secret",
+                secrets.clone(),
+            ));
             registry.register(&model.name, connector);
         }
     }

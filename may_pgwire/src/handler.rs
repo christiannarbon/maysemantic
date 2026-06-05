@@ -30,7 +30,10 @@ impl QueryProcessor {
         state_mgr: Arc<StateMgr>,
         connectors: Arc<may_connectors::ConnectorRegistry>,
     ) -> Self {
-        Self { state_mgr, connectors }
+        Self {
+            state_mgr,
+            connectors,
+        }
     }
 }
 
@@ -276,26 +279,26 @@ impl SimpleQueryHandler for QueryProcessor {
                 let error_info = ErrorInfo::new(
                     "ERROR".to_owned(),
                     "XX000".to_owned(),
-                    format!("No connector registered for data source: {}", data_source_name),
+                    format!(
+                        "No connector registered for data source: {}",
+                        data_source_name
+                    ),
                 );
                 return Err(PgWireError::UserError(Box::new(error_info)));
             }
         };
 
         // Determine if this is an explicit query vs semantic query (currently hardcoded as explicit)
-        let mut query_result = connector
-            .execute(&upper_query)
-            .await
-            .map_err(|e| {
-                PgWireError::UserError(Box::new(ErrorInfo::new(
-                    "ERROR".to_owned(),
-                    "XX000".to_owned(),
-                    format!("Connector error: {:?}", e),
-                )))
-            })?;
+        let mut query_result = connector.execute(&upper_query).await.map_err(|e| {
+            PgWireError::UserError(Box::new(ErrorInfo::new(
+                "ERROR".to_owned(),
+                "XX000".to_owned(),
+                format!("Connector error: {:?}", e),
+            )))
+        })?;
 
         use futures::StreamExt;
-        
+
         // Peek at the first row to determine column count and build a schema
         let first_row = match query_result.next().await {
             Some(Ok(row)) => row,
@@ -308,7 +311,10 @@ impl SimpleQueryHandler for QueryProcessor {
             }
             None => {
                 // Empty result, return empty schema
-                return Ok(vec![Response::Query(QueryResponse::new(Arc::new(vec![]), stream::empty()))]);
+                return Ok(vec![Response::Query(QueryResponse::new(
+                    Arc::new(vec![]),
+                    stream::empty(),
+                ))]);
             }
         };
 
@@ -323,7 +329,7 @@ impl SimpleQueryHandler for QueryProcessor {
                 )
             })
             .collect();
-        
+
         let schema_ref = Arc::new(field_infos);
         let mut data_rows = Vec::new();
 
@@ -380,7 +386,10 @@ impl SimpleQueryHandler for QueryProcessor {
             data_rows.push(encoder.finish());
         }
 
-        Ok(vec![Response::Query(QueryResponse::new(schema_ref, stream::iter(data_rows)))])
+        Ok(vec![Response::Query(QueryResponse::new(
+            schema_ref,
+            stream::iter(data_rows),
+        ))])
     }
 }
 
