@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+// TODO: Extract into a shared test helper module when a third connector test is added.
 struct MockSecretsProvider {
     called: Mutex<bool>,
 }

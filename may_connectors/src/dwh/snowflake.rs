@@ -6,7 +6,8 @@ use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use may_secrets::{DwhSecret, SecretsProvider};
 use reqwest::Client;
 use rsa::RsaPrivateKey;
-use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey};
+use rsa::pkcs1::EncodeRsaPrivateKey;
+use rsa::pkcs8::{DecodePrivateKey, EncodePublicKey};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -26,8 +27,8 @@ pub struct SnowflakeConnector {
     secret_name: String,
     secrets: Arc<dyn SecretsProvider>,
     http_client: Client,
-    pub(crate) base_url_override: Option<String>,
-    pub(crate) delay_ms_override: Option<u64>,
+    base_url_override: Option<String>,
+    delay_ms_override: Option<u64>,
 }
 
 impl SnowflakeConnector {
@@ -68,8 +69,8 @@ impl SnowflakeConnector {
         self
     }
 
-    #[doc(hidden)]
-    pub async fn get_jwt_token(&self) -> Result<String, ConnectorError> {
+    // TODO: Cache the JWT token and refresh only when within 60 seconds of expiry.
+    async fn get_jwt_token(&self) -> Result<String, ConnectorError> {
         let secret = self
             .secrets
             .get_secret(&self.secret_name)
@@ -113,32 +114,49 @@ impl SnowflakeConnector {
         let account_upper = account_name.to_uppercase();
         let username_upper = username.to_uppercase();
 
+        let now = chrono::Utc::now().timestamp();
+        let iat = usize::try_from(now).map_err(|e| {
+            ConnectorError::ConnectionFailed(format!("Timestamp conversion failed: {e}"))
+        })?;
+        let exp = usize::try_from(now + 3600).map_err(|e| {
+            ConnectorError::ConnectionFailed(format!("Timestamp conversion failed: {e}"))
+        })?;
+
         let claims = JwtClaims {
             iss: format!("{account_upper}.{username_upper}.{fingerprint}"),
             sub: format!("{account_upper}.{username_upper}"),
-            iat: usize::try_from(chrono::Utc::now().timestamp()).unwrap_or(0),
-            exp: usize::try_from((chrono::Utc::now() + chrono::Duration::hours(1)).timestamp())
-                .unwrap_or(0),
+            iat,
+            exp,
         };
 
         let header = Header::new(Algorithm::RS256);
 
-        // Re-encode private key to unencrypted PEM so jsonwebtoken can parse it
-        let unencrypted_pem = private_key
-            .to_pkcs8_pem(rsa::pkcs8::LineEnding::LF)
-            .map_err(|e| {
-                ConnectorError::ConnectionFailed(format!(
-                    "Failed to re-encode private key to PEM: {e}"
-                ))
-            })?;
-        let encoding_key = EncodingKey::from_rsa_pem(unencrypted_pem.as_bytes()).map_err(|e| {
-            ConnectorError::ConnectionFailed(format!("Failed to create encoding key: {e}"))
-        })?;
+        // Re-encode private key to unencrypted DER so jsonwebtoken can parse it
+        let der = private_key
+            .to_pkcs1_der()
+            .map_err(|e| ConnectorError::ConnectionFailed(format!("Failed to encode DER: {e}")))?;
+        let encoding_key = EncodingKey::from_rsa_der(der.as_bytes());
 
         let token = encode(&header, &claims, &encoding_key)
             .map_err(|e| ConnectorError::ConnectionFailed(format!("Failed to sign JWT: {e}")))?;
         Ok(token)
     }
+}
+
+fn map_row(
+    row_arr: &[Value],
+    col_names: &[String],
+    col_types: &[String],
+    col_scales: &[Option<i64>],
+) -> Result<Row, ConnectorError> {
+    let mut row = Row::new();
+    for (i, cell) in row_arr.iter().enumerate() {
+        let col_name = col_names.get(i).map_or("unknown", String::as_str);
+        let col_type = col_types.get(i).map_or("TEXT", String::as_str);
+        let col_scale = col_scales.get(i).copied().flatten();
+        row.push(map_cell(cell, col_type, col_scale, col_name)?);
+    }
+    Ok(row)
 }
 
 fn map_cell(
@@ -278,6 +296,7 @@ impl WarehouseConnector for SnowflakeConnector {
                 let max_retries = 10;
                 let mut delay_ms = delay_ms_override.unwrap_or(500);
 
+                // Exponential backoff: starting at 500ms, doubling per retry, capped at 30s.
                 loop {
                     if retries >= max_retries {
                         yield Err(ConnectorError::Timeout);
@@ -310,7 +329,7 @@ impl WarehouseConnector for SnowflakeConnector {
 
                     if poll_status == reqwest::StatusCode::ACCEPTED {
                         retries += 1;
-                        delay_ms *= 2;
+                        delay_ms = (delay_ms * 2).min(30_000);
                         continue;
                     }
                     if poll_status.is_success() {
@@ -355,38 +374,30 @@ impl WarehouseConnector for SnowflakeConnector {
                 col_scales.push(scale);
             }
 
-            let mut partitions = Vec::new();
-            if let Some(partition_info) = json.get("resultSetMetaData").and_then(|m| m.get("partitionInfo")).and_then(Value::as_array) {
-                for _ in partition_info {
-                     partitions.push(());
-                }
-            }
+            let partition_count = json
+                .get("resultSetMetaData")
+                .and_then(|m| m.get("partitionInfo"))
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len);
 
             // First partition is inline in "data" array
             if let Some(data) = json.get("data").and_then(Value::as_array) {
                 for row_val in data {
                     if let Some(row_arr) = row_val.as_array() {
-                        let mut row = Row::new();
-                        for (i, cell) in row_arr.iter().enumerate() {
-                            let col_name = col_names.get(i).map_or("unknown", String::as_str);
-                            let col_type = col_types.get(i).map_or("TEXT", String::as_str);
-                            let col_scale = col_scales.get(i).copied().flatten();
-                            match map_cell(cell, col_type, col_scale, col_name) {
-                                Ok(val) => row.push(val),
-                                Err(e) => {
-                                    yield Err(e);
-                                    return;
-                                }
+                        match map_row(row_arr, &col_names, &col_types, &col_scales) {
+                            Ok(row) => yield Ok(row),
+                            Err(e) => {
+                                yield Err(e);
+                                return;
                             }
                         }
-                        yield Ok(row);
                     }
                 }
             }
 
             // If there are more partitions
-            if partitions.len() > 1 {
-                for partition_idx in 1..partitions.len() {
+            if partition_count > 1 {
+                for partition_idx in 1..partition_count {
                     let partition_url = if let Some(base) = &base_url {
                         format!("{base}/api/v2/statements/{statement_handle}?partition={partition_idx}")
                     } else {
@@ -424,20 +435,13 @@ impl WarehouseConnector for SnowflakeConnector {
                     if let Some(data) = part_json.get("data").and_then(Value::as_array) {
                         for row_val in data {
                             if let Some(row_arr) = row_val.as_array() {
-                                let mut row = Row::new();
-                                for (i, cell) in row_arr.iter().enumerate() {
-                                    let col_name = col_names.get(i).map_or("unknown", String::as_str);
-                                    let col_type = col_types.get(i).map_or("TEXT", String::as_str);
-                                    let col_scale = col_scales.get(i).copied().flatten();
-                                    match map_cell(cell, col_type, col_scale, col_name) {
-                                        Ok(val) => row.push(val),
-                                        Err(e) => {
-                                            yield Err(e);
-                                            return;
-                                        }
+                                match map_row(row_arr, &col_names, &col_types, &col_scales) {
+                                    Ok(row) => yield Ok(row),
+                                    Err(e) => {
+                                        yield Err(e);
+                                        return;
                                     }
                                 }
-                                yield Ok(row);
                             }
                         }
                     }
@@ -446,5 +450,85 @@ impl WarehouseConnector for SnowflakeConnector {
         };
 
         Ok(Box::pin(stream))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jsonwebtoken::{DecodingKey, Validation, decode, decode_header};
+    use may_secrets::SecretsError;
+    use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
+    use std::sync::Mutex;
+
+    struct MockSecretsProvider {
+        secret: DwhSecret,
+        called: Mutex<bool>,
+    }
+
+    #[async_trait]
+    impl SecretsProvider for MockSecretsProvider {
+        async fn get_secret(&self, _name: &str) -> Result<DwhSecret, SecretsError> {
+            *self.called.lock().unwrap() = true;
+            Ok(self.secret.clone())
+        }
+    }
+
+    fn generate_test_rsa_key_pem() -> String {
+        let mut rng = rand::thread_rng();
+        let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("Failed to generate test key");
+        priv_key
+            .to_pkcs8_pem(LineEnding::LF)
+            .expect("Failed to encode PEM")
+            .to_string()
+    }
+
+    #[tokio::test]
+    async fn test_snowflake_connector_jwt_generation() {
+        let pem = generate_test_rsa_key_pem();
+        let secrets = Arc::new(MockSecretsProvider {
+            secret: DwhSecret::KeyPair {
+                account: "test_account".to_string(),
+                username: "test_user".to_string(),
+                private_key: pem.clone(),
+                passphrase: None,
+            },
+            called: Mutex::new(false),
+        });
+
+        let connector = SnowflakeConnector::new("test_account", "test_secret", secrets)
+            .expect("Failed to build connector");
+        let token = connector
+            .get_jwt_token()
+            .await
+            .expect("Failed to generate token");
+
+        // Verify headers
+        let header = decode_header(&token).expect("Failed to decode JWT header");
+        assert_eq!(header.alg, jsonwebtoken::Algorithm::RS256);
+
+        // Verify token can be decoded with the public key
+        let priv_key =
+            RsaPrivateKey::from_pkcs8_pem(&pem).expect("Failed to parse original test key");
+        let pub_key_pem = priv_key
+            .to_public_key()
+            .to_public_key_pem(LineEnding::LF)
+            .expect("Failed to get public key PEM");
+
+        let mut validation = Validation::new(jsonwebtoken::Algorithm::RS256);
+        validation.validate_exp = false;
+        validation.required_spec_claims.clear();
+
+        let decoded = decode::<JwtClaims>(
+            &token,
+            &DecodingKey::from_rsa_pem(pub_key_pem.as_bytes())
+                .expect("Failed to create decoding key"),
+            &validation,
+        )
+        .expect("Failed to decode and verify JWT");
+
+        let claims = decoded.claims;
+        assert_eq!(claims.sub, "TEST_ACCOUNT.TEST_USER");
+        assert!(claims.iss.starts_with("TEST_ACCOUNT.TEST_USER.SHA256:"));
     }
 }
