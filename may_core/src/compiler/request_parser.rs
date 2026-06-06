@@ -36,7 +36,9 @@ impl<'a> RequestParser<'a> {
             .values()
             .any(|model| model.metrics.iter().any(|m| m.name == request.metric_name));
         if !metric_found {
-            return Err(RequestParseError::MetricNotFound(request.metric_name.clone()));
+            return Err(RequestParseError::MetricNotFound(
+                request.metric_name.clone(),
+            ));
         }
 
         // Step 3: for each dim in request.dimensions, search all entity dimensions → DimensionNotFound
