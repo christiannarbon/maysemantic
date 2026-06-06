@@ -18,6 +18,7 @@ sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "uuid"
 uuid = "1.23.1"
 may_connectors = { path = "../may_connectors" }
 may_secrets = { path = "../may_secrets" }
+serde_json = "1.0"
 [dev-dependencies]
 tokio-postgres = "0.7"
 uuid = { version = "1.23.1", features = ["v4"] }
