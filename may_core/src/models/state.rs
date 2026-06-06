@@ -58,6 +58,10 @@ impl StateMgr {
         Self::default()
     }
 
+    pub fn get_state(&self) -> Arc<RwLock<SemanticState>> {
+        self.state.clone()
+    }
+
     pub fn load_from_yaml(&self, yaml_content: &str) -> Result<(), StateError> {
         let model: SemanticModel = serde_norway::from_str(yaml_content)?;
         model.validate()?;
