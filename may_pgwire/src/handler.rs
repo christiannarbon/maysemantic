@@ -210,7 +210,6 @@ impl SimpleQueryHandler for QueryProcessor {
         const SEMANTIC_PREFIX: &str = "SEMANTIC ";
 
         if let Some(json_body) = query_trimmed.strip_prefix(SEMANTIC_PREFIX) {
-
             let request: SemanticRequest = match serde_json::from_str(json_body) {
                 Ok(r) => r,
                 Err(e) => {
