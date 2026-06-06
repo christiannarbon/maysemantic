@@ -1,0 +1,142 @@
+#[cfg(test)]
+mod metric_resolver_tests {
+    use may_core::{MetricResolutionError, MetricResolver};
+    use may_core::{
+        AggregationType, Dimension, DimensionType, Entity, Measure, Metric, SemanticModel,
+    };
+
+    fn make_test_model() -> SemanticModel {
+        SemanticModel {
+            name: "test_model".to_string(),
+            entities: vec![
+                Entity {
+                    name: "users".to_string(),
+                    description: None,
+                    table: "users_tbl".to_string(),
+                    primary_key: "id".to_string(),
+                    dimensions: vec![Dimension {
+                        name: "user_country".to_string(),
+                        description: None,
+                        dimension_type: DimensionType::String,
+                        sql: "country".to_string(),
+                    }],
+                    measures: vec![],
+                },
+                Entity {
+                    name: "orders".to_string(),
+                    description: None,
+                    table: "orders_tbl".to_string(),
+                    primary_key: "id".to_string(),
+                    dimensions: vec![Dimension {
+                        name: "order_status".to_string(),
+                        description: None,
+                        dimension_type: DimensionType::String,
+                        sql: "status".to_string(),
+                    }],
+                    measures: vec![Measure {
+                        name: "revenue".to_string(),
+                        description: None,
+                        agg: AggregationType::Sum,
+                        sql: "amount".to_string(),
+                    }],
+                },
+            ],
+            metrics: vec![
+                Metric {
+                    name: "total_revenue".to_string(),
+                    description: None,
+                    measure: "revenue".to_string(),
+                    dimensions: vec!["user_country".to_string(), "order_status".to_string()],
+                },
+                Metric {
+                    name: "invalid_measure_metric".to_string(),
+                    description: None,
+                    measure: "nonexistent_measure".to_string(),
+                    dimensions: vec![],
+                },
+                Metric {
+                    name: "invalid_dimension_metric".to_string(),
+                    description: None,
+                    measure: "revenue".to_string(),
+                    dimensions: vec!["nonexistent_dim".to_string()],
+                },
+                Metric {
+                    name: "partial_invalid_dimensions".to_string(),
+                    description: None,
+                    measure: "revenue".to_string(),
+                    dimensions: vec!["user_country".to_string(), "nonexistent_dim".to_string()],
+                },
+            ],
+            joins: vec![],
+        }
+    }
+
+    #[test]
+    fn test_resolve_valid_metric() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let result = resolver.resolve("total_revenue").expect("Should resolve successfully");
+
+        assert_eq!(result.metric.name, "total_revenue");
+        assert_eq!(result.measure_entity.name, "orders");
+        assert_eq!(result.measure.name, "revenue");
+        assert_eq!(result.dimensions.len(), 2);
+        assert_eq!(result.dimensions[0].0.name, "users");
+        assert_eq!(result.dimensions[0].1.name, "user_country");
+        assert_eq!(result.dimensions[1].0.name, "orders");
+        assert_eq!(result.dimensions[1].1.name, "order_status");
+    }
+
+    #[test]
+    fn test_resolve_metric_not_found() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let err = resolver.resolve("unknown_metric").unwrap_err();
+        match err {
+            MetricResolutionError::MetricNotFound(name) => assert_eq!(name, "unknown_metric"),
+            _ => panic!("Expected MetricNotFound"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_measure_not_found() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let err = resolver.resolve("invalid_measure_metric").unwrap_err();
+        match err {
+            MetricResolutionError::MeasureNotFound(measure, metric) => {
+                assert_eq!(measure, "nonexistent_measure");
+                assert_eq!(metric, "invalid_measure_metric");
+            }
+            _ => panic!("Expected MeasureNotFound"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_dimension_not_found() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let err = resolver.resolve("invalid_dimension_metric").unwrap_err();
+        match err {
+            MetricResolutionError::DimensionNotFound(dim, metric) => {
+                assert_eq!(dim, "nonexistent_dim");
+                assert_eq!(metric, "invalid_dimension_metric");
+            }
+            _ => panic!("Expected DimensionNotFound"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_partial_dimensions() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let err = resolver.resolve("partial_invalid_dimensions").unwrap_err();
+        match err {
+            MetricResolutionError::DimensionNotFound(dim, metric) => {
+                assert_eq!(dim, "nonexistent_dim");
+                assert_eq!(metric, "partial_invalid_dimensions");
+            }
+            _ => panic!("Expected DimensionNotFound"),
+        }
+    }
+}
