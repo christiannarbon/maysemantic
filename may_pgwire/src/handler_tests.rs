@@ -66,11 +66,11 @@ fn test_semantic_prefix_detected() {
 
 #[tokio::test]
 async fn test_invalid_semantic_metric_returns_pgwire_error() {
+    use futures::sink::Sink;
     use may_core::StateMgr;
     use pgwire::api::ClientInfo;
     use pgwire::api::query::SimpleQueryHandler;
     use pgwire::messages::PgWireBackendMessage;
-    use futures::sink::Sink;
 
     struct MockClient {
         metadata: HashMap<String, String>,
@@ -113,7 +113,10 @@ async fn test_invalid_semantic_metric_returns_pgwire_error() {
             std::task::Poll::Ready(Ok(()))
         }
 
-        fn start_send(self: std::pin::Pin<&mut Self>, _item: PgWireBackendMessage) -> Result<(), Self::Error> {
+        fn start_send(
+            self: std::pin::Pin<&mut Self>,
+            _item: PgWireBackendMessage,
+        ) -> Result<(), Self::Error> {
             Ok(())
         }
 

@@ -5,7 +5,9 @@ pub mod graph;
 pub mod models;
 
 pub use ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-pub use compiler::{FilterOperator, RequestParseError, RequestParser, SemanticFilter, SemanticRequest};
+pub use compiler::{
+    FilterOperator, RequestParseError, RequestParser, SemanticFilter, SemanticRequest,
+};
 #[doc(hidden)]
 pub use dialects::DummyDialect;
 pub use dialects::{BigQueryDialect, DialectError, PostgresDialect, SnowflakeDialect, SqlDialect};

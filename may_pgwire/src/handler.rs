@@ -466,5 +466,3 @@ impl PgWireHandlerFactory for QueryProcessorFactory {
         Arc::new(NoopCopyHandler)
     }
 }
-
-
