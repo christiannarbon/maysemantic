@@ -2,7 +2,9 @@ pub mod ast;
 pub mod dialects;
 pub mod graph;
 pub mod models;
+pub mod compiler;
 
+pub use compiler::{FilterOperator, SemanticFilter, SemanticRequest};
 pub use ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 #[doc(hidden)]
 pub use dialects::DummyDialect;

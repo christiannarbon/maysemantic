@@ -27,3 +27,9 @@ pub mod models {
     #[path = "state_test.rs"]
     pub mod state_test;
 }
+
+pub mod compiler {
+    #[path = "request_test.rs"]
+    pub mod request_test;
+}
+
