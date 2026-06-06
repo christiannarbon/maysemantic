@@ -32,4 +32,3 @@ pub mod compiler {
     #[path = "request_test.rs"]
     pub mod request_test;
 }
-

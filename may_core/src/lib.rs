@@ -1,11 +1,11 @@
 pub mod ast;
+pub mod compiler;
 pub mod dialects;
 pub mod graph;
 pub mod models;
-pub mod compiler;
 
-pub use compiler::{FilterOperator, SemanticFilter, SemanticRequest};
 pub use ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
+pub use compiler::{FilterOperator, SemanticFilter, SemanticRequest};
 #[doc(hidden)]
 pub use dialects::DummyDialect;
 pub use dialects::{BigQueryDialect, DialectError, PostgresDialect, SnowflakeDialect, SqlDialect};
