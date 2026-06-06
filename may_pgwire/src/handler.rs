@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use futures::{Sink, SinkExt, stream};
 use may_auth::repository::UserRepository;
 use may_core::StateMgr;
+use may_core::compiler::{RequestParser, SemanticRequest};
 use pgwire::api::PgWireConnectionState;
 use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
 use pgwire::api::copy::NoopCopyHandler;
@@ -204,6 +205,43 @@ impl SimpleQueryHandler for QueryProcessor {
 
         if query_trimmed.is_empty() {
             return Ok(vec![Response::EmptyQuery]);
+        }
+
+        const SEMANTIC_PREFIX: &str = "SEMANTIC ";
+
+        if let Some(json_body) = query_trimmed.strip_prefix(SEMANTIC_PREFIX) {
+
+            let request: SemanticRequest = match serde_json::from_str(json_body) {
+                Ok(r) => r,
+                Err(e) => {
+                    return Err(PgWireError::UserError(Box::new(ErrorInfo::new(
+                        "ERROR".to_string(),
+                        "22000".to_string(),
+                        format!("Invalid semantic request JSON: {e}"),
+                    ))));
+                }
+            };
+
+            let state_lock = self.state_mgr.get_state();
+            let state_guard = state_lock.read().map_err(|_| {
+                PgWireError::UserError(Box::new(ErrorInfo::new(
+                    "ERROR".to_string(),
+                    "XX000".to_string(),
+                    "Failed to acquire read lock on semantic state".to_string(),
+                )))
+            })?;
+            let parser = RequestParser::new(&state_guard);
+            if let Err(parse_err) = parser.validate(&request) {
+                return Err(PgWireError::UserError(Box::new(ErrorInfo::new(
+                    "ERROR".to_string(),
+                    "42000".to_string(),
+                    parse_err.to_string(),
+                ))));
+            }
+
+            info!("Semantic request validated: metric={}", request.metric_name);
+            // TODO SQL-ENGINE-2.5: route to SemanticCompiler::compile
+            return Ok(vec![Response::Execution(Tag::new("OK"))]);
         }
 
         let upper_query = query_trimmed.to_uppercase();
@@ -482,5 +520,15 @@ mod tests {
         assert_eq!(params.get("server_version").unwrap(), "14.0");
         assert_eq!(params.get("client_encoding").unwrap(), "UTF8");
         assert_eq!(params.get("DateStyle").unwrap(), "ISO, MDY");
+    }
+
+    #[test]
+    fn test_non_semantic_prefix_bypasses_routing() {
+        assert!(!"SELECT 1".starts_with("SEMANTIC "));
+    }
+
+    #[test]
+    fn test_semantic_prefix_detected() {
+        assert!("SEMANTIC {\"metric_name\":\"revenue\"}".starts_with("SEMANTIC "));
     }
 }
