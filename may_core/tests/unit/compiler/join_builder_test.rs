@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod join_builder_tests {
-    use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
     use may_core::ast::builder::{build_from_join_path, build_join};
+    use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
     use may_core::compiler::ResolvedJoin;
     use may_core::graph::{GraphEdge, GraphNode};
     use may_core::{PostgresDialect, SqlDialect};
@@ -58,12 +58,18 @@ mod join_builder_tests {
                     *relation,
                     SqlNode::Table(TableIdent("users_tbl".to_string()))
                 );
-                
+
                 match on {
                     Expr::BinaryOp { left, op, right } => {
                         assert_eq!(op, "=");
-                        assert_eq!(*left, Expr::Column(ColumnIdent("orders_tbl.user_id".to_string())));
-                        assert_eq!(*right, Expr::Column(ColumnIdent("users_tbl.id".to_string())));
+                        assert_eq!(
+                            *left,
+                            Expr::Column(ColumnIdent("orders_tbl.user_id".to_string()))
+                        );
+                        assert_eq!(
+                            *right,
+                            Expr::Column(ColumnIdent("users_tbl.id".to_string()))
+                        );
                     }
                     _ => panic!("Expected Expr::BinaryOp"),
                 }
@@ -117,7 +123,7 @@ mod join_builder_tests {
         };
 
         let sql = PostgresDialect.generate_sql(&query).unwrap();
-        
+
         assert!(sql.contains("FROM orders_tbl"));
         assert!(sql.contains("LEFT JOIN users_tbl ON orders_tbl.user_id = users_tbl.id"));
         assert!(sql.contains("INNER JOIN teams_tbl ON users_tbl.team_id = teams_tbl.id"));
