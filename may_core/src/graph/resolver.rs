@@ -176,4 +176,97 @@ impl JoinResolver {
             })
             .collect()
     }
+
+    /// Like `find_join_path`, but returns fully-enriched `ResolvedJoin` hops carrying the
+    /// left/right `GraphNode`s needed by the AST builder, not just the edges.
+    pub fn find_join_path_resolved(
+        &self,
+        source_table: &str,
+        target_table: &str,
+    ) -> Result<Vec<crate::compiler::ResolvedJoin>, JoinResolutionError> {
+        // Resolve both entity names to NodeIndexes, failing fast on unknown names.
+        let (source_idx, _) = self
+            .get_node(source_table)
+            .ok_or_else(|| JoinResolutionError::TableNotFound(source_table.to_string()))?;
+
+        let (target_idx, _) = self
+            .get_node(target_table)
+            .ok_or_else(|| JoinResolutionError::TableNotFound(target_table.to_string()))?;
+
+        // Short-circuit: source and target are the same entity, no JOINs needed.
+        if source_idx == target_idx {
+            return Ok(vec![]);
+        }
+
+        // Run A* with uniform edge weight (equivalent to Dijkstra's).
+        // The heuristic is 0 because we have no spatial or cost estimate
+        // that would allow us to prioritize one unexplored node over another.
+        let astar_result = astar(
+            &self.graph,
+            source_idx,
+            |node| node == target_idx,
+            |_edge| 1u32,
+            |_node| 0u32,
+        );
+
+        // Extract the ordered path of NodeIndexes, or surface a clear error.
+        let (_cost, path) = astar_result.ok_or_else(|| JoinResolutionError::UnreachablePath {
+            source: source_table.to_string(),
+            target: target_table.to_string(),
+        })?;
+
+        // Reconstruct the edge sequence from the node path.
+        // path = [n0, n1, n2, ...]. windows(2) yields [n0,n1], [n1,n2], ...
+        // For each consecutive pair, we resolve the GraphEdge that connects them.
+        path.windows(2)
+            .map(|window| {
+                let (from_idx, to_idx) = (window[0], window[1]);
+
+                // Resolve the edge. This must always succeed for a valid graph path,
+                // but we guard it to avoid any silent data corruption.
+                let edge_idx = self.graph.find_edge(from_idx, to_idx).ok_or_else(|| {
+                    JoinResolutionError::BrokenPath {
+                        from_entity: self
+                            .graph
+                            .node_weight(from_idx)
+                            .map(|n| n.entity_name.clone())
+                            .unwrap_or_else(|| format!("<node {}>", from_idx.index())),
+                        to_entity: self
+                            .graph
+                            .node_weight(to_idx)
+                            .map(|n| n.entity_name.clone())
+                            .unwrap_or_else(|| format!("<node {}>", to_idx.index())),
+                    }
+                })?;
+
+                // edge_weight is infallible for a valid EdgeIndex in the same graph.
+                let edge = self.graph.edge_weight(edge_idx).ok_or_else(|| {
+                    JoinResolutionError::BrokenPath {
+                        from_entity: from_idx.index().to_string(),
+                        to_entity: to_idx.index().to_string(),
+                    }
+                })?;
+
+                let left_node = self.graph.node_weight(from_idx).ok_or_else(|| {
+                    JoinResolutionError::BrokenPath {
+                        from_entity: from_idx.index().to_string(),
+                        to_entity: to_idx.index().to_string(),
+                    }
+                })?;
+
+                let right_node = self.graph.node_weight(to_idx).ok_or_else(|| {
+                    JoinResolutionError::BrokenPath {
+                        from_entity: from_idx.index().to_string(),
+                        to_entity: to_idx.index().to_string(),
+                    }
+                })?;
+
+                Ok(crate::compiler::ResolvedJoin {
+                    left_table: left_node.clone(),
+                    right_table: right_node.clone(),
+                    edge: edge.clone(),
+                })
+            })
+            .collect()
+    }
 }
