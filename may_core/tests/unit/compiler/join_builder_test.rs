@@ -7,7 +7,9 @@ mod join_builder_tests {
     use may_core::{PostgresDialect, SqlDialect};
 
     fn render(node: &SqlNode) -> String {
-        PostgresDialect.generate_sql(node).expect("should generate SQL")
+        PostgresDialect
+            .generate_sql(node)
+            .expect("should generate SQL")
     }
 
     fn orders_node() -> GraphNode {
@@ -114,7 +116,10 @@ mod join_builder_tests {
         }
 
         let sql = render(&result);
-        assert_eq!(sql, "FROM orders LEFT JOIN users ON orders.user_id = users.id");
+        assert_eq!(
+            sql,
+            "FROM orders LEFT JOIN users ON orders.user_id = users.id"
+        );
     }
 
     #[test]

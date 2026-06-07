@@ -196,7 +196,11 @@ mod metric_resolver_tests {
         let resolver = MetricResolver::new(&model);
         let err = resolver.resolve("ambiguous_measure_metric").unwrap_err();
         match err {
-            MetricResolutionError::AmbiguousMeasure { measure, metric, entities } => {
+            MetricResolutionError::AmbiguousMeasure {
+                measure,
+                metric,
+                entities,
+            } => {
                 assert_eq!(measure, "duplicate_measure");
                 assert_eq!(metric, "ambiguous_measure_metric");
                 assert!(entities.contains(&"dupe1".to_string()));
@@ -212,7 +216,11 @@ mod metric_resolver_tests {
         let resolver = MetricResolver::new(&model);
         let err = resolver.resolve("ambiguous_dimension_metric").unwrap_err();
         match err {
-            MetricResolutionError::AmbiguousDimension { dimension, metric, entities } => {
+            MetricResolutionError::AmbiguousDimension {
+                dimension,
+                metric,
+                entities,
+            } => {
                 assert_eq!(dimension, "duplicate_dimension");
                 assert_eq!(metric, "ambiguous_dimension_metric");
                 assert!(entities.contains(&"dupe1".to_string()));

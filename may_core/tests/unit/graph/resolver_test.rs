@@ -249,14 +249,18 @@ fn test_find_join_path_resolved_orders_to_teams() {
 
     let query = may_core::ast::SqlNode::Query {
         ctes: None,
-        select: Box::new(may_core::ast::SqlNode::Select(vec![may_core::ast::Expr::Raw("1".to_string())])),
+        select: Box::new(may_core::ast::SqlNode::Select(vec![
+            may_core::ast::Expr::Raw("1".to_string()),
+        ])),
         from: Box::new(from_node),
         r#where: None,
         group_by: None,
         having: None,
     };
 
-    let sql = PostgresDialect.generate_sql(&query).expect("should generate SQL");
+    let sql = PostgresDialect
+        .generate_sql(&query)
+        .expect("should generate SQL");
 
     assert!(sql.contains("FROM public.orders"));
     assert!(sql.contains("LEFT JOIN public.users ON public.orders.order_user_id = public.users.id"));

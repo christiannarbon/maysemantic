@@ -22,7 +22,9 @@ pub enum MetricResolutionError {
         metric: String,
         entities: Vec<String>,
     },
-    #[error("Ambiguous dimension '{dimension}' for metric '{metric}': found in entities {entities:?}")]
+    #[error(
+        "Ambiguous dimension '{dimension}' for metric '{metric}': found in entities {entities:?}"
+    )]
     AmbiguousDimension {
         dimension: String,
         metric: String,
