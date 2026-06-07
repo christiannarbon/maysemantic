@@ -40,6 +40,42 @@ mod metric_resolver_tests {
                         sql: "amount".to_string(),
                     }],
                 },
+                Entity {
+                    name: "dupe1".to_string(),
+                    description: None,
+                    table: "dupe1_tbl".to_string(),
+                    primary_key: "id".to_string(),
+                    dimensions: vec![Dimension {
+                        name: "duplicate_dimension".to_string(),
+                        description: None,
+                        dimension_type: DimensionType::String,
+                        sql: "dim".to_string(),
+                    }],
+                    measures: vec![Measure {
+                        name: "duplicate_measure".to_string(),
+                        description: None,
+                        agg: AggregationType::Sum,
+                        sql: "meas".to_string(),
+                    }],
+                },
+                Entity {
+                    name: "dupe2".to_string(),
+                    description: None,
+                    table: "dupe2_tbl".to_string(),
+                    primary_key: "id".to_string(),
+                    dimensions: vec![Dimension {
+                        name: "duplicate_dimension".to_string(),
+                        description: None,
+                        dimension_type: DimensionType::String,
+                        sql: "dim".to_string(),
+                    }],
+                    measures: vec![Measure {
+                        name: "duplicate_measure".to_string(),
+                        description: None,
+                        agg: AggregationType::Sum,
+                        sql: "meas".to_string(),
+                    }],
+                },
             ],
             metrics: vec![
                 Metric {
@@ -65,6 +101,18 @@ mod metric_resolver_tests {
                     description: None,
                     measure: "revenue".to_string(),
                     dimensions: vec!["user_country".to_string(), "nonexistent_dim".to_string()],
+                },
+                Metric {
+                    name: "ambiguous_measure_metric".to_string(),
+                    description: None,
+                    measure: "duplicate_measure".to_string(),
+                    dimensions: vec![],
+                },
+                Metric {
+                    name: "ambiguous_dimension_metric".to_string(),
+                    description: None,
+                    measure: "revenue".to_string(),
+                    dimensions: vec!["duplicate_dimension".to_string()],
                 },
             ],
             joins: vec![],
@@ -139,6 +187,38 @@ mod metric_resolver_tests {
                 assert_eq!(metric, "partial_invalid_dimensions");
             }
             _ => panic!("Expected DimensionNotFound"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_ambiguous_measure() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let err = resolver.resolve("ambiguous_measure_metric").unwrap_err();
+        match err {
+            MetricResolutionError::AmbiguousMeasure { measure, metric, entities } => {
+                assert_eq!(measure, "duplicate_measure");
+                assert_eq!(metric, "ambiguous_measure_metric");
+                assert!(entities.contains(&"dupe1".to_string()));
+                assert!(entities.contains(&"dupe2".to_string()));
+            }
+            _ => panic!("Expected AmbiguousMeasure"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_ambiguous_dimension() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let err = resolver.resolve("ambiguous_dimension_metric").unwrap_err();
+        match err {
+            MetricResolutionError::AmbiguousDimension { dimension, metric, entities } => {
+                assert_eq!(dimension, "duplicate_dimension");
+                assert_eq!(metric, "ambiguous_dimension_metric");
+                assert!(entities.contains(&"dupe1".to_string()));
+                assert!(entities.contains(&"dupe2".to_string()));
+            }
+            _ => panic!("Expected AmbiguousDimension"),
         }
     }
 }
