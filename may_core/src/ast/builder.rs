@@ -97,6 +97,22 @@ pub fn build_join(resolved_join: &ResolvedJoin) -> SqlNode {
 
 /// Builds a From node including all resolved join paths.
 pub fn build_from_join_path(base_entity: &GraphNode, joins: &[ResolvedJoin]) -> SqlNode {
+    // Invariant: the first hop must start at the base entity, and each hop must continue
+    // from where the previous one ended. These are debug-only guards; the function stays
+    // infallible for callers. A violation indicates the caller passed a malformed path.
+    if let Some(first) = joins.first() {
+        debug_assert_eq!(
+            first.left_table.table_name, base_entity.table_name,
+            "build_from_join_path: first hop must start at the base entity"
+        );
+    }
+    for pair in joins.windows(2) {
+        debug_assert_eq!(
+            pair[0].right_table.table_name, pair[1].left_table.table_name,
+            "build_from_join_path: join hops must chain (prev.right == next.left)"
+        );
+    }
+
     let joins_nodes: Vec<SqlNode> = joins.iter().map(build_join).collect();
 
     SqlNode::From {

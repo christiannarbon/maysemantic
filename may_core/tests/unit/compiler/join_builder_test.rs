@@ -4,6 +4,11 @@ mod join_builder_tests {
     use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
     use may_core::compiler::ResolvedJoin;
     use may_core::graph::{GraphEdge, GraphNode};
+    use may_core::{PostgresDialect, SqlDialect};
+
+    fn render(node: &SqlNode) -> String {
+        PostgresDialect.generate_sql(node).expect("should generate SQL")
+    }
 
     fn orders_node() -> GraphNode {
         GraphNode {
@@ -34,6 +39,14 @@ mod join_builder_tests {
             left_column: left_col.to_string(),
             right_column: right_col.to_string(),
             join_type: JoinType::Left,
+        }
+    }
+
+    fn inner_join(left_col: &str, right_col: &str) -> GraphEdge {
+        GraphEdge {
+            left_column: left_col.to_string(),
+            right_column: right_col.to_string(),
+            join_type: JoinType::Inner,
         }
     }
 
@@ -92,13 +105,29 @@ mod join_builder_tests {
         };
         let result = build_from_join_path(&orders_node(), &[resolved_join_orders_to_users]);
 
-        match result {
+        match &result {
             SqlNode::From { source, joins } => {
-                assert_eq!(*source, SqlNode::Table(TableIdent("orders".to_string())));
+                assert_eq!(**source, SqlNode::Table(TableIdent("orders".to_string())));
                 assert_eq!(joins.len(), 1);
             }
             _ => panic!("Expected SqlNode::From"),
         }
+
+        let sql = render(&result);
+        assert_eq!(sql, "FROM orders LEFT JOIN users ON orders.user_id = users.id");
+    }
+
+    #[test]
+    fn test_build_join_inner_type() {
+        let resolved_join = ResolvedJoin {
+            left_table: orders_node(),
+            right_table: users_node(),
+            edge: inner_join("user_id", "id"),
+        };
+        let result = build_join(&resolved_join);
+
+        let sql = render(&result);
+        assert!(sql.starts_with("INNER JOIN users ON "));
     }
 
     #[test]
