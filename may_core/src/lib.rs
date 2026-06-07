@@ -7,7 +7,7 @@ pub mod models;
 pub use ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 pub use compiler::{
     FilterOperator, MetricResolutionError, MetricResolver, RequestParseError, RequestParser,
-    ResolvedMetric, SemanticFilter, SemanticRequest,
+    ResolvedJoin, ResolvedMetric, SemanticFilter, SemanticRequest,
 };
 #[doc(hidden)]
 pub use dialects::DummyDialect;
