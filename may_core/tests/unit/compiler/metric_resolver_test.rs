@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod metric_resolver_tests {
-    use may_core::{MetricResolutionError, MetricResolver};
     use may_core::{
         AggregationType, Dimension, DimensionType, Entity, Measure, Metric, SemanticModel,
     };
+    use may_core::{MetricResolutionError, MetricResolver};
 
     fn make_test_model() -> SemanticModel {
         SemanticModel {
@@ -75,7 +75,9 @@ mod metric_resolver_tests {
     fn test_resolve_valid_metric() {
         let model = make_test_model();
         let resolver = MetricResolver::new(&model);
-        let result = resolver.resolve("total_revenue").expect("Should resolve successfully");
+        let result = resolver
+            .resolve("total_revenue")
+            .expect("Should resolve successfully");
 
         assert_eq!(result.metric.name, "total_revenue");
         assert_eq!(result.measure_entity.name, "orders");
