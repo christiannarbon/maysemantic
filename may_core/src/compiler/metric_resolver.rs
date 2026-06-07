@@ -16,6 +16,18 @@ pub enum MetricResolutionError {
     MeasureNotFound(String, String),
     #[error("Dimension not found for metric {1}: {0}")]
     DimensionNotFound(String, String),
+    #[error("Ambiguous measure '{measure}' for metric '{metric}': found in entities {entities:?}")]
+    AmbiguousMeasure {
+        measure: String,
+        metric: String,
+        entities: Vec<String>,
+    },
+    #[error("Ambiguous dimension '{dimension}' for metric '{metric}': found in entities {entities:?}")]
+    AmbiguousDimension {
+        dimension: String,
+        metric: String,
+        entities: Vec<String>,
+    },
 }
 
 pub struct MetricResolver<'a> {
@@ -36,32 +48,56 @@ impl<'a> MetricResolver<'a> {
             .ok_or_else(|| MetricResolutionError::MetricNotFound(metric_name.to_string()))?;
 
         let (measure_entity, measure) = {
-            let mut found = None;
+            let mut matches: Vec<(Entity, Measure)> = Vec::new();
             for entity in &self.model.entities {
                 if let Some(m) = entity.measures.iter().find(|m| m.name == metric.measure) {
-                    found = Some((entity.clone(), m.clone()));
-                    break;
+                    matches.push((entity.clone(), m.clone()));
                 }
             }
-            found.ok_or_else(|| {
-                MetricResolutionError::MeasureNotFound(metric.measure.clone(), metric.name.clone())
-            })?
+            match matches.len() {
+                0 => {
+                    return Err(MetricResolutionError::MeasureNotFound(
+                        metric.measure.clone(),
+                        metric.name.clone(),
+                    ))
+                }
+                1 => matches.into_iter().next().expect("len checked == 1"),
+                _ => {
+                    return Err(MetricResolutionError::AmbiguousMeasure {
+                        measure: metric.measure.clone(),
+                        metric: metric.name.clone(),
+                        entities: matches.into_iter().map(|(e, _)| e.name).collect(),
+                    })
+                }
+            }
         };
 
         let mut resolved_dimensions = Vec::new();
 
         for dim_name in &metric.dimensions {
-            let mut found = None;
+            let mut matches: Vec<(Entity, Dimension)> = Vec::new();
             for entity in &self.model.entities {
                 if let Some(d) = entity.dimensions.iter().find(|d| d.name == *dim_name) {
-                    found = Some((entity.clone(), d.clone()));
-                    break;
+                    matches.push((entity.clone(), d.clone()));
                 }
             }
 
-            let (dim_entity, dimension) = found.ok_or_else(|| {
-                MetricResolutionError::DimensionNotFound(dim_name.clone(), metric.name.clone())
-            })?;
+            let (dim_entity, dimension) = match matches.len() {
+                0 => {
+                    return Err(MetricResolutionError::DimensionNotFound(
+                        dim_name.clone(),
+                        metric.name.clone(),
+                    ))
+                }
+                1 => matches.into_iter().next().expect("len checked == 1"),
+                _ => {
+                    return Err(MetricResolutionError::AmbiguousDimension {
+                        dimension: dim_name.clone(),
+                        metric: metric.name.clone(),
+                        entities: matches.into_iter().map(|(e, _)| e.name).collect(),
+                    })
+                }
+            };
 
             resolved_dimensions.push((dim_entity, dimension));
         }
