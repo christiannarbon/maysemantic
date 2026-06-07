@@ -218,3 +218,47 @@ fn test_unknown_target_entity_returns_error() {
         "Expected TableNotFound error for a target entity that does not exist"
     );
 }
+
+/// Tests `find_join_path_resolved` connects orders to teams and builds correct SQL
+#[test]
+fn test_find_join_path_resolved_orders_to_teams() {
+    use may_core::ast::builder::build_from_join_path;
+    use may_core::graph::GraphNode;
+    use may_core::{PostgresDialect, SqlDialect};
+
+    let state = build_three_node_state();
+    let resolver = build_resolver(&state);
+
+    let resolved_path = resolver
+        .find_join_path_resolved("orders", "teams")
+        .expect("Expected a valid resolved join path from orders to teams");
+
+    assert_eq!(resolved_path.len(), 2);
+    assert_eq!(resolved_path[0].left_table.entity_name, "orders");
+    assert_eq!(resolved_path[0].right_table.entity_name, "users");
+    assert_eq!(resolved_path[1].left_table.entity_name, "users");
+    assert_eq!(resolved_path[1].right_table.entity_name, "teams");
+
+    let orders_node = GraphNode {
+        entity_name: "orders".to_string(),
+        table_name: "public.orders".to_string(),
+        primary_key: "id".to_string(),
+    };
+
+    let from_node = build_from_join_path(&orders_node, &resolved_path);
+
+    let query = may_core::ast::SqlNode::Query {
+        ctes: None,
+        select: Box::new(may_core::ast::SqlNode::Select(vec![may_core::ast::Expr::Raw("1".to_string())])),
+        from: Box::new(from_node),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+
+    let sql = PostgresDialect.generate_sql(&query).expect("should generate SQL");
+
+    assert!(sql.contains("FROM public.orders"));
+    assert!(sql.contains("LEFT JOIN public.users ON public.orders.order_user_id = public.users.id"));
+    assert!(sql.contains("INNER JOIN public.teams ON public.users.user_team_id = public.teams.id"));
+}
