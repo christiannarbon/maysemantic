@@ -29,6 +29,8 @@ pub mod models {
 }
 
 pub mod compiler {
+    #[path = "metric_resolver_test.rs"]
+    pub mod metric_resolver_test;
     #[path = "request_parser_test.rs"]
     pub mod request_parser_test;
     #[path = "request_test.rs"]
