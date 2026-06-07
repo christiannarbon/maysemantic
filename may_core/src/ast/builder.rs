@@ -3,7 +3,9 @@
 //! Provides ergonomic builder functions to abstract away memory allocations (e.g., `Box::new()`)
 //! and raw variant instantiation when constructing semantic queries.
 
-use crate::ast::{Expr, SqlNode};
+use crate::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
+use crate::compiler::ResolvedJoin;
+use crate::graph::GraphNode;
 
 /// Builds a SELECT node containing dimension and measure references.
 ///
@@ -66,5 +68,39 @@ pub fn build_semantic_timespine_query(
         r#where: None,
         group_by: group_by.map(Box::new),
         having: None,
+    }
+}
+
+/// Builds a Join node from a resolved join hop.
+pub fn build_join(resolved_join: &ResolvedJoin) -> SqlNode {
+    let left_col = format!(
+        "{}.{}",
+        resolved_join.left_table.table_name, resolved_join.edge.left_column
+    );
+    let right_col = format!(
+        "{}.{}",
+        resolved_join.right_table.table_name, resolved_join.edge.right_column
+    );
+
+    SqlNode::Join {
+        join_type: resolved_join.edge.join_type,
+        relation: Box::new(SqlNode::Table(TableIdent(
+            resolved_join.right_table.table_name.clone(),
+        ))),
+        on: Expr::BinaryOp {
+            left: Box::new(Expr::Column(ColumnIdent(left_col))),
+            op: "=".to_string(),
+            right: Box::new(Expr::Column(ColumnIdent(right_col))),
+        },
+    }
+}
+
+/// Builds a From node including all resolved join paths.
+pub fn build_from_join_path(base_entity: &GraphNode, joins: &[ResolvedJoin]) -> SqlNode {
+    let joins_nodes: Vec<SqlNode> = joins.iter().map(build_join).collect();
+
+    SqlNode::From {
+        source: Box::new(SqlNode::Table(TableIdent(base_entity.table_name.clone()))),
+        joins: joins_nodes,
     }
 }
