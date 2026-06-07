@@ -1,4 +1,4 @@
-use crate::ast::JoinType;
+use crate::ast::{Expr, JoinType};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use schemars::JsonSchema;
@@ -56,6 +56,22 @@ pub enum AggregationType {
     Average,
     Min,
     Max,
+}
+
+impl AggregationType {
+    pub fn to_expr(&self, column: Expr) -> Expr {
+        let name = match self {
+            AggregationType::Sum => "SUM",
+            AggregationType::Count => "COUNT",
+            AggregationType::Average => "AVG",
+            AggregationType::Min => "MIN",
+            AggregationType::Max => "MAX",
+        };
+        Expr::Function {
+            name: name.to_string(),
+            args: vec![column],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Validate)]
