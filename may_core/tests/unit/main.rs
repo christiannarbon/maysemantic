@@ -33,6 +33,8 @@ pub mod models {
 pub mod compiler {
     #[path = "join_builder_test.rs"]
     pub mod join_builder_test;
+    #[path = "lowering_test.rs"]
+    pub mod lowering_test;
     #[path = "metric_resolver_test.rs"]
     pub mod metric_resolver_test;
     #[path = "request_parser_test.rs"]
