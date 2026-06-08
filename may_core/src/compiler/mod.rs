@@ -12,3 +12,6 @@ pub use join_builder::ResolvedJoin;
 
 pub mod lowering;
 pub use lowering::LoweringError;
+
+pub mod semantic_compiler;
+pub use semantic_compiler::{CompilerError, SemanticCompiler};
