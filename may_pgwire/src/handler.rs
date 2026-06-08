@@ -243,19 +243,17 @@ impl SimpleQueryHandler for QueryProcessor {
                 }
 
                 info!("Semantic request validated: metric={}", request.metric_name);
-                
+
                 let state_arc = Arc::new(state_guard.clone());
-                let compiler = SemanticCompiler::new(
-                    state_arc,
-                    Box::new(PostgresDialect),
-                );
-                
-                compiler.compile(request)
-                    .map_err(|e| PgWireError::UserError(Box::new(ErrorInfo::new(
+                let compiler = SemanticCompiler::new(state_arc, Box::new(PostgresDialect));
+
+                compiler.compile(request).map_err(|e| {
+                    PgWireError::UserError(Box::new(ErrorInfo::new(
                         "ERROR".to_string(),
                         "42000".to_string(),
                         e.to_string(),
-                    ))))?
+                    )))
+                })?
             };
             tracing::debug!("Compiled semantic SQL: {}", compiled_sql);
             actual_query = compiled_sql;
