@@ -52,6 +52,12 @@ jobs:
         with:
           dockerfile: may_pgwire/Dockerfile
 
+      - name: Pre-pull buildkit image to avoid timeout
+        run: |
+          for i in {1..5}; do
+            docker pull moby/buildkit:buildx-stable-1 && break || sleep 15
+          done
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
