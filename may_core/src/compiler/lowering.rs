@@ -1,5 +1,5 @@
 use crate::ast::{ColumnIdent, Expr, SqlNode};
-use crate::models::SemanticState;
+use crate::models::{Entity, SemanticState};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq)]
@@ -12,6 +12,20 @@ pub enum LoweringError {
 
     #[error("Cannot lower MeasureRef: measure '{measure}' not found in entity '{entity}'.")]
     MeasureNotFound { entity: String, measure: String },
+
+    #[error("Cannot lower DimensionRef: dimension '{dimension}' for entity '{entity}' is ambiguous; defined in multiple models {models:?}.")]
+    AmbiguousDimension {
+        entity: String,
+        dimension: String,
+        models: Vec<String>,
+    },
+
+    #[error("Cannot lower MeasureRef: measure '{measure}' for entity '{entity}' is ambiguous; defined in multiple models {models:?}.")]
+    AmbiguousMeasure {
+        entity: String,
+        measure: String,
+        models: Vec<String>,
+    },
 }
 
 pub struct SemanticLowering<'a> {
@@ -23,29 +37,61 @@ impl<'a> SemanticLowering<'a> {
         Self { state }
     }
 
+    /// Returns every (model_name, &Entity) across all models whose entity name matches `entity`.
+    fn entities_named<'b>(&'b self, entity: &'b str) -> impl Iterator<Item = (&'b str, &'b Entity)> {
+        self.state
+            .models
+            .iter()
+            .filter_map(move |(name, model)| {
+                model
+                    .entities
+                    .iter()
+                    .find(|e| e.name == entity)
+                    .map(|e| (name.as_str(), e))
+            })
+    }
+
     pub fn lower_expr(&self, expr: Expr) -> Result<Expr, LoweringError> {
         match expr {
             Expr::DimensionRef { entity, dimension } => {
-                for model in self.state.models.values() {
-                    if let Some(e) = model.entities.iter().find(|e| e.name == entity) {
-                        if let Some(d) = e.dimensions.iter().find(|d| d.name == dimension) {
-                            return Ok(Expr::Column(ColumnIdent(d.sql.clone())));
-                        }
-                        return Err(LoweringError::DimensionNotFound { entity, dimension });
+                let mut entity_seen = false;
+                let mut hits: Vec<(String, String)> = Vec::new();
+                for (model_name, e) in self.entities_named(&entity) {
+                    entity_seen = true;
+                    if let Some(d) = e.dimensions.iter().find(|d| d.name == dimension) {
+                        hits.push((model_name.to_string(), d.sql.clone()));
                     }
                 }
-                Err(LoweringError::EntityNotFound { entity })
+                match hits.len() {
+                    0 if !entity_seen => Err(LoweringError::EntityNotFound { entity }),
+                    0 => Err(LoweringError::DimensionNotFound { entity, dimension }),
+                    1 => Ok(Expr::Column(ColumnIdent(hits.into_iter().next().expect("len==1").1))),
+                    _ => Err(LoweringError::AmbiguousDimension {
+                        entity,
+                        dimension,
+                        models: hits.into_iter().map(|(m, _)| m).collect(),
+                    }),
+                }
             }
             Expr::MeasureRef { entity, measure } => {
-                for model in self.state.models.values() {
-                    if let Some(e) = model.entities.iter().find(|e| e.name == entity) {
-                        if let Some(m) = e.measures.iter().find(|m| m.name == measure) {
-                            return Ok(m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone()))));
-                        }
-                        return Err(LoweringError::MeasureNotFound { entity, measure });
+                let mut entity_seen = false;
+                let mut hits: Vec<(String, Expr)> = Vec::new();
+                for (model_name, e) in self.entities_named(&entity) {
+                    entity_seen = true;
+                    if let Some(m) = e.measures.iter().find(|m| m.name == measure) {
+                        hits.push((model_name.to_string(), m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))));
                     }
                 }
-                Err(LoweringError::EntityNotFound { entity })
+                match hits.len() {
+                    0 if !entity_seen => Err(LoweringError::EntityNotFound { entity }),
+                    0 => Err(LoweringError::MeasureNotFound { entity, measure }),
+                    1 => Ok(hits.into_iter().next().expect("len==1").1),
+                    _ => Err(LoweringError::AmbiguousMeasure {
+                        entity,
+                        measure,
+                        models: hits.into_iter().map(|(m, _)| m).collect(),
+                    }),
+                }
             }
             Expr::BinaryOp { left, op, right } => Ok(Expr::BinaryOp {
                 left: Box::new(self.lower_expr(*left)?),
@@ -62,7 +108,7 @@ impl<'a> SemanticLowering<'a> {
                     args: lowered_args,
                 })
             }
-            other => Ok(other),
+            Expr::Column(_) | Expr::Literal(_) | Expr::Raw(_) => Ok(expr),
         }
     }
 
@@ -147,7 +193,7 @@ impl<'a> SemanticLowering<'a> {
                 Ok(SqlNode::GroupBy(lowered))
             }
             SqlNode::Having(expr) => Ok(SqlNode::Having(self.lower_expr(expr)?)),
-            other => Ok(other),
+            SqlNode::Table(_) | SqlNode::TimeSpine { .. } => Ok(node),
         }
     }
 }
