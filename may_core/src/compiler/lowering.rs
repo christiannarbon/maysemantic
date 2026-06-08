@@ -38,17 +38,17 @@ impl<'a> SemanticLowering<'a> {
     }
 
     /// Returns every (model_name, &Entity) across all models whose entity name matches `entity`.
-    fn entities_named<'b>(&'b self, entity: &'b str) -> impl Iterator<Item = (&'b str, &'b Entity)> {
-        self.state
-            .models
-            .iter()
-            .filter_map(move |(name, model)| {
-                model
-                    .entities
-                    .iter()
-                    .find(|e| e.name == entity)
-                    .map(|e| (name.as_str(), e))
-            })
+    fn entities_named<'b>(
+        &'b self,
+        entity: &'b str,
+    ) -> impl Iterator<Item = (&'b str, &'b Entity)> {
+        self.state.models.iter().filter_map(move |(name, model)| {
+            model
+                .entities
+                .iter()
+                .find(|e| e.name == entity)
+                .map(|e| (name.as_str(), e))
+        })
     }
 
     pub fn lower_expr(&self, expr: Expr) -> Result<Expr, LoweringError> {
@@ -65,7 +65,9 @@ impl<'a> SemanticLowering<'a> {
                 match hits.len() {
                     0 if !entity_seen => Err(LoweringError::EntityNotFound { entity }),
                     0 => Err(LoweringError::DimensionNotFound { entity, dimension }),
-                    1 => Ok(Expr::Column(ColumnIdent(hits.into_iter().next().expect("len==1").1))),
+                    1 => Ok(Expr::Column(ColumnIdent(
+                        hits.into_iter().next().expect("len==1").1,
+                    ))),
                     _ => Err(LoweringError::AmbiguousDimension {
                         entity,
                         dimension,
@@ -79,7 +81,10 @@ impl<'a> SemanticLowering<'a> {
                 for (model_name, e) in self.entities_named(&entity) {
                     entity_seen = true;
                     if let Some(m) = e.measures.iter().find(|m| m.name == measure) {
-                        hits.push((model_name.to_string(), m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))));
+                        hits.push((
+                            model_name.to_string(),
+                            m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone()))),
+                        ));
                     }
                 }
                 match hits.len() {

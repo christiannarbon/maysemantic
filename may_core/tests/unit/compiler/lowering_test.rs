@@ -186,16 +186,23 @@ mod lowering_tests {
             metrics: vec![],
             joins: vec![],
         };
-        state.models.insert("analytics".to_string(), analytics_model);
-        
+        state
+            .models
+            .insert("analytics".to_string(), analytics_model);
+
         let lowering = SemanticLowering::new(&state);
         let expr = Expr::DimensionRef {
             entity: "orders".to_string(),
             dimension: "region".to_string(),
         };
-        
+
         let err = lowering.lower_expr(expr).unwrap_err();
-        if let LoweringError::AmbiguousDimension { entity, dimension, models } = err {
+        if let LoweringError::AmbiguousDimension {
+            entity,
+            dimension,
+            models,
+        } = err
+        {
             assert_eq!(entity, "orders");
             assert_eq!(dimension, "region");
             assert_eq!(models.len(), 2);
@@ -239,7 +246,10 @@ mod lowering_tests {
         let sql = PostgresDialect
             .generate_sql(&lowered_query)
             .expect("sql generation failed");
-        assert_eq!(sql, "SELECT orders.country, SUM(amount) FROM orders GROUP BY orders.country");
+        assert_eq!(
+            sql,
+            "SELECT orders.country, SUM(amount) FROM orders GROUP BY orders.country"
+        );
         assert!(!sql.contains("DimensionRef") && !sql.contains("MeasureRef"));
     }
 }
