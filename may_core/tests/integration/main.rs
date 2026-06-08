@@ -1,3 +1,5 @@
+mod compiler_e2e_test;
+
 use tokio_postgres::NoTls;
 
 #[tokio::test]
