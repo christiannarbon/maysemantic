@@ -30,10 +30,7 @@ pub struct SemanticCompiler {
 }
 
 impl SemanticCompiler {
-    pub fn new(
-        state: Arc<SemanticState>,
-        dialect: Box<dyn SqlDialect + Send + Sync>,
-    ) -> Self {
+    pub fn new(state: Arc<SemanticState>, dialect: Box<dyn SqlDialect + Send + Sync>) -> Self {
         Self { state, dialect }
     }
 }
