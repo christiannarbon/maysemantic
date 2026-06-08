@@ -9,3 +9,6 @@ pub use metric_resolver::{MetricResolutionError, MetricResolver, ResolvedMetric}
 
 pub mod join_builder;
 pub use join_builder::ResolvedJoin;
+
+pub mod lowering;
+pub use lowering::LoweringError;
