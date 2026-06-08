@@ -23,7 +23,6 @@ pub enum CompilerError {
     CodeGeneration(String),
 }
 
-
 pub struct SemanticCompiler {
     state: Arc<SemanticState>,
     dialect: Box<dyn SqlDialect + Send + Sync>,
@@ -41,12 +40,23 @@ impl SemanticCompiler {
         crate::compiler::RequestParser::new(state_ref).validate(&request)?;
 
         // STEP 2: Find the model containing the metric
-        let model = state_ref.models.values()
-            .find(|m| m.metrics.iter().any(|metric| metric.name == request.metric_name))
-            .ok_or_else(|| CompilerError::RequestParsing(RequestParseError::MetricNotFound(request.metric_name.clone())))?;
+        let model = state_ref
+            .models
+            .values()
+            .find(|m| {
+                m.metrics
+                    .iter()
+                    .any(|metric| metric.name == request.metric_name)
+            })
+            .ok_or_else(|| {
+                CompilerError::RequestParsing(RequestParseError::MetricNotFound(
+                    request.metric_name.clone(),
+                ))
+            })?;
 
         // STEP 3: Resolve metric to typed structs
-        let resolved_metric = crate::compiler::MetricResolver::new(model).resolve(&request.metric_name)?;
+        let resolved_metric =
+            crate::compiler::MetricResolver::new(model).resolve(&request.metric_name)?;
 
         // STEP 4: Build semantic graph from the model
         let (graph, node_indices) = crate::graph::build_semantic_graph(state_ref)
@@ -59,9 +69,13 @@ impl SemanticCompiler {
 
         for (dim_entity, _) in &resolved_metric.dimensions {
             if &dim_entity.name != base_entity_name {
-                let path_joins = join_resolver.find_join_path_resolved(base_entity_name, &dim_entity.name)?;
+                let path_joins =
+                    join_resolver.find_join_path_resolved(base_entity_name, &dim_entity.name)?;
                 for j in path_joins {
-                    if !all_joins.iter().any(|existing: &crate::compiler::ResolvedJoin| existing.edge == j.edge) {
+                    if !all_joins
+                        .iter()
+                        .any(|existing: &crate::compiler::ResolvedJoin| existing.edge == j.edge)
+                    {
                         all_joins.push(j);
                     }
                 }
@@ -85,11 +99,14 @@ impl SemanticCompiler {
             resolved_metric.measure_entity.name.as_str(),
             resolved_metric.measure.name.as_str(),
         )];
-        let select_node = crate::ast::builder::build_semantic_select(&dims_for_select, &measures_for_select);
+        let select_node =
+            crate::ast::builder::build_semantic_select(&dims_for_select, &measures_for_select);
 
         // STEP 9: Build GROUP BY from dimensions
         let group_by_node = if !dims_for_select.is_empty() {
-            Some(crate::ast::builder::build_semantic_group_by(&dims_for_select))
+            Some(crate::ast::builder::build_semantic_group_by(
+                &dims_for_select,
+            ))
         } else {
             None
         };
@@ -105,10 +122,12 @@ impl SemanticCompiler {
         };
 
         // STEP 11: Lower semantic nodes to physical
-        let lowered_query = crate::compiler::lowering::SemanticLowering::new(state_ref).lower_node(query_node)?;
+        let lowered_query =
+            crate::compiler::lowering::SemanticLowering::new(state_ref).lower_node(query_node)?;
 
         // STEP 12: Generate SQL
-        self.dialect.generate_sql(&lowered_query)
+        self.dialect
+            .generate_sql(&lowered_query)
             .map_err(|e| CompilerError::CodeGeneration(e.to_string()))
     }
 }
