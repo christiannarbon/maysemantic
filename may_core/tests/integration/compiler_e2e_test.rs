@@ -14,8 +14,7 @@ fn load_demo_state(path: &str) -> Result<SemanticState, Box<dyn std::error::Erro
 #[test]
 fn test_compile_demo_metric_produces_valid_sql() {
     // Load real demo state from disk
-    let state = load_demo_state("../demos/valid_demo")
-        .expect("demo model must load successfully");
+    let state = load_demo_state("../demos/valid_demo").expect("demo model must load successfully");
     let state = Arc::new(state);
 
     // Build compiler with Postgres dialect
