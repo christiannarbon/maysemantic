@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use futures::{Sink, SinkExt, stream};
 use may_auth::repository::UserRepository;
 use may_core::StateMgr;
-use may_core::compiler::{RequestParser, SemanticRequest};
+use may_core::compiler::{RequestParser, SemanticCompiler, SemanticRequest};
+use may_core::dialects::PostgresDialect;
 use pgwire::api::PgWireConnectionState;
 use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
 use pgwire::api::copy::NoopCopyHandler;
@@ -209,6 +210,8 @@ impl SimpleQueryHandler for QueryProcessor {
 
         const SEMANTIC_PREFIX: &str = "SEMANTIC ";
 
+        let mut actual_query = query_trimmed.to_string();
+
         if let Some(json_body) = query_trimmed.strip_prefix(SEMANTIC_PREFIX) {
             let request: SemanticRequest = match serde_json::from_str(json_body) {
                 Ok(r) => r,
@@ -221,43 +224,58 @@ impl SimpleQueryHandler for QueryProcessor {
                 }
             };
 
-            let state_lock = self.state_mgr.get_state();
-            let state_guard = state_lock.read().map_err(|_| {
-                PgWireError::UserError(Box::new(ErrorInfo::new(
-                    "ERROR".to_string(),
-                    "XX000".to_string(),
-                    "Failed to acquire read lock on semantic state".to_string(),
-                )))
-            })?;
-            let parser = RequestParser::new(&state_guard);
-            if let Err(parse_err) = parser.validate(&request) {
-                return Err(PgWireError::UserError(Box::new(ErrorInfo::new(
-                    "ERROR".to_string(),
-                    "42000".to_string(),
-                    parse_err.to_string(),
-                ))));
-            }
+            let compiled_sql = {
+                let state_lock = self.state_mgr.get_state();
+                let state_guard = state_lock.read().map_err(|_| {
+                    PgWireError::UserError(Box::new(ErrorInfo::new(
+                        "ERROR".to_string(),
+                        "XX000".to_string(),
+                        "Failed to acquire read lock on semantic state".to_string(),
+                    )))
+                })?;
+                let parser = RequestParser::new(&state_guard);
+                if let Err(parse_err) = parser.validate(&request) {
+                    return Err(PgWireError::UserError(Box::new(ErrorInfo::new(
+                        "ERROR".to_string(),
+                        "42000".to_string(),
+                        parse_err.to_string(),
+                    ))));
+                }
 
-            info!("Semantic request validated: metric={}", request.metric_name);
-            // TODO SQL-ENGINE-2.5: route to SemanticCompiler::compile
-            return Ok(vec![Response::Execution(Tag::new("OK"))]);
+                info!("Semantic request validated: metric={}", request.metric_name);
+                
+                let state_arc = Arc::new(state_guard.clone());
+                let compiler = SemanticCompiler::new(
+                    state_arc,
+                    Box::new(PostgresDialect),
+                );
+                
+                compiler.compile(request)
+                    .map_err(|e| PgWireError::UserError(Box::new(ErrorInfo::new(
+                        "ERROR".to_string(),
+                        "42000".to_string(),
+                        e.to_string(),
+                    ))))?
+            };
+            tracing::debug!("Compiled semantic SQL: {}", compiled_sql);
+            actual_query = compiled_sql;
         }
 
-        let upper_query = query_trimmed.to_uppercase();
+        let upper_query = actual_query.to_uppercase();
         if upper_query.starts_with("SET ")
             || upper_query.starts_with("SHOW ")
             || upper_query.starts_with("BEGIN")
             || upper_query.starts_with("COMMIT")
         {
-            debug!("Acknowledging handshake/setup command: {query_trimmed}");
+            debug!("Acknowledging handshake/setup command: {actual_query}");
             return Ok(vec![Response::Execution(Tag::new("OK"))]);
         }
 
-        match Parser::parse_sql(&PostgreSqlDialect {}, query_trimmed) {
+        match Parser::parse_sql(&PostgreSqlDialect {}, &actual_query) {
             Ok(ast) => info!("Successfully parsed AST: {:#?}", ast),
             Err(e) => warn!(
                 "Failed to parse query into AST: {:?}. Query was: {}",
-                e, query_trimmed
+                e, actual_query
             ),
         }
 
