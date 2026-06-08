@@ -2,7 +2,7 @@
 mod lowering_tests {
     use may_core::ast::{ColumnIdent, Expr, SqlNode};
     use may_core::compiler::lowering::SemanticLowering;
-    use may_core::models::{Dimension, Entity, Measure, SemanticModel, AggregationType};
+    use may_core::models::{AggregationType, Dimension, Entity, Measure, SemanticModel};
     use may_core::SemanticState;
     use may_core::{PostgresDialect, SqlDialect};
 
@@ -12,22 +12,18 @@ mod lowering_tests {
             description: None,
             table: "public.orders".to_string(),
             primary_key: "id".to_string(),
-            dimensions: vec![
-                Dimension {
-                    name: "region".to_string(),
-                    description: None,
-                    sql: "country".to_string(),
-                    dimension_type: may_core::models::DimensionType::String,
-                }
-            ],
-            measures: vec![
-                Measure {
-                    name: "total_amount".to_string(),
-                    description: None,
-                    sql: "amount".to_string(),
-                    agg: AggregationType::Sum,
-                }
-            ],
+            dimensions: vec![Dimension {
+                name: "region".to_string(),
+                description: None,
+                sql: "country".to_string(),
+                dimension_type: may_core::models::DimensionType::String,
+            }],
+            measures: vec![Measure {
+                name: "total_amount".to_string(),
+                description: None,
+                sql: "amount".to_string(),
+                agg: AggregationType::Sum,
+            }],
         };
 
         let model = SemanticModel {
@@ -56,7 +52,9 @@ mod lowering_tests {
 
         assert_eq!(
             result,
-            SqlNode::Select(vec![Expr::Column(ColumnIdent("public.orders.country".to_string()))])
+            SqlNode::Select(vec![Expr::Column(ColumnIdent(
+                "public.orders.country".to_string()
+            ))])
         );
     }
 
@@ -77,16 +75,20 @@ mod lowering_tests {
                     measure: "total_amount".to_string(),
                 },
             ])),
-            from: Box::new(SqlNode::Table(may_core::ast::TableIdent("public.orders".to_string()))),
+            from: Box::new(SqlNode::Table(may_core::ast::TableIdent(
+                "public.orders".to_string(),
+            ))),
             r#where: None,
             group_by: None,
             having: None,
         };
 
         let result = lowering.lower_node(input).expect("lowering failed");
-        
-        let sql = PostgresDialect.generate_sql(&result).expect("generate_sql failed");
-        
+
+        let sql = PostgresDialect
+            .generate_sql(&result)
+            .expect("generate_sql failed");
+
         // Assert no error is returned and sql is valid
         assert!(sql.contains("public.orders.country"));
         assert!(sql.contains("SUM(public.orders.amount)"));
