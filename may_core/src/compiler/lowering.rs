@@ -29,7 +29,7 @@ impl<'a> SemanticLowering<'a> {
                 for model in self.state.models.values() {
                     if let Some(e) = model.entities.iter().find(|e| e.name == entity) {
                         if let Some(d) = e.dimensions.iter().find(|d| d.name == dimension) {
-                            return Ok(Expr::Column(ColumnIdent(format!("{}.{}", e.table, d.sql))));
+                            return Ok(Expr::Column(ColumnIdent(d.sql.clone())));
                         }
                         return Err(LoweringError::DimensionNotFound { entity, dimension });
                     }
@@ -40,10 +40,7 @@ impl<'a> SemanticLowering<'a> {
                 for model in self.state.models.values() {
                     if let Some(e) = model.entities.iter().find(|e| e.name == entity) {
                         if let Some(m) = e.measures.iter().find(|m| m.name == measure) {
-                            return Ok(m.agg.to_expr(Expr::Column(ColumnIdent(format!(
-                                "{}.{}",
-                                e.table, m.sql
-                            )))));
+                            return Ok(m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone()))));
                         }
                         return Err(LoweringError::MeasureNotFound { entity, measure });
                     }
