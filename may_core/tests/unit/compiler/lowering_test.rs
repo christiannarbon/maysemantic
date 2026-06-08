@@ -126,6 +126,87 @@ mod lowering_tests {
     }
 
     #[test]
+    fn test_lower_unknown_measure_returns_error() {
+        let state = make_test_state();
+        let lowering = SemanticLowering::new(&state);
+        let expr = Expr::MeasureRef {
+            entity: "orders".to_string(),
+            measure: "does_not_exist".to_string(),
+        };
+        assert_eq!(
+            lowering.lower_expr(expr),
+            Err(LoweringError::MeasureNotFound {
+                entity: "orders".to_string(),
+                measure: "does_not_exist".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_lower_ref_nested_in_binary_op_in_where() {
+        let state = make_test_state();
+        let lowering = SemanticLowering::new(&state);
+        let input = SqlNode::Where(Expr::BinaryOp {
+            left: Box::new(Expr::DimensionRef {
+                entity: "orders".to_string(),
+                dimension: "region".to_string(),
+            }),
+            op: "=".to_string(),
+            right: Box::new(Expr::Literal("'US'".to_string())),
+        });
+        let result = lowering.lower_node(input).expect("lowering failed");
+        assert_eq!(
+            result,
+            SqlNode::Where(Expr::BinaryOp {
+                left: Box::new(Expr::Column(ColumnIdent("orders.country".to_string()))),
+                op: "=".to_string(),
+                right: Box::new(Expr::Literal("'US'".to_string())),
+            })
+        );
+    }
+
+    #[test]
+    fn test_lower_ambiguous_dimension_returns_error() {
+        let mut state = make_test_state();
+        let analytics_model = SemanticModel {
+            name: "analytics".to_string(),
+            entities: vec![Entity {
+                name: "orders".to_string(),
+                description: None,
+                table: "analytics_orders".to_string(),
+                primary_key: "id".to_string(),
+                dimensions: vec![Dimension {
+                    name: "region".to_string(),
+                    description: None,
+                    sql: "region_code".to_string(),
+                    dimension_type: DimensionType::String,
+                }],
+                measures: vec![],
+            }],
+            metrics: vec![],
+            joins: vec![],
+        };
+        state.models.insert("analytics".to_string(), analytics_model);
+        
+        let lowering = SemanticLowering::new(&state);
+        let expr = Expr::DimensionRef {
+            entity: "orders".to_string(),
+            dimension: "region".to_string(),
+        };
+        
+        let err = lowering.lower_expr(expr).unwrap_err();
+        if let LoweringError::AmbiguousDimension { entity, dimension, models } = err {
+            assert_eq!(entity, "orders");
+            assert_eq!(dimension, "region");
+            assert_eq!(models.len(), 2);
+            assert!(models.contains(&"ecommerce".to_string()));
+            assert!(models.contains(&"analytics".to_string()));
+        } else {
+            panic!("Expected AmbiguousDimension error");
+        }
+    }
+
+    #[test]
     fn test_lower_full_query_produces_compilable_ast() {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
@@ -158,6 +239,7 @@ mod lowering_tests {
         let sql = PostgresDialect
             .generate_sql(&lowered_query)
             .expect("sql generation failed");
-        assert!(!sql.is_empty());
+        assert_eq!(sql, "SELECT orders.country, SUM(amount) FROM orders GROUP BY orders.country");
+        assert!(!sql.contains("DimensionRef") && !sql.contains("MeasureRef"));
     }
 }
