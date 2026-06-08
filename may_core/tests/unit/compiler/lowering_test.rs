@@ -2,7 +2,9 @@
 mod lowering_tests {
     use may_core::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
     use may_core::compiler::lowering::{LoweringError, SemanticLowering};
-    use may_core::models::{Dimension, DimensionType, Entity, Measure, Metric, SemanticModel, AggregationType};
+    use may_core::models::{
+        AggregationType, Dimension, DimensionType, Entity, Measure, Metric, SemanticModel,
+    };
     use may_core::SemanticState;
     use may_core::{PostgresDialect, SqlDialect};
 
@@ -12,22 +14,18 @@ mod lowering_tests {
             description: None,
             table: "orders".to_string(),
             primary_key: "id".to_string(),
-            dimensions: vec![
-                Dimension {
-                    name: "region".to_string(),
-                    description: None,
-                    sql: "orders.country".to_string(),
-                    dimension_type: DimensionType::String,
-                }
-            ],
-            measures: vec![
-                Measure {
-                    name: "revenue".to_string(),
-                    description: None,
-                    sql: "amount".to_string(),
-                    agg: AggregationType::Sum,
-                }
-            ],
+            dimensions: vec![Dimension {
+                name: "region".to_string(),
+                description: None,
+                sql: "orders.country".to_string(),
+                dimension_type: DimensionType::String,
+            }],
+            measures: vec![Measure {
+                name: "revenue".to_string(),
+                description: None,
+                sql: "amount".to_string(),
+                agg: AggregationType::Sum,
+            }],
         };
 
         let users = Entity {
@@ -35,14 +33,12 @@ mod lowering_tests {
             description: None,
             table: "users".to_string(),
             primary_key: "id".to_string(),
-            dimensions: vec![
-                Dimension {
-                    name: "user_region".to_string(),
-                    description: None,
-                    sql: "users.region".to_string(),
-                    dimension_type: DimensionType::String,
-                }
-            ],
+            dimensions: vec![Dimension {
+                name: "user_region".to_string(),
+                description: None,
+                sql: "users.region".to_string(),
+                dimension_type: DimensionType::String,
+            }],
             measures: vec![],
         };
 
@@ -69,7 +65,10 @@ mod lowering_tests {
     fn test_lower_dimension_ref_resolves_to_column() {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
-        let expr = Expr::DimensionRef { entity: "orders".to_string(), dimension: "region".to_string() };
+        let expr = Expr::DimensionRef {
+            entity: "orders".to_string(),
+            dimension: "region".to_string(),
+        };
         assert_eq!(
             lowering.lower_expr(expr),
             Ok(Expr::Column(ColumnIdent("orders.country".to_string())))
@@ -80,7 +79,10 @@ mod lowering_tests {
     fn test_lower_measure_ref_resolves_to_function() {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
-        let expr = Expr::MeasureRef { entity: "orders".to_string(), measure: "revenue".to_string() };
+        let expr = Expr::MeasureRef {
+            entity: "orders".to_string(),
+            measure: "revenue".to_string(),
+        };
         assert_eq!(
             lowering.lower_expr(expr),
             Ok(Expr::Function {
@@ -94,10 +96,15 @@ mod lowering_tests {
     fn test_lower_unknown_entity_returns_error() {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
-        let expr = Expr::DimensionRef { entity: "nonexistent".to_string(), dimension: "region".to_string() };
+        let expr = Expr::DimensionRef {
+            entity: "nonexistent".to_string(),
+            dimension: "region".to_string(),
+        };
         assert_eq!(
             lowering.lower_expr(expr),
-            Err(LoweringError::EntityNotFound { entity: "nonexistent".to_string() })
+            Err(LoweringError::EntityNotFound {
+                entity: "nonexistent".to_string()
+            })
         );
     }
 
@@ -105,10 +112,16 @@ mod lowering_tests {
     fn test_lower_unknown_dimension_returns_error() {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
-        let expr = Expr::DimensionRef { entity: "orders".to_string(), dimension: "bad_dim".to_string() };
+        let expr = Expr::DimensionRef {
+            entity: "orders".to_string(),
+            dimension: "bad_dim".to_string(),
+        };
         assert_eq!(
             lowering.lower_expr(expr),
-            Err(LoweringError::DimensionNotFound { entity: "orders".to_string(), dimension: "bad_dim".to_string() })
+            Err(LoweringError::DimensionNotFound {
+                entity: "orders".to_string(),
+                dimension: "bad_dim".to_string()
+            })
         );
     }
 
@@ -120,22 +133,31 @@ mod lowering_tests {
         let query = SqlNode::Query {
             ctes: None,
             select: Box::new(SqlNode::Select(vec![
-                Expr::DimensionRef { entity: "orders".to_string(), dimension: "region".to_string() },
-                Expr::MeasureRef { entity: "orders".to_string(), measure: "revenue".to_string() },
+                Expr::DimensionRef {
+                    entity: "orders".to_string(),
+                    dimension: "region".to_string(),
+                },
+                Expr::MeasureRef {
+                    entity: "orders".to_string(),
+                    measure: "revenue".to_string(),
+                },
             ])),
             from: Box::new(SqlNode::From {
                 source: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
                 joins: vec![],
             }),
             r#where: None,
-            group_by: Some(Box::new(SqlNode::GroupBy(vec![
-                Expr::DimensionRef { entity: "orders".to_string(), dimension: "region".to_string() }
-            ]))),
+            group_by: Some(Box::new(SqlNode::GroupBy(vec![Expr::DimensionRef {
+                entity: "orders".to_string(),
+                dimension: "region".to_string(),
+            }]))),
             having: None,
         };
 
         let lowered_query = lowering.lower_node(query).expect("lowering failed");
-        let sql = PostgresDialect.generate_sql(&lowered_query).expect("sql generation failed");
+        let sql = PostgresDialect
+            .generate_sql(&lowered_query)
+            .expect("sql generation failed");
         assert!(!sql.is_empty());
     }
 }
