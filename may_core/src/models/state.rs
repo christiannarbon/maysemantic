@@ -21,7 +21,7 @@ pub enum StateError {
     IoError(#[from] std::io::Error),
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct SemanticState {
     pub models: HashMap<String, SemanticModel>,
 }
