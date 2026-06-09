@@ -35,6 +35,8 @@ pub mod models {
 pub mod compiler {
     #[path = "chasm_trap_test.rs"]
     pub mod chasm_trap_test;
+    #[path = "fanout_test.rs"]
+    pub mod fanout_test;
     #[path = "join_builder_test.rs"]
     pub mod join_builder_test;
     #[path = "lowering_test.rs"]
@@ -45,6 +47,4 @@ pub mod compiler {
     pub mod request_parser_test;
     #[path = "request_test.rs"]
     pub mod request_test;
-    #[path = "fanout_test.rs"]
-    pub mod fanout_test;
 }
