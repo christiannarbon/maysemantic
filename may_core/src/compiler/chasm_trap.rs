@@ -61,9 +61,9 @@ impl ChasmTrapHandler {
                         joins: vec![],
                     }),
                     r#where: None,
-                    group_by: Some(Box::new(SqlNode::GroupBy(vec![Expr::Column(
-                        ColumnIdent(link_key.to_string()),
-                    )]))),
+                    group_by: Some(Box::new(SqlNode::GroupBy(vec![Expr::Column(ColumnIdent(
+                        link_key.to_string(),
+                    ))]))),
                     having: None,
                 };
                 ctes_vec.push(SqlNode::CTE {
