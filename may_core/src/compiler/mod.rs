@@ -17,7 +17,7 @@ pub mod semantic_compiler;
 pub use semantic_compiler::{CompilerError, SemanticCompiler};
 
 pub mod fanout;
-pub use fanout::PathClassification;
+pub use fanout::{FanOutDetector, PathClassification};
 
 pub mod chasm_trap;
 pub use chasm_trap::{ChasmTrapError, ChasmTrapHandler};
