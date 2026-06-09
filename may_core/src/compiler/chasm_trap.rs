@@ -1,4 +1,4 @@
-use crate::ast::SqlNode;
+use crate::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
 use crate::compiler::fanout::PathClassification;
 use thiserror::Error;
 
@@ -39,8 +39,49 @@ impl ChasmTrapHandler {
         fact_tables: &[String],
         link_key: &str,
     ) -> Result<SqlNode, ChasmTrapError> {
-        // To be implemented in SQL-ENGINE-3.3.T2
-        let _ = (query, fact_tables, link_key);
-        todo!("CTE injection — implement in SQL-ENGINE-3.3.T2")
+        if let SqlNode::Query {
+            ctes: _,
+            select,
+            from,
+            r#where,
+            group_by,
+            having,
+        } = query
+        {
+            let mut ctes_vec = Vec::new();
+            for fact_name in fact_tables {
+                let alias = TableIdent(format!("{}_agg", fact_name));
+                let sub_query = SqlNode::Query {
+                    ctes: None,
+                    select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+                        link_key.to_string(),
+                    ))])),
+                    from: Box::new(SqlNode::From {
+                        source: Box::new(SqlNode::Table(TableIdent(fact_name.clone()))),
+                        joins: vec![],
+                    }),
+                    r#where: None,
+                    group_by: Some(Box::new(SqlNode::GroupBy(vec![Expr::Column(
+                        ColumnIdent(link_key.to_string()),
+                    )]))),
+                    having: None,
+                };
+                ctes_vec.push(SqlNode::CTE {
+                    alias,
+                    query: Box::new(sub_query),
+                });
+            }
+
+            Ok(SqlNode::Query {
+                ctes: Some(ctes_vec),
+                select,
+                from,
+                r#where,
+                group_by,
+                having,
+            })
+        } else {
+            Err(ChasmTrapError::NotAQueryNode)
+        }
     }
 }
