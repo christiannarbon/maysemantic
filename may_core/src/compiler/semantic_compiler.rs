@@ -1,6 +1,6 @@
 use crate::compiler::{LoweringError, MetricResolutionError, RequestParseError, SemanticRequest};
 use crate::dialects::SqlDialect;
-use crate::graph::JoinResolutionError;
+use crate::graph::{GraphError, JoinResolutionError};
 use crate::models::SemanticState;
 use std::sync::Arc;
 use thiserror::Error;
@@ -21,6 +21,15 @@ pub enum CompilerError {
 
     #[error("SQL code generation failed: {0}")]
     CodeGeneration(String),
+
+    #[error("Unsupported request feature: {0} is not yet supported by the compiler.")]
+    UnsupportedRequestFeature(String),
+
+    #[error("Metric '{metric}' is ambiguous; defined in multiple models {models:?}.")]
+    AmbiguousMetric { metric: String, models: Vec<String> },
+
+    #[error("Graph construction failed: {0}")]
+    GraphConstruction(#[from] GraphError),
 }
 
 pub struct SemanticCompiler {
@@ -34,33 +43,64 @@ impl SemanticCompiler {
     }
 
     pub fn compile(&self, request: SemanticRequest) -> Result<String, CompilerError> {
+        if !request.filters.is_empty() {
+            return Err(CompilerError::UnsupportedRequestFeature("filters".into()));
+        }
+        if request.limit.is_some() {
+            return Err(CompilerError::UnsupportedRequestFeature("limit".into()));
+        }
+        if request.time_granularity.is_some() {
+            return Err(CompilerError::UnsupportedRequestFeature("time_granularity".into()));
+        }
+        if !request.dimensions.is_empty() {
+            return Err(CompilerError::UnsupportedRequestFeature("dimensions".into()));
+        }
+
         let state_ref = self.state.as_ref();
 
         // STEP 1: Validate request
         crate::compiler::RequestParser::new(state_ref).validate(&request)?;
 
         // STEP 2: Find the model containing the metric
-        let model = state_ref
-            .models
-            .values()
-            .find(|m| {
-                m.metrics
-                    .iter()
-                    .any(|metric| metric.name == request.metric_name)
-            })
-            .ok_or_else(|| {
-                CompilerError::RequestParsing(RequestParseError::MetricNotFound(
+        let mut matched_models = Vec::new();
+        for (name, m) in state_ref.models.iter() {
+            if m.metrics.iter().any(|metric| metric.name == request.metric_name) {
+                matched_models.push((name, m));
+            }
+        }
+
+        let model = match matched_models.len() {
+            0 => {
+                return Err(CompilerError::RequestParsing(RequestParseError::MetricNotFound(
                     request.metric_name.clone(),
-                ))
-            })?;
+                )));
+            }
+            1 => {
+                let mut matched_iter = matched_models.into_iter();
+                match matched_iter.next() {
+                    Some((_, m)) => m,
+                    None => {
+                        return Err(CompilerError::RequestParsing(RequestParseError::MetricNotFound(
+                            request.metric_name.clone(),
+                        )));
+                    }
+                }
+            }
+            _ => {
+                let models = matched_models.into_iter().map(|(name, _)| name.clone()).collect();
+                return Err(CompilerError::AmbiguousMetric {
+                    metric: request.metric_name.clone(),
+                    models,
+                });
+            }
+        };
 
         // STEP 3: Resolve metric to typed structs
         let resolved_metric =
             crate::compiler::MetricResolver::new(model).resolve(&request.metric_name)?;
 
         // STEP 4: Build semantic graph from the model
-        let (graph, node_indices) = crate::graph::build_semantic_graph(state_ref)
-            .map_err(|e| CompilerError::CodeGeneration(e.to_string()))?;
+        let (graph, node_indices) = crate::graph::build_semantic_graph(state_ref)?;
 
         // STEP 5 & 6: Resolve join path with A* (JoinResolver) and zip edges
         let join_resolver = crate::graph::JoinResolver::new(graph, node_indices);
