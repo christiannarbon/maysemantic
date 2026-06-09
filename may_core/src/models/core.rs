@@ -74,6 +74,17 @@ impl AggregationType {
     }
 }
 
+/// Classifies whether an entity is a fact table (transactional, additive rows)
+/// or a dimension table (descriptive lookup rows).
+/// Used by `FanOutDetector` to identify chasm-trap risk in join paths.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum EntityType {
+    #[default]
+    Fact,
+    Dimension,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Validate)]
 pub struct Entity {
     #[validate(custom(function = "validate_name"))]
@@ -86,6 +97,8 @@ pub struct Entity {
     pub dimensions: Vec<Dimension>,
     #[validate(nested)]
     pub measures: Vec<Measure>,
+    #[serde(default)]
+    pub entity_type: EntityType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Validate)]

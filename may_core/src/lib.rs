@@ -17,6 +17,6 @@ pub use graph::{
     SemanticGraph,
 };
 pub use models::{
-    AggregationType, Dimension, DimensionType, Entity, JoinDefinition, Measure, Metric,
+    AggregationType, Dimension, DimensionType, Entity, EntityType, JoinDefinition, Measure, Metric,
     SemanticModel, SemanticState, StateError, StateMgr, StateStats,
 };

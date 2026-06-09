@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod metric_resolver_tests {
     use may_core::{
-        AggregationType, Dimension, DimensionType, Entity, Measure, Metric, SemanticModel,
+        AggregationType, Dimension, DimensionType, Entity, EntityType, Measure, Metric, SemanticModel,
     };
     use may_core::{MetricResolutionError, MetricResolver};
 
@@ -21,6 +21,7 @@ mod metric_resolver_tests {
                         sql: "country".to_string(),
                     }],
                     measures: vec![],
+                    entity_type: EntityType::Fact,
                 },
                 Entity {
                     name: "orders".to_string(),
@@ -39,6 +40,7 @@ mod metric_resolver_tests {
                         agg: AggregationType::Sum,
                         sql: "amount".to_string(),
                     }],
+                    entity_type: EntityType::Fact,
                 },
                 Entity {
                     name: "dupe1".to_string(),
@@ -57,6 +59,7 @@ mod metric_resolver_tests {
                         agg: AggregationType::Sum,
                         sql: "meas".to_string(),
                     }],
+                    entity_type: EntityType::Fact,
                 },
                 Entity {
                     name: "dupe2".to_string(),
@@ -75,6 +78,7 @@ mod metric_resolver_tests {
                         agg: AggregationType::Sum,
                         sql: "meas".to_string(),
                     }],
+                    entity_type: EntityType::Fact,
                 },
             ],
             metrics: vec![

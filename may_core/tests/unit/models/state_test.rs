@@ -114,3 +114,47 @@ fn test_generate_json_schema() {
     let schema_json = serde_json::to_string_pretty(&schema).expect("Failed to serialize schema");
     assert!(schema_json.contains("SemanticModel"));
 }
+
+/// Tests that an entity without an `entity_type` field defaults to `EntityType::Fact` upon deserialization.
+#[test]
+fn test_entity_type_defaulting() {
+    let valid_yaml = r#"
+name: test_default_model
+entities:
+  - name: users
+    table: public.users
+    primary_key: id
+    dimensions: []
+    measures: []
+metrics: []
+"#;
+    let mgr = StateMgr::new();
+    mgr.load_from_yaml(valid_yaml).unwrap();
+
+    let model = mgr.get_model("test_default_model").unwrap().unwrap();
+    let entity = &model.entities[0];
+    assert_eq!(entity.entity_type, may_core::EntityType::Fact);
+}
+
+/// Tests that an entity with an explicit `entity_type` field parses correctly.
+#[test]
+fn test_entity_type_explicit() {
+    let explicit_yaml = r#"
+name: test_explicit_model
+entities:
+  - name: users
+    table: public.users
+    primary_key: id
+    dimensions: []
+    measures: []
+    entity_type: dimension
+metrics: []
+"#;
+    let mgr = StateMgr::new();
+    mgr.load_from_yaml(explicit_yaml).unwrap();
+
+    let model = mgr.get_model("test_explicit_model").unwrap().unwrap();
+    let entity = &model.entities[0];
+    assert_eq!(entity.entity_type, may_core::EntityType::Dimension);
+}
+

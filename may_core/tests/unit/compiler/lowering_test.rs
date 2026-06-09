@@ -3,7 +3,7 @@ mod lowering_tests {
     use may_core::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
     use may_core::compiler::lowering::{LoweringError, SemanticLowering};
     use may_core::models::{
-        AggregationType, Dimension, DimensionType, Entity, Measure, Metric, SemanticModel,
+        AggregationType, Dimension, DimensionType, Entity, EntityType, Measure, Metric, SemanticModel,
     };
     use may_core::SemanticState;
     use may_core::{PostgresDialect, SqlDialect};
@@ -26,6 +26,7 @@ mod lowering_tests {
                 sql: "amount".to_string(),
                 agg: AggregationType::Sum,
             }],
+            entity_type: EntityType::Fact,
         };
 
         let users = Entity {
@@ -40,6 +41,7 @@ mod lowering_tests {
                 dimension_type: DimensionType::String,
             }],
             measures: vec![],
+            entity_type: EntityType::Fact,
         };
 
         let metric = Metric {
@@ -182,6 +184,7 @@ mod lowering_tests {
                     dimension_type: DimensionType::String,
                 }],
                 measures: vec![],
+                entity_type: EntityType::Fact,
             }],
             metrics: vec![],
             joins: vec![],

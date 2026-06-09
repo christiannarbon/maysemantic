@@ -1,6 +1,6 @@
 use may_core::ast::JoinType;
 use may_core::build_semantic_graph;
-use may_core::models::{Entity, JoinDefinition, SemanticModel};
+use may_core::models::{Entity, EntityType, JoinDefinition, SemanticModel};
 use may_core::SemanticState;
 
 /// Tests that the GraphEngine can correctly translate a SemanticModel
@@ -20,6 +20,7 @@ fn test_build_semantic_graph() {
         primary_key: "id".to_string(),
         dimensions: vec![],
         measures: vec![],
+        entity_type: EntityType::Fact,
     };
 
     // Define a mock 'orders' entity representing a second physical table.
@@ -30,6 +31,7 @@ fn test_build_semantic_graph() {
         primary_key: "id".to_string(),
         dimensions: vec![],
         measures: vec![],
+        entity_type: EntityType::Fact,
     };
 
     // Define a Left Join relationship connecting the two entities:

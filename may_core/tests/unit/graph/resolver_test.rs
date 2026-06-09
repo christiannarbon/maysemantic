@@ -1,6 +1,6 @@
 use may_core::ast::JoinType;
 use may_core::build_semantic_graph;
-use may_core::models::{Entity, JoinDefinition, SemanticModel};
+use may_core::models::{Entity, EntityType, JoinDefinition, SemanticModel};
 use may_core::SemanticState;
 use may_core::{JoinResolutionError, JoinResolver};
 
@@ -17,6 +17,7 @@ fn build_three_node_state() -> SemanticState {
         primary_key: "id".to_string(),
         dimensions: vec![],
         measures: vec![],
+        entity_type: EntityType::Fact,
     };
 
     let users = Entity {
@@ -26,6 +27,7 @@ fn build_three_node_state() -> SemanticState {
         primary_key: "id".to_string(),
         dimensions: vec![],
         measures: vec![],
+        entity_type: EntityType::Fact,
     };
 
     let teams = Entity {
@@ -35,6 +37,7 @@ fn build_three_node_state() -> SemanticState {
         primary_key: "id".to_string(),
         dimensions: vec![],
         measures: vec![],
+        entity_type: EntityType::Fact,
     };
 
     // orders.order_user_id = users.id
@@ -165,6 +168,7 @@ fn test_no_path_returns_error_for_disconnected_graph() {
         primary_key: "id".to_string(),
         dimensions: vec![],
         measures: vec![],
+        entity_type: EntityType::Fact,
     };
 
     let model = SemanticModel {

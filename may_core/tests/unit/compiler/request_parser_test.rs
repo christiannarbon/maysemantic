@@ -1,6 +1,6 @@
 use may_core::compiler::{RequestParseError, RequestParser, SemanticRequest};
 use may_core::models::{
-    AggregationType, Dimension, DimensionType, Entity, Measure, Metric, SemanticModel,
+    AggregationType, Dimension, DimensionType, Entity, EntityType, Measure, Metric, SemanticModel,
     SemanticState,
 };
 use std::collections::HashMap;
@@ -27,6 +27,7 @@ fn make_test_state() -> SemanticState {
         primary_key: "id".to_string(),
         dimensions: vec![dimension],
         measures: vec![measure],
+        entity_type: EntityType::Fact,
     };
 
     let metric = Metric {
