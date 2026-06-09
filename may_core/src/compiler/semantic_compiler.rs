@@ -50,10 +50,14 @@ impl SemanticCompiler {
             return Err(CompilerError::UnsupportedRequestFeature("limit".into()));
         }
         if request.time_granularity.is_some() {
-            return Err(CompilerError::UnsupportedRequestFeature("time_granularity".into()));
+            return Err(CompilerError::UnsupportedRequestFeature(
+                "time_granularity".into(),
+            ));
         }
         if !request.dimensions.is_empty() {
-            return Err(CompilerError::UnsupportedRequestFeature("dimensions".into()));
+            return Err(CompilerError::UnsupportedRequestFeature(
+                "dimensions".into(),
+            ));
         }
 
         let state_ref = self.state.as_ref();
@@ -64,30 +68,36 @@ impl SemanticCompiler {
         // STEP 2: Find the model containing the metric
         let mut matched_models = Vec::new();
         for (name, m) in state_ref.models.iter() {
-            if m.metrics.iter().any(|metric| metric.name == request.metric_name) {
+            if m.metrics
+                .iter()
+                .any(|metric| metric.name == request.metric_name)
+            {
                 matched_models.push((name, m));
             }
         }
 
         let model = match matched_models.len() {
             0 => {
-                return Err(CompilerError::RequestParsing(RequestParseError::MetricNotFound(
-                    request.metric_name.clone(),
-                )));
+                return Err(CompilerError::RequestParsing(
+                    RequestParseError::MetricNotFound(request.metric_name.clone()),
+                ));
             }
             1 => {
                 let mut matched_iter = matched_models.into_iter();
                 match matched_iter.next() {
                     Some((_, m)) => m,
                     None => {
-                        return Err(CompilerError::RequestParsing(RequestParseError::MetricNotFound(
-                            request.metric_name.clone(),
-                        )));
+                        return Err(CompilerError::RequestParsing(
+                            RequestParseError::MetricNotFound(request.metric_name.clone()),
+                        ));
                     }
                 }
             }
             _ => {
-                let models = matched_models.into_iter().map(|(name, _)| name.clone()).collect();
+                let models = matched_models
+                    .into_iter()
+                    .map(|(name, _)| name.clone())
+                    .collect();
                 return Err(CompilerError::AmbiguousMetric {
                     metric: request.metric_name.clone(),
                     models,

@@ -32,15 +32,30 @@ fn test_compile_demo_metric_produces_valid_sql() {
     // Compile and assert
     let result = compiler.compile(request);
     let sql = result.expect("compile should succeed for a valid demo metric");
-    
+
     // Strengthened assertions (FN-6)
     assert!(!sql.trim().is_empty(), "SQL output must not be empty");
-    assert!(sql.contains("public.orders"), "SQL must contain the base table name");
-    assert!(sql.contains("SUM("), "SQL must contain the measure's aggregate call");
-    assert!(sql.contains("status"), "SQL must contain the resolved dimension column");
+    assert!(
+        sql.contains("public.orders"),
+        "SQL must contain the base table name"
+    );
+    assert!(
+        sql.contains("SUM("),
+        "SQL must contain the measure's aggregate call"
+    );
+    assert!(
+        sql.contains("status"),
+        "SQL must contain the resolved dimension column"
+    );
     assert!(sql.contains("GROUP BY"), "SQL must contain GROUP BY");
-    assert!(!sql.contains("DimensionRef"), "SQL must not contain DimensionRef");
-    assert!(!sql.contains("MeasureRef"), "SQL must not contain MeasureRef");
+    assert!(
+        !sql.contains("DimensionRef"),
+        "SQL must not contain DimensionRef"
+    );
+    assert!(
+        !sql.contains("MeasureRef"),
+        "SQL must not contain MeasureRef"
+    );
 }
 
 #[test]
@@ -62,7 +77,10 @@ fn test_compile_rejects_unsupported_limit() {
         Err(CompilerError::UnsupportedRequestFeature(field)) => {
             assert_eq!(field, "limit");
         }
-        other => panic!("Expected CompilerError::UnsupportedRequestFeature(\"limit\"), got {:?}", other),
+        other => panic!(
+            "Expected CompilerError::UnsupportedRequestFeature(\"limit\"), got {:?}",
+            other
+        ),
     }
 }
 
@@ -89,7 +107,10 @@ fn test_compile_rejects_unsupported_filters() {
         Err(CompilerError::UnsupportedRequestFeature(field)) => {
             assert_eq!(field, "filters");
         }
-        other => panic!("Expected CompilerError::UnsupportedRequestFeature(\"filters\"), got {:?}", other),
+        other => panic!(
+            "Expected CompilerError::UnsupportedRequestFeature(\"filters\"), got {:?}",
+            other
+        ),
     }
 }
 
