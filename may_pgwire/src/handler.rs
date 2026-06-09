@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use futures::{Sink, SinkExt, stream};
 use may_auth::repository::UserRepository;
 use may_core::StateMgr;
-use may_core::compiler::{RequestParser, SemanticCompiler, SemanticRequest};
+use may_core::compiler::{SemanticCompiler, SemanticRequest};
 use may_core::dialects::PostgresDialect;
 use pgwire::api::PgWireConnectionState;
 use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
@@ -233,15 +233,6 @@ impl SimpleQueryHandler for QueryProcessor {
                         "Failed to acquire read lock on semantic state".to_string(),
                     )))
                 })?;
-                let parser = RequestParser::new(&state_guard);
-                if let Err(parse_err) = parser.validate(&request) {
-                    return Err(PgWireError::UserError(Box::new(ErrorInfo::new(
-                        "ERROR".to_string(),
-                        "42000".to_string(),
-                        parse_err.to_string(),
-                    ))));
-                }
-
                 info!("Semantic request validated: metric={}", request.metric_name);
 
                 let state_arc = Arc::new(state_guard.clone());
@@ -341,8 +332,8 @@ impl SimpleQueryHandler for QueryProcessor {
             }
         };
 
-        // Determine if this is an explicit query vs semantic query (currently hardcoded as explicit)
-        let mut query_result = connector.execute(&upper_query).await.map_err(|e| {
+        // Execute the resolved SQL — either the pass-through query or the compiled semantic SQL.
+        let mut query_result = connector.execute(&actual_query).await.map_err(|e| {
             PgWireError::UserError(Box::new(ErrorInfo::new(
                 "ERROR".to_owned(),
                 "XX000".to_owned(),
