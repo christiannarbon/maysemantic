@@ -20,7 +20,9 @@ fn test_inject_ctes_pure_dimension() {
 #[test]
 fn test_inject_ctes_empty_fact_tables() {
     let query = SqlNode::Table(TableIdent("orders".to_string()));
-    let classification = PathClassification::MultiFactJoin { fact_tables: vec![] };
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec![],
+    };
     let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id");
     assert_eq!(result.unwrap_err(), ChasmTrapError::EmptyFactTableList);
 }

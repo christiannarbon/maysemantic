@@ -1,6 +1,6 @@
-use thiserror::Error;
 use crate::ast::SqlNode;
 use crate::compiler::fanout::PathClassification;
+use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ChasmTrapError {
