@@ -33,7 +33,8 @@ fn test_entity_type_serde_roundtrip() {
     let entity_type = EntityType::Dimension;
     let serialized = serde_json::to_string(&entity_type).expect("Failed to serialize EntityType");
     assert_eq!(serialized, "\"dimension\"");
-    let deserialized: EntityType = serde_json::from_str(&serialized).expect("Failed to deserialize EntityType");
+    let deserialized: EntityType =
+        serde_json::from_str(&serialized).expect("Failed to deserialize EntityType");
     assert_eq!(deserialized, EntityType::Dimension);
 }
 
@@ -42,5 +43,9 @@ fn test_demo_yaml_loads_without_error() {
     let content = std::fs::read_to_string("../demos/valid_demo/ecommerce_model.yml")
         .expect("Failed to read ecommerce_model.yml");
     let result: Result<SemanticModel, serde_norway::Error> = serde_norway::from_str(&content);
-    assert!(result.is_ok(), "Failed to deserialize ecommerce_model.yml: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to deserialize ecommerce_model.yml: {:?}",
+        result.err()
+    );
 }
