@@ -1,3 +1,5 @@
+use crate::models::{Entity, EntityType};
+
 /// The result of analysing a resolved join path for chasm trap risk.
 ///
 /// Returned by `FanOutDetector::classify` and consumed by `ChasmTrapHandler`.
@@ -15,3 +17,28 @@ pub enum PathClassification {
 }
 
 pub struct FanOutDetector;
+
+impl FanOutDetector {
+    /// Classify a join path given the ordered list of entity nodes in the path.
+    ///
+    /// `nodes` must be ordered from the base entity (first) to the final target entity (last).
+    /// All `EntityType::Fact` entities are collected in traversal order.
+    ///
+    /// Returns:
+    /// - `PureDimension`  — if no fact entities appear in the path
+    /// - `SingleFact`     — if exactly one fact entity appears
+    /// - `MultiFactJoin`  — if two or more fact entities appear (chasm trap risk)
+    pub fn classify(nodes: &[Entity]) -> PathClassification {
+        let fact_tables: Vec<String> = nodes
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Fact)
+            .map(|e| e.name.clone())
+            .collect();
+
+        match fact_tables.len() {
+            0 => PathClassification::PureDimension,
+            1 => PathClassification::SingleFact,
+            _ => PathClassification::MultiFactJoin { fact_tables },
+        }
+    }
+}
