@@ -3,6 +3,7 @@ entities:
   - name: users
     table: public.users
     primary_key: user_id
+    entity_type: dimension
     dimensions:
       - name: user_id
         type: number
@@ -20,6 +21,7 @@ entities:
   - name: orders
     table: public.orders
     primary_key: order_id
+    entity_type: fact
     dimensions:
       - name: order_id
         type: number
