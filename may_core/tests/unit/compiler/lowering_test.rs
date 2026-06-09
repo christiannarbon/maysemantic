@@ -3,7 +3,8 @@ mod lowering_tests {
     use may_core::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
     use may_core::compiler::lowering::{LoweringError, SemanticLowering};
     use may_core::models::{
-        AggregationType, Dimension, DimensionType, Entity, EntityType, Measure, Metric, SemanticModel,
+        AggregationType, Dimension, DimensionType, Entity, EntityType, Measure, Metric,
+        SemanticModel,
     };
     use may_core::SemanticState;
     use may_core::{PostgresDialect, SqlDialect};

@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod metric_resolver_tests {
     use may_core::{
-        AggregationType, Dimension, DimensionType, Entity, EntityType, Measure, Metric, SemanticModel,
+        AggregationType, Dimension, DimensionType, Entity, EntityType, Measure, Metric,
+        SemanticModel,
     };
     use may_core::{MetricResolutionError, MetricResolver};
 

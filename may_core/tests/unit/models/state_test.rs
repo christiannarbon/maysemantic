@@ -157,4 +157,3 @@ metrics: []
     let entity = &model.entities[0];
     assert_eq!(entity.entity_type, may_core::EntityType::Dimension);
 }
-
