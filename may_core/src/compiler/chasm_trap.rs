@@ -10,6 +10,9 @@ pub enum ChasmTrapError {
 
     #[error("MultiFactJoin classification contains an empty fact_tables list")]
     EmptyFactTableList,
+
+    #[error("No conformed dimension table found in the join path for a MultiFactJoin")]
+    LinkDimensionNotFound,
 }
 
 pub struct ChasmTrapHandler;
