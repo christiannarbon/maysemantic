@@ -1,8 +1,8 @@
-use crate::compiler::fanout::FanOutDetector;
+use crate::compiler::chasm_trap::{ChasmTrapError, ChasmTrapHandler};
+use crate::compiler::fanout::{FanOutDetector, PathClassification};
 use crate::compiler::{LoweringError, MetricResolutionError, RequestParseError, SemanticRequest};
 use crate::dialects::SqlDialect;
 use crate::graph::{GraphError, JoinResolutionError};
-#[allow(unused_imports)]
 use crate::models::EntityType;
 use crate::models::SemanticState;
 use std::sync::Arc;
@@ -33,6 +33,9 @@ pub enum CompilerError {
 
     #[error("Graph construction failed: {0}")]
     GraphConstruction(#[from] GraphError),
+
+    #[error("Chasm trap handling failed: {0}")]
+    ChasmTrapHandlingFailed(#[from] ChasmTrapError),
 }
 
 pub struct SemanticCompiler {
@@ -197,6 +200,20 @@ impl SemanticCompiler {
             r#where: None,
             group_by: group_by_node.map(Box::new),
             having: None,
+        };
+
+        let query_node = match &classification {
+            PathClassification::MultiFactJoin { .. } => {
+                let link_entity = path_entities
+                    .iter()
+                    .find(|e| e.entity_type == EntityType::Dimension)
+                    .ok_or(CompilerError::ChasmTrapHandlingFailed(
+                        ChasmTrapError::EmptyFactTableList,
+                    ))?;
+                ChasmTrapHandler::inject_ctes(query_node, &classification, &link_entity.primary_key)
+                    .map_err(CompilerError::ChasmTrapHandlingFailed)?
+            }
+            _ => query_node,
         };
 
         // STEP 11: Lower semantic nodes to physical
