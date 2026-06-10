@@ -1,5 +1,103 @@
-use may_core::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
+use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 use may_core::compiler::{ChasmTrapError, ChasmTrapHandler, PathClassification};
+
+fn create_helper_query() -> SqlNode {
+    let select_node = SqlNode::Select(vec![
+        Expr::Column(ColumnIdent("orders.revenue".to_string())),
+        Expr::Column(ColumnIdent("returns.refund_amount".to_string())),
+    ]);
+
+    let join_condition = Expr::BinaryOp {
+        left: Box::new(Expr::Column(ColumnIdent("orders.user_id".to_string()))),
+        op: "=".to_string(),
+        right: Box::new(Expr::Column(ColumnIdent("returns.user_id".to_string()))),
+    };
+
+    let join_node = SqlNode::Join {
+        join_type: JoinType::Left,
+        relation: Box::new(SqlNode::Table(TableIdent("returns".to_string()))),
+        on: join_condition,
+    };
+
+    let from_node = SqlNode::From {
+        source: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
+        joins: vec![join_node],
+    };
+
+    SqlNode::Query {
+        ctes: None,
+        select: Box::new(select_node),
+        from: Box::new(from_node),
+        r#where: None,
+        group_by: None,
+        having: None,
+    }
+}
+
+#[test]
+fn test_single_fact_returns_query_unchanged() {
+    let query = create_helper_query();
+    let classification = PathClassification::SingleFact;
+    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, "user_id").unwrap();
+    assert_eq!(result, query);
+}
+
+#[test]
+fn test_pure_dimension_returns_query_unchanged() {
+    let query = create_helper_query();
+    let classification = PathClassification::PureDimension;
+    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, "user_id").unwrap();
+    assert_eq!(result, query);
+}
+
+#[test]
+fn test_multi_fact_injects_two_ctes() {
+    let query = create_helper_query();
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string(), "returns".to_string()],
+    };
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+    if let SqlNode::Query { ctes, .. } = &result {
+        assert_eq!(ctes.as_ref().unwrap().len(), 2);
+    } else {
+        panic!("Expected Query node");
+    }
+}
+
+#[test]
+fn test_multi_fact_cte_aliases_are_correct() {
+    let query = create_helper_query();
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string(), "returns".to_string()],
+    };
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+    if let SqlNode::Query { ctes, .. } = result {
+        let ctes = ctes.unwrap();
+        assert_eq!(ctes.len(), 2);
+        if let SqlNode::CTE { alias: alias0, .. } = &ctes[0] {
+            assert_eq!(alias0.0, "orders_agg");
+        } else {
+            panic!("Expected CTE");
+        }
+        if let SqlNode::CTE { alias: alias1, .. } = &ctes[1] {
+            assert_eq!(alias1.0, "returns_agg");
+        } else {
+            panic!("Expected CTE");
+        }
+    } else {
+        panic!("Expected Query node");
+    }
+}
+
+#[test]
+fn test_not_a_query_node_returns_error() {
+    let query = SqlNode::Table(TableIdent("orders".to_string()));
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string(), "returns".to_string()],
+    };
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id");
+    assert_eq!(result.unwrap_err(), ChasmTrapError::NotAQueryNode);
+}
 
 #[test]
 fn test_inject_ctes_single_fact() {
