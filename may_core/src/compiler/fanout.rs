@@ -28,7 +28,7 @@ impl FanOutDetector {
     /// - `PureDimension`  — if no fact entities appear in the path
     /// - `SingleFact`     — if exactly one fact entity appears
     /// - `MultiFactJoin`  — if two or more fact entities appear (chasm trap risk)
-    pub fn classify(nodes: &[Entity]) -> PathClassification {
+    pub fn classify(nodes: &[&Entity]) -> PathClassification {
         let fact_tables: Vec<String> = nodes
             .iter()
             .filter(|e| e.entity_type == EntityType::Fact)
