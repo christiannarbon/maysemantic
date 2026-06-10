@@ -16,6 +16,7 @@ tokio = { workspace = true }
 futures = { workspace = true }
 anyhow = { workspace = true }
 petgraph = "0.8.3"
+tracing = "0.1"
 
 [dev-dependencies]
 tempfile = "3.27.0"
