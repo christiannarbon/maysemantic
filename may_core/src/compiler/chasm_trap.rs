@@ -1,5 +1,6 @@
 use crate::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
 use crate::compiler::fanout::PathClassification;
+use std::collections::HashSet;
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -18,6 +19,8 @@ impl ChasmTrapHandler {
     ///
     /// - `SingleFact` and `PureDimension` → returns `query` unchanged (zero cost)
     /// - `MultiFactJoin` → delegates to `build_cte_query` (implemented in SQL-ENGINE-3.3.T2)
+    ///
+    /// Note: CTE injection has temporary limitations (see TODO(SQL-ENGINE-REV-1.0.5/*) on `build_cte_query`).
     pub fn inject_ctes(
         query: SqlNode,
         classification: &PathClassification,
@@ -34,13 +37,18 @@ impl ChasmTrapHandler {
         }
     }
 
+    /// Builds and injects pre-aggregation CTEs for the specified fact tables.
+    ///
+    /// // TODO(SQL-ENGINE-REV-1.0.5/F1): The generated CTE currently projects/groups by the link key ONLY and does not yet aggregate the fact tables' measures.
+    /// // TODO(SQL-ENGINE-REV-1.0.5/F2): The outer query's FROM/JOIN chain is NOT yet rewritten to reference the `_agg` CTEs, so the injected CTEs do not yet affect the emitted SQL.
+    /// // TODO(SQL-ENGINE-REV-1.0.5/F4): A single `link_key` is applied to all fact tables; per-fact join keys are not yet supported.
     fn build_cte_query(
         query: SqlNode,
         fact_tables: &[String],
         link_key: &str,
     ) -> Result<SqlNode, ChasmTrapError> {
         if let SqlNode::Query {
-            ctes: _,
+            ctes,
             select,
             from,
             r#where,
@@ -48,9 +56,22 @@ impl ChasmTrapHandler {
             having,
         } = query
         {
-            let mut ctes_vec = Vec::new();
+            let mut ctes_vec = ctes.unwrap_or_default();
+
+            // Collect existing CTE aliases to prevent duplicate emission.
+            let mut existing_aliases = HashSet::new();
+            for cte in &ctes_vec {
+                if let SqlNode::CTE { alias, .. } = cte {
+                    existing_aliases.insert(alias.0.clone());
+                }
+            }
+
             for fact_name in fact_tables {
-                let alias = TableIdent(format!("{}_agg", fact_name));
+                let alias_str = format!("{}_agg", fact_name);
+                if !existing_aliases.insert(alias_str.clone()) {
+                    continue; // Skip generating a duplicate CTE alias
+                }
+                let alias = TableIdent(alias_str);
                 let sub_query = SqlNode::Query {
                     ctes: None,
                     select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
