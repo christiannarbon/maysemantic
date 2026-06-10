@@ -1,3 +1,6 @@
+use crate::compiler::fanout::FanOutDetector;
+#[allow(unused_imports)]
+use crate::models::EntityType;
 use crate::compiler::{LoweringError, MetricResolutionError, RequestParseError, SemanticRequest};
 use crate::dialects::SqlDialect;
 use crate::graph::{GraphError, JoinResolutionError};
@@ -131,6 +134,31 @@ impl SemanticCompiler {
                 }
             }
         }
+
+        // Collect path entities and call FanOutDetector::classify
+        let find_entity = |name: &str| -> Result<crate::models::Entity, CompilerError> {
+            for m in state_ref.models.values() {
+                if let Some(ent) = m.entities.iter().find(|e| e.name == name) {
+                    return Ok(ent.clone());
+                }
+            }
+            Err(CompilerError::JoinResolution(
+                crate::graph::JoinResolutionError::TableNotFound(name.to_string()),
+            ))
+        };
+
+        let mut path_entities: Vec<crate::models::Entity> = Vec::new();
+        path_entities.push(find_entity(base_entity_name)?);
+        for j in &all_joins {
+            path_entities.push(find_entity(&j.right_table.entity_name)?);
+        }
+
+        let classification = FanOutDetector::classify(&path_entities);
+        tracing::debug!(
+            classification = ?classification,
+            metric = %request.metric_name,
+            "Fan-out classification"
+        );
 
         // STEP 7: Build AST FROM clause
         let base_node = crate::graph::GraphNode {
