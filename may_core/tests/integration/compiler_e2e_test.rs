@@ -186,3 +186,173 @@ metrics:
         other => panic!("Expected CompilerError::AmbiguousMetric, got {:?}", other),
     }
 }
+
+#[test]
+fn test_compile_multi_fact_joins_conformed_dimension() {
+    let mut state = SemanticState::new();
+    let model_content = r#"
+name: chasm_trap_model
+entities:
+  - name: orders
+    table: public.orders
+    primary_key: order_id
+    entity_type: fact
+    dimensions:
+      - name: order_id
+        type: number
+        sql: id
+    measures:
+      - name: total_revenue
+        agg: sum
+        sql: amount
+  - name: returns
+    table: public.returns
+    primary_key: return_id
+    entity_type: fact
+    dimensions:
+      - name: return_id
+        type: number
+        sql: id
+    measures:
+      - name: total_refunds
+        agg: sum
+        sql: amount
+  - name: users
+    table: public.users
+    primary_key: user_id
+    entity_type: dimension
+    dimensions:
+      - name: user_id
+        type: number
+        sql: id
+    measures: []
+  - name: currencies
+    table: public.currencies
+    primary_key: currency_id
+    entity_type: dimension
+    dimensions:
+      - name: currency_code
+        type: string
+        sql: code
+    measures: []
+joins:
+  - left_entity: orders
+    left_column: user_id
+    right_entity: users
+    right_column: user_id
+    join_type: left
+  - left_entity: users
+    left_column: user_id
+    right_entity: returns
+    right_column: user_id
+    join_type: left
+  - left_entity: returns
+    left_column: currency_id
+    right_entity: currencies
+    right_column: currency_id
+    join_type: left
+metrics:
+  - name: revenue_with_dimensions
+    measure: total_revenue
+    dimensions: [user_id, currency_code, return_id]
+"#;
+    let model: SemanticModel = serde_norway::from_str(model_content).expect("parse model");
+    state.models.insert(model.name.clone(), model);
+
+    let state = Arc::new(state);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+
+    let request = SemanticRequest {
+        metric_name: "revenue_with_dimensions".to_string(),
+        dimensions: vec![],
+        filters: vec![],
+        time_granularity: None,
+        limit: None,
+    };
+
+    let result = compiler.compile(request);
+    let sql = result.expect("compile should succeed and resolve conformed dimension");
+    
+    // The query involves orders and returns, which should trigger a MultiFactJoin classification
+    // and select users as the conformed dimension (link key: user_id).
+    // Verify that injected CTEs use 'user_id' as the link key.
+    assert!(sql.contains("orders_agg"), "SQL should contain injected orders_agg CTE");
+    assert!(sql.contains("returns_agg"), "SQL should contain injected returns_agg CTE");
+    assert!(sql.contains("user_id"), "SQL should reference the link key user_id");
+}
+
+#[test]
+fn test_compile_multi_fact_joins_no_conformed_dimension_error() {
+    let mut state = SemanticState::new();
+    let model_content = r#"
+name: chasm_trap_no_conformed_model
+entities:
+  - name: orders
+    table: public.orders
+    primary_key: order_id
+    entity_type: fact
+    dimensions:
+      - name: order_id
+        type: number
+        sql: id
+    measures:
+      - name: total_revenue
+        agg: sum
+        sql: amount
+  - name: returns
+    table: public.returns
+    primary_key: return_id
+    entity_type: fact
+    dimensions:
+      - name: return_id
+        type: number
+        sql: id
+    measures:
+      - name: total_refunds
+        agg: sum
+        sql: amount
+  - name: currencies
+    table: public.currencies
+    primary_key: currency_id
+    entity_type: dimension
+    dimensions:
+      - name: currency_code
+        type: string
+        sql: code
+    measures: []
+joins:
+  - left_entity: orders
+    left_column: return_id
+    right_entity: returns
+    right_column: return_id
+    join_type: left
+  - left_entity: returns
+    left_column: currency_id
+    right_entity: currencies
+    right_column: currency_id
+    join_type: left
+metrics:
+  - name: revenue_no_conformed
+    measure: total_revenue
+    dimensions: [currency_code, return_id]
+"#;
+    let model: SemanticModel = serde_norway::from_str(model_content).expect("parse model");
+    state.models.insert(model.name.clone(), model);
+
+    let state = Arc::new(state);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+
+    let request = SemanticRequest {
+        metric_name: "revenue_no_conformed".to_string(),
+        dimensions: vec![],
+        filters: vec![],
+        time_granularity: None,
+        limit: None,
+    };
+
+    let result = compiler.compile(request);
+    match result {
+        Err(CompilerError::ChasmTrapHandlingFailed(may_core::compiler::ChasmTrapError::LinkDimensionNotFound)) => {}
+        other => panic!("Expected CompilerError::ChasmTrapHandlingFailed(LinkDimensionNotFound), got {:?}", other),
+    }
+}
