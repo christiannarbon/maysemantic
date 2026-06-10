@@ -131,3 +131,120 @@ fn test_inject_ctes_multi_fact_join_success() {
         panic!("Expected Query node at root");
     }
 }
+
+#[test]
+fn test_inject_ctes_preserves_existing_ctes() {
+    let select_node = SqlNode::Select(vec![Expr::Column(ColumnIdent("user_id".to_string()))]);
+    let from_node = SqlNode::From {
+        source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+        joins: vec![],
+    };
+
+    // Build an existing CTE named "existing_cte"
+    let existing_subquery = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("user_id".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let existing_cte = SqlNode::CTE {
+        alias: TableIdent("existing_cte".to_string()),
+        query: Box::new(existing_subquery),
+    };
+
+    let query = SqlNode::Query {
+        ctes: Some(vec![existing_cte]),
+        select: Box::new(select_node),
+        from: Box::new(from_node),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string()],
+    };
+
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+
+    if let SqlNode::Query { ctes, .. } = result {
+        let ctes = ctes.expect("Expected CTEs to be present");
+        assert_eq!(ctes.len(), 2);
+
+        // Assert first is existing_cte
+        if let SqlNode::CTE { alias, .. } = &ctes[0] {
+            assert_eq!(alias.0, "existing_cte");
+        } else {
+            panic!("Expected CTE at index 0");
+        }
+
+        // Assert second is orders_agg
+        if let SqlNode::CTE { alias, .. } = &ctes[1] {
+            assert_eq!(alias.0, "orders_agg");
+        } else {
+            panic!("Expected CTE at index 1");
+        }
+    } else {
+        panic!("Expected Query node at root");
+    }
+}
+
+#[test]
+fn test_inject_ctes_deduplicates_aliases() {
+    let select_node = SqlNode::Select(vec![Expr::Column(ColumnIdent("user_id".to_string()))]);
+    let from_node = SqlNode::From {
+        source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+        joins: vec![],
+    };
+
+    // Build an existing CTE named "orders_agg"
+    let existing_subquery = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("user_id".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let existing_cte = SqlNode::CTE {
+        alias: TableIdent("orders_agg".to_string()),
+        query: Box::new(existing_subquery),
+    };
+
+    let query = SqlNode::Query {
+        ctes: Some(vec![existing_cte]),
+        select: Box::new(select_node),
+        from: Box::new(from_node),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+
+    // We pass "orders" twice (duplicate in fact_tables), and it matches the existing CTE "orders_agg".
+    // It should not add any new CTE since both are duplicate of "orders_agg".
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string(), "orders".to_string()],
+    };
+
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+
+    if let SqlNode::Query { ctes, .. } = result {
+        let ctes = ctes.expect("Expected CTEs to be present");
+        assert_eq!(ctes.len(), 1);
+        if let SqlNode::CTE { alias, .. } = &ctes[0] {
+            assert_eq!(alias.0, "orders_agg");
+        } else {
+            panic!("Expected CTE");
+        }
+    } else {
+        panic!("Expected Query node at root");
+    }
+}
