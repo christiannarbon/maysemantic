@@ -143,7 +143,9 @@ fn test_inject_ctes_preserves_existing_ctes() {
     // Build an existing CTE named "existing_cte"
     let existing_subquery = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("user_id".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "user_id".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
@@ -205,7 +207,9 @@ fn test_inject_ctes_deduplicates_aliases() {
     // Build an existing CTE named "orders_agg"
     let existing_subquery = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("user_id".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "user_id".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
