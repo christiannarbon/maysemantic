@@ -5,6 +5,7 @@ use crate::dialects::SqlDialect;
 use crate::graph::{GraphError, JoinResolutionError};
 use crate::models::EntityType;
 use crate::models::SemanticState;
+use std::collections::HashSet;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -130,7 +131,10 @@ impl SemanticCompiler {
                 for j in path_joins {
                     if !all_joins
                         .iter()
-                        .any(|existing: &crate::compiler::ResolvedJoin| existing.edge == j.edge)
+                        .any(|existing: &crate::compiler::ResolvedJoin| {
+                            existing.left_table.entity_name == j.left_table.entity_name
+                                && existing.right_table.entity_name == j.right_table.entity_name
+                        })
                     {
                         all_joins.push(j);
                     }
@@ -139,10 +143,10 @@ impl SemanticCompiler {
         }
 
         // Collect path entities and call FanOutDetector::classify
-        let find_entity = |name: &str| -> Result<crate::models::Entity, CompilerError> {
+        let find_entity = |name: &str| -> Result<&crate::models::Entity, CompilerError> {
             for m in state_ref.models.values() {
                 if let Some(ent) = m.entities.iter().find(|e| e.name == name) {
-                    return Ok(ent.clone());
+                    return Ok(ent);
                 }
             }
             Err(CompilerError::JoinResolution(
@@ -150,7 +154,7 @@ impl SemanticCompiler {
             ))
         };
 
-        let mut path_entities: Vec<crate::models::Entity> = Vec::new();
+        let mut path_entities: Vec<&crate::models::Entity> = Vec::new();
         path_entities.push(find_entity(base_entity_name)?);
         for j in &all_joins {
             path_entities.push(find_entity(&j.right_table.entity_name)?);
@@ -203,12 +207,29 @@ impl SemanticCompiler {
         };
 
         let query_node = match &classification {
-            PathClassification::MultiFactJoin { .. } => {
+            PathClassification::MultiFactJoin { fact_tables } => {
                 let link_entity = path_entities
                     .iter()
-                    .find(|e| e.entity_type == EntityType::Dimension)
+                    .filter(|e| e.entity_type == EntityType::Dimension)
+                    .find(|d| {
+                        let connected_facts: HashSet<&str> = all_joins
+                            .iter()
+                            .filter_map(|j| {
+                                let left = &j.left_table.entity_name;
+                                let right = &j.right_table.entity_name;
+                                if left == &d.name && fact_tables.iter().any(|f| f == right) {
+                                    Some(right.as_str())
+                                } else if right == &d.name && fact_tables.iter().any(|f| f == left) {
+                                    Some(left.as_str())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        connected_facts.len() >= 2
+                    })
                     .ok_or(CompilerError::ChasmTrapHandlingFailed(
-                        ChasmTrapError::EmptyFactTableList,
+                        ChasmTrapError::LinkDimensionNotFound,
                     ))?;
                 ChasmTrapHandler::inject_ctes(query_node, &classification, &link_entity.primary_key)
                     .map_err(CompilerError::ChasmTrapHandlingFailed)?
