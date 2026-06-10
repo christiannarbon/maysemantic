@@ -1,9 +1,9 @@
 use crate::compiler::fanout::FanOutDetector;
-#[allow(unused_imports)]
-use crate::models::EntityType;
 use crate::compiler::{LoweringError, MetricResolutionError, RequestParseError, SemanticRequest};
 use crate::dialects::SqlDialect;
 use crate::graph::{GraphError, JoinResolutionError};
+#[allow(unused_imports)]
+use crate::models::EntityType;
 use crate::models::SemanticState;
 use std::sync::Arc;
 use thiserror::Error;
