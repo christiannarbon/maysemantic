@@ -15,7 +15,7 @@ fn make_entity(name: &str, entity_type: EntityType) -> Entity {
 
 #[test]
 fn test_classify_pure_dimension() {
-    let nodes = vec![
+    let nodes = [
         make_entity("users", EntityType::Dimension),
         make_entity("teams", EntityType::Dimension),
     ];
@@ -26,7 +26,7 @@ fn test_classify_pure_dimension() {
 
 #[test]
 fn test_classify_single_fact() {
-    let nodes = vec![
+    let nodes = [
         make_entity("orders", EntityType::Fact),
         make_entity("users", EntityType::Dimension),
     ];
@@ -37,7 +37,7 @@ fn test_classify_single_fact() {
 
 #[test]
 fn test_classify_multi_fact_join() {
-    let nodes = vec![
+    let nodes = [
         make_entity("orders", EntityType::Fact),
         make_entity("users", EntityType::Dimension),
         make_entity("sales", EntityType::Fact),
@@ -54,7 +54,7 @@ fn test_classify_multi_fact_join() {
 
 #[test]
 fn test_classify_empty_nodes() {
-    let nodes = vec![];
+    let nodes: [Entity; 0] = [];
     let node_refs: Vec<&Entity> = nodes.iter().collect();
     let classification = FanOutDetector::classify(&node_refs);
     assert_eq!(classification, PathClassification::PureDimension);
