@@ -23,4 +23,4 @@ pub mod chasm_trap;
 pub use chasm_trap::{ChasmTrapError, ChasmTrapHandler};
 
 pub mod rls;
-pub use rls::UserContext;
+pub use rls::{RlsPolicy, UserContext};
