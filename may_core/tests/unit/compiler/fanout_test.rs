@@ -19,7 +19,8 @@ fn test_classify_pure_dimension() {
         make_entity("users", EntityType::Dimension),
         make_entity("teams", EntityType::Dimension),
     ];
-    let classification = FanOutDetector::classify(&nodes);
+    let node_refs: Vec<&Entity> = nodes.iter().collect();
+    let classification = FanOutDetector::classify(&node_refs);
     assert_eq!(classification, PathClassification::PureDimension);
 }
 
@@ -29,7 +30,8 @@ fn test_classify_single_fact() {
         make_entity("orders", EntityType::Fact),
         make_entity("users", EntityType::Dimension),
     ];
-    let classification = FanOutDetector::classify(&nodes);
+    let node_refs: Vec<&Entity> = nodes.iter().collect();
+    let classification = FanOutDetector::classify(&node_refs);
     assert_eq!(classification, PathClassification::SingleFact);
 }
 
@@ -40,7 +42,8 @@ fn test_classify_multi_fact_join() {
         make_entity("users", EntityType::Dimension),
         make_entity("sales", EntityType::Fact),
     ];
-    let classification = FanOutDetector::classify(&nodes);
+    let node_refs: Vec<&Entity> = nodes.iter().collect();
+    let classification = FanOutDetector::classify(&node_refs);
     assert_eq!(
         classification,
         PathClassification::MultiFactJoin {
@@ -52,6 +55,7 @@ fn test_classify_multi_fact_join() {
 #[test]
 fn test_classify_empty_nodes() {
     let nodes = vec![];
-    let classification = FanOutDetector::classify(&nodes);
+    let node_refs: Vec<&Entity> = nodes.iter().collect();
+    let classification = FanOutDetector::classify(&node_refs);
     assert_eq!(classification, PathClassification::PureDimension);
 }
