@@ -219,7 +219,8 @@ impl SemanticCompiler {
                                 let right = &j.right_table.entity_name;
                                 if left == &d.name && fact_tables.iter().any(|f| f == right) {
                                     Some(right.as_str())
-                                } else if right == &d.name && fact_tables.iter().any(|f| f == left) {
+                                } else if right == &d.name && fact_tables.iter().any(|f| f == left)
+                                {
                                     Some(left.as_str())
                                 } else {
                                     None

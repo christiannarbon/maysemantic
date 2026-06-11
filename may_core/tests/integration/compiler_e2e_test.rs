@@ -272,13 +272,22 @@ metrics:
 
     let result = compiler.compile(request);
     let sql = result.expect("compile should succeed and resolve conformed dimension");
-    
+
     // The query involves orders and returns, which should trigger a MultiFactJoin classification
     // and select users as the conformed dimension (link key: user_id).
     // Verify that injected CTEs use 'user_id' as the link key.
-    assert!(sql.contains("orders_agg"), "SQL should contain injected orders_agg CTE");
-    assert!(sql.contains("returns_agg"), "SQL should contain injected returns_agg CTE");
-    assert!(sql.contains("user_id"), "SQL should reference the link key user_id");
+    assert!(
+        sql.contains("orders_agg"),
+        "SQL should contain injected orders_agg CTE"
+    );
+    assert!(
+        sql.contains("returns_agg"),
+        "SQL should contain injected returns_agg CTE"
+    );
+    assert!(
+        sql.contains("user_id"),
+        "SQL should reference the link key user_id"
+    );
 }
 
 #[test]
@@ -352,7 +361,12 @@ metrics:
 
     let result = compiler.compile(request);
     match result {
-        Err(CompilerError::ChasmTrapHandlingFailed(may_core::compiler::ChasmTrapError::LinkDimensionNotFound)) => {}
-        other => panic!("Expected CompilerError::ChasmTrapHandlingFailed(LinkDimensionNotFound), got {:?}", other),
+        Err(CompilerError::ChasmTrapHandlingFailed(
+            may_core::compiler::ChasmTrapError::LinkDimensionNotFound,
+        )) => {}
+        other => panic!(
+            "Expected CompilerError::ChasmTrapHandlingFailed(LinkDimensionNotFound), got {:?}",
+            other
+        ),
     }
 }
