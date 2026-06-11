@@ -47,4 +47,6 @@ pub mod compiler {
     pub mod request_parser_test;
     #[path = "request_test.rs"]
     pub mod request_test;
+    #[path = "rls_test.rs"]
+    pub mod rls_test;
 }
