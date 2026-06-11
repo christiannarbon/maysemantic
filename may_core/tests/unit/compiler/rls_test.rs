@@ -14,7 +14,7 @@ fn test_user_context_clone_and_debug() {
     let ctx = UserContext { claims };
     let ctx_clone = ctx.clone();
     assert_eq!(ctx_clone.get_claim("region"), Some("EMEA"));
-    
+
     let debug_str = format!("{:?}", ctx);
     assert!(debug_str.contains("region"));
     assert!(debug_str.contains("EMEA"));
