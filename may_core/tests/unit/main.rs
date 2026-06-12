@@ -28,6 +28,8 @@ pub mod models {
     pub mod aggregation_test;
     #[path = "entity_type_test.rs"]
     pub mod entity_type_test;
+    #[path = "rls_entity_test.rs"]
+    pub mod rls_entity_test;
     #[path = "state_test.rs"]
     pub mod state_test;
 }
