@@ -34,7 +34,8 @@ mod user_context_test {
     fn test_user_context_clone_is_independent() {
         let mut ctx = make_ctx(&[("region", "EMEA")]);
         let cloned = ctx.clone();
-        ctx.claims.insert("tenant_id".to_string(), "acme".to_string());
+        ctx.claims
+            .insert("tenant_id".to_string(), "acme".to_string());
         assert_eq!(cloned.get_claim("tenant_id"), None);
     }
 }
