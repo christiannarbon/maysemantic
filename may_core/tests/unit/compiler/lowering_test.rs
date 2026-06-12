@@ -28,6 +28,7 @@ mod lowering_tests {
                 agg: AggregationType::Sum,
             }],
             entity_type: EntityType::Fact,
+            rls_policies: vec![],
         };
 
         let users = Entity {
@@ -43,6 +44,7 @@ mod lowering_tests {
             }],
             measures: vec![],
             entity_type: EntityType::Fact,
+            rls_policies: vec![],
         };
 
         let metric = Metric {
@@ -186,6 +188,7 @@ mod lowering_tests {
                 }],
                 measures: vec![],
                 entity_type: EntityType::Fact,
+                rls_policies: vec![],
             }],
             metrics: vec![],
             joins: vec![],

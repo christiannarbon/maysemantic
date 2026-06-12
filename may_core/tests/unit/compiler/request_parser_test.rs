@@ -28,6 +28,7 @@ fn make_test_state() -> SemanticState {
         dimensions: vec![dimension],
         measures: vec![measure],
         entity_type: EntityType::Fact,
+        rls_policies: vec![],
     };
 
     let metric = Metric {

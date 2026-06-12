@@ -23,6 +23,7 @@ mod metric_resolver_tests {
                     }],
                     measures: vec![],
                     entity_type: EntityType::Fact,
+                    rls_policies: vec![],
                 },
                 Entity {
                     name: "orders".to_string(),
@@ -42,6 +43,7 @@ mod metric_resolver_tests {
                         sql: "amount".to_string(),
                     }],
                     entity_type: EntityType::Fact,
+                    rls_policies: vec![],
                 },
                 Entity {
                     name: "dupe1".to_string(),
@@ -61,6 +63,7 @@ mod metric_resolver_tests {
                         sql: "meas".to_string(),
                     }],
                     entity_type: EntityType::Fact,
+                    rls_policies: vec![],
                 },
                 Entity {
                     name: "dupe2".to_string(),
@@ -80,6 +83,7 @@ mod metric_resolver_tests {
                         sql: "meas".to_string(),
                     }],
                     entity_type: EntityType::Fact,
+                    rls_policies: vec![],
                 },
             ],
             metrics: vec![

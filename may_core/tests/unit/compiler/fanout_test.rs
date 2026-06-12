@@ -10,6 +10,7 @@ fn make_entity(name: &str, entity_type: EntityType) -> Entity {
         dimensions: vec![],
         measures: vec![],
         entity_type,
+        rls_policies: vec![],
     }
 }
 
