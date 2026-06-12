@@ -1,4 +1,5 @@
 use crate::ast::{Expr, JoinType};
+use crate::compiler::rls::RlsPolicy;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use schemars::JsonSchema;
@@ -99,6 +100,8 @@ pub struct Entity {
     pub measures: Vec<Measure>,
     #[serde(default)]
     pub entity_type: EntityType,
+    #[serde(default)]
+    pub rls_policies: Vec<RlsPolicy>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Validate)]
