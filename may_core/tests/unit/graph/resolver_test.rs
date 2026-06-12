@@ -18,6 +18,7 @@ fn build_three_node_state() -> SemanticState {
         dimensions: vec![],
         measures: vec![],
         entity_type: EntityType::Fact,
+        rls_policies: vec![],
     };
 
     let users = Entity {
@@ -28,6 +29,7 @@ fn build_three_node_state() -> SemanticState {
         dimensions: vec![],
         measures: vec![],
         entity_type: EntityType::Fact,
+        rls_policies: vec![],
     };
 
     let teams = Entity {
@@ -38,6 +40,7 @@ fn build_three_node_state() -> SemanticState {
         dimensions: vec![],
         measures: vec![],
         entity_type: EntityType::Fact,
+        rls_policies: vec![],
     };
 
     // orders.order_user_id = users.id
@@ -169,6 +172,7 @@ fn test_no_path_returns_error_for_disconnected_graph() {
         dimensions: vec![],
         measures: vec![],
         entity_type: EntityType::Fact,
+        rls_policies: vec![],
     };
 
     let model = SemanticModel {

@@ -21,6 +21,7 @@ fn test_build_semantic_graph() {
         dimensions: vec![],
         measures: vec![],
         entity_type: EntityType::Fact,
+        rls_policies: vec![],
     };
 
     // Define a mock 'orders' entity representing a second physical table.
@@ -32,6 +33,7 @@ fn test_build_semantic_graph() {
         dimensions: vec![],
         measures: vec![],
         entity_type: EntityType::Fact,
+        rls_policies: vec![],
     };
 
     // Define a Left Join relationship connecting the two entities:
