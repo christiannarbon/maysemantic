@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod rls_entity_tests {
-    use may_core::{Entity, RlsPolicy, models::EntityType};
+    use may_core::{models::EntityType, Entity, RlsPolicy};
     use validator::Validate;
 
     fn make_entity(name: &str, rls_policies: Vec<RlsPolicy>) -> Entity {
