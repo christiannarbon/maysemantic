@@ -45,4 +45,3 @@ fn test_eq_builds_equality_binary_op() {
 fn test_literal_str_builds_literal() {
     assert_eq!(literal_str("EMEA"), Expr::Literal("EMEA".to_string()));
 }
-
