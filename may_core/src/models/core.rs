@@ -11,7 +11,7 @@ static NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
         .expect("NAME_REGEX is a compile-time constant pattern and should never fail to compile")
 });
 
-fn validate_name(name: &str) -> Result<(), ValidationError> {
+pub(crate) fn validate_name(name: &str) -> Result<(), ValidationError> {
     if NAME_REGEX.is_match(name) {
         Ok(())
     } else {
@@ -101,6 +101,7 @@ pub struct Entity {
     #[serde(default)]
     pub entity_type: EntityType,
     #[serde(default)]
+    #[validate(nested)]
     pub rls_policies: Vec<RlsPolicy>,
 }
 
