@@ -33,7 +33,12 @@ pub fn eq(left: Expr, right: Expr) -> Expr {
     }
 }
 
-/// Builds a string literal expression.
+/// Builds a single-quoted SQL string literal, escaping embedded quotes.
+///
+/// The input is treated as an untrusted value: any single quote is doubled
+/// (`'` -> `''`) so the value cannot break out of the literal. Use this for
+/// caller-controlled values (e.g. RLS claim values) rather than constructing
+/// `Expr::Literal` by hand.
 pub fn literal_str(val: &str) -> Expr {
-    Expr::Literal(val.to_string())
+    Expr::Literal(format!("'{}'", val.replace('\'', "''")))
 }
