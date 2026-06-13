@@ -1,6 +1,8 @@
 pub mod ast {
     #[path = "builder_test.rs"]
     pub mod builder_test;
+    #[path = "combiners_test.rs"]
+    pub mod combiners_test;
     #[path = "node_test.rs"]
     pub mod node_test;
 }
