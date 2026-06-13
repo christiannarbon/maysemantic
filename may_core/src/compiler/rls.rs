@@ -1,13 +1,16 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use validator::Validate;
+use crate::models::core::validate_name;
 
 /// Represents the identity and data-access claims of the caller decoded from a JWT token.
 /// Passed through the compiler pipeline so that the `RlsInjector` can apply row-level
 /// security predicates without performing any I/O.
 #[derive(Debug, Clone, Default)]
 pub struct UserContext {
-    /// Raw decoded JWT claims keyed by claim name.
+    /// Raw decoded JWT claims keyed by claim name. Values are stored as strings,
+    /// so non-string JWT claims (numbers, booleans, arrays) must be stringified by the caller.
     pub claims: HashMap<String, String>,
 }
 
@@ -19,12 +22,16 @@ impl UserContext {
 }
 
 /// Declares a row-level security policy on an `Entity`.
-/// When `claim_key` is present in the caller's `UserContext`, the compiler
-/// will inject `WHERE <dimension> = '<claim_value>'` into the query AST.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+/// When `claim_key` is present in the caller's `UserContext`, the compiler injects an
+/// equality predicate `<dimension> = <value>` into the query AST. The claim value is
+/// caller-controlled (decoded from a JWT) and MUST be emitted as a bound/escaped literal
+/// node — never interpolated into raw SQL text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Validate)]
 pub struct RlsPolicy {
     /// The JWT claim key to look up (e.g. `"region"`).
+    #[validate(custom(function = "validate_name"))]
     pub claim_key: String,
     /// The dimension/column the claim value filters (e.g. `"region_name"`).
+    #[validate(custom(function = "validate_name"))]
     pub dimension: String,
 }
