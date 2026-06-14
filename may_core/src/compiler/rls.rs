@@ -3,6 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use validator::Validate;
+use crate::ast::SqlNode;
 
 /// Represents the identity and data-access claims of the caller decoded from a JWT token.
 /// Passed through the compiler pipeline so that the `RlsInjector` can apply row-level
@@ -34,4 +35,25 @@ pub struct RlsPolicy {
     /// The dimension/column the claim value filters (e.g. `"region_name"`).
     #[validate(custom(function = "validate_name"))]
     pub dimension: String,
+}
+
+#[allow(dead_code)]
+/// Collects the names of all base tables referenced by a FROM clause,
+/// including the primary source and every joined relation.
+/// Subqueries (non-`Table` relations) are skipped — RLS applies to base tables only.
+fn collect_table_names(from: &SqlNode) -> Vec<String> {
+    let mut tables = Vec::new();
+    if let SqlNode::From { source, joins } = from {
+        if let SqlNode::Table(crate::ast::TableIdent(name)) = source.as_ref() {
+            tables.push(name.clone());
+        }
+        for join in joins {
+            if let SqlNode::Join { relation, .. } = join {
+                if let SqlNode::Table(crate::ast::TableIdent(name)) = relation.as_ref() {
+                    tables.push(name.clone());
+                }
+            }
+        }
+    }
+    tables
 }
