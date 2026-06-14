@@ -1,9 +1,9 @@
+use crate::ast::SqlNode;
 use crate::models::core::validate_name;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use validator::Validate;
-use crate::ast::SqlNode;
 
 /// Represents the identity and data-access claims of the caller decoded from a JWT token.
 /// Passed through the compiler pipeline so that the `RlsInjector` can apply row-level
