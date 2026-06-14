@@ -1,4 +1,5 @@
-use crate::ast::SqlNode;
+use crate::ast::{eq, literal_str, ColumnIdent, Expr, SqlNode};
+use crate::models::{Entity, SemanticState};
 use crate::models::core::validate_name;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -56,4 +57,33 @@ fn collect_table_names(from: &SqlNode) -> Vec<String> {
         }
     }
     tables
+}
+
+#[allow(dead_code)]
+/// Finds the first entity across all loaded models whose physical `table`
+/// matches `table_name`. Returns `None` if no entity maps to that table.
+fn find_entity_for_table<'a>(state: &'a SemanticState, table_name: &str) -> Option<&'a Entity> {
+    state
+        .models
+        .values()
+        .flat_map(|model| model.entities.iter())
+        .find(|entity| entity.table == table_name)
+}
+
+#[allow(dead_code)]
+/// Builds one equality predicate per RLS policy on `entity` whose claim is
+/// present in `user_ctx`. Policies whose claim key is absent are skipped.
+fn predicates_for_entity(entity: &Entity, user_ctx: &UserContext) -> Vec<Expr> {
+    entity
+        .rls_policies
+        .iter()
+        .filter_map(|policy| {
+            user_ctx.get_claim(&policy.claim_key).map(|claim_value| {
+                eq(
+                    Expr::Column(ColumnIdent(policy.dimension.clone())),
+                    literal_str(claim_value),
+                )
+            })
+        })
+        .collect()
 }
