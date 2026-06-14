@@ -1,6 +1,6 @@
 use crate::ast::{eq, literal_str, ColumnIdent, Expr, SqlNode};
-use crate::models::{Entity, SemanticState};
 use crate::models::core::validate_name;
+use crate::models::{Entity, SemanticState};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
