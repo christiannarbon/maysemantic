@@ -59,7 +59,9 @@ fn render_where(pred: Expr) -> String {
         group_by: None,
         having: None,
     };
-    DummyDialect.generate_sql(&ast).expect("SQL generation failed")
+    DummyDialect
+        .generate_sql(&ast)
+        .expect("SQL generation failed")
 }
 
 #[test]
@@ -72,6 +74,8 @@ fn test_eq_with_literal_str_renders_quoted_value() {
 fn test_literal_str_escapes_embedded_quotes() {
     // An injection attempt must stay safely inside the quoted literal.
     let sql = render_where(eq(col("user_region"), literal_str("x' OR '1'='1")));
-    assert_eq!(sql, "SELECT id FROM t WHERE user_region = 'x'' OR ''1''=''1'");
+    assert_eq!(
+        sql,
+        "SELECT id FROM t WHERE user_region = 'x'' OR ''1''=''1'"
+    );
 }
-
