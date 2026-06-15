@@ -30,7 +30,7 @@ fn test_compile_demo_metric_produces_valid_sql() {
     };
 
     // Compile and assert
-    let result = compiler.compile(request);
+    let result = compiler.compile(request, None);
     let sql = result.expect("compile should succeed for a valid demo metric");
 
     // Strengthened assertions (FN-6)
@@ -72,7 +72,7 @@ fn test_compile_rejects_unsupported_limit() {
         limit: Some(10),
     };
 
-    let result = compiler.compile(request);
+    let result = compiler.compile(request, None);
     match result {
         Err(CompilerError::UnsupportedRequestFeature(field)) => {
             assert_eq!(field, "limit");
@@ -102,7 +102,7 @@ fn test_compile_rejects_unsupported_filters() {
         limit: None,
     };
 
-    let result = compiler.compile(request);
+    let result = compiler.compile(request, None);
     match result {
         Err(CompilerError::UnsupportedRequestFeature(field)) => {
             assert_eq!(field, "filters");
@@ -175,7 +175,7 @@ metrics:
         limit: None,
     };
 
-    let result = compiler.compile(request);
+    let result = compiler.compile(request, None);
     match result {
         Err(CompilerError::AmbiguousMetric { metric, models }) => {
             assert_eq!(metric, "shared_metric");
@@ -270,7 +270,7 @@ metrics:
         limit: None,
     };
 
-    let result = compiler.compile(request);
+    let result = compiler.compile(request, None);
     let sql = result.expect("compile should succeed and resolve conformed dimension");
 
     // The query involves orders and returns, which should trigger a MultiFactJoin classification
@@ -359,7 +359,7 @@ metrics:
         limit: None,
     };
 
-    let result = compiler.compile(request);
+    let result = compiler.compile(request, None);
     match result {
         Err(CompilerError::ChasmTrapHandlingFailed(
             may_core::compiler::ChasmTrapError::LinkDimensionNotFound,
