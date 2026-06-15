@@ -1,5 +1,6 @@
 use crate::compiler::chasm_trap::{ChasmTrapError, ChasmTrapHandler};
 use crate::compiler::fanout::{FanOutDetector, PathClassification};
+use crate::compiler::rls::UserContext;
 use crate::compiler::{LoweringError, MetricResolutionError, RequestParseError, SemanticRequest};
 use crate::dialects::SqlDialect;
 use crate::graph::{GraphError, JoinResolutionError};
@@ -49,7 +50,11 @@ impl SemanticCompiler {
         Self { state, dialect }
     }
 
-    pub fn compile(&self, request: SemanticRequest) -> Result<String, CompilerError> {
+    pub fn compile(
+        &self,
+        request: SemanticRequest,
+        _user_context: Option<&UserContext>,
+    ) -> Result<String, CompilerError> {
         if !request.filters.is_empty() {
             return Err(CompilerError::UnsupportedRequestFeature("filters".into()));
         }
