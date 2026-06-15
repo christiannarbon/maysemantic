@@ -1,6 +1,6 @@
 use crate::compiler::chasm_trap::{ChasmTrapError, ChasmTrapHandler};
 use crate::compiler::fanout::{FanOutDetector, PathClassification};
-use crate::compiler::rls::UserContext;
+use crate::compiler::rls::{RlsInjector, UserContext};
 use crate::compiler::{LoweringError, MetricResolutionError, RequestParseError, SemanticRequest};
 use crate::dialects::SqlDialect;
 use crate::graph::{GraphError, JoinResolutionError};
@@ -53,7 +53,7 @@ impl SemanticCompiler {
     pub fn compile(
         &self,
         request: SemanticRequest,
-        _user_context: Option<&UserContext>,
+        user_context: Option<&UserContext>,
     ) -> Result<String, CompilerError> {
         if !request.filters.is_empty() {
             return Err(CompilerError::UnsupportedRequestFeature("filters".into()));
@@ -244,12 +244,19 @@ impl SemanticCompiler {
         };
 
         // STEP 11: Lower semantic nodes to physical
-        let lowered_query =
+        let ast =
             crate::compiler::lowering::SemanticLowering::new(state_ref).lower_node(query_node)?;
+
+        // Row-Level Security: inject JWT-claim-derived WHERE predicates.
+        // Skipped entirely when no caller context is supplied (e.g. internal tooling).
+        let ast = match user_context {
+            Some(ctx) => RlsInjector::inject(ast, ctx, state_ref),
+            None => ast,
+        };
 
         // STEP 12: Generate SQL
         self.dialect
-            .generate_sql(&lowered_query)
+            .generate_sql(&ast)
             .map_err(|e| CompilerError::CodeGeneration(e.to_string()))
     }
 }
