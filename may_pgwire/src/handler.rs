@@ -238,6 +238,8 @@ impl SimpleQueryHandler for QueryProcessor {
                 let state_arc = Arc::new(state_guard.clone());
                 let compiler = SemanticCompiler::new(state_arc, Box::new(PostgresDialect));
 
+                // RLS context wiring is deferred; pass None until per-connection JWT
+                // extraction is implemented (tracked separately, out of scope for SQL-ENGINE-4).
                 compiler.compile(request, None).map_err(|e| {
                     PgWireError::UserError(Box::new(ErrorInfo::new(
                         "ERROR".to_string(),
