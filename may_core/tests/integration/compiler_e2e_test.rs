@@ -370,3 +370,78 @@ metrics:
         ),
     }
 }
+
+#[test]
+fn test_compile_with_rls_injection() {
+    use may_core::UserContext;
+    use std::collections::HashMap;
+
+    let mut state = SemanticState::new();
+    let model_content = r#"
+name: rls_model
+entities:
+  - name: users
+    table: public.users
+    primary_key: user_id
+    entity_type: dimension
+    dimensions:
+      - name: user_id
+        type: number
+        sql: id
+      - name: tenant_id
+        type: string
+        sql: tenant
+    measures: []
+    rls_policies:
+      - claim_key: tenant
+        dimension: tenant_id
+  - name: sales
+    table: public.sales
+    primary_key: sale_id
+    entity_type: fact
+    dimensions:
+      - name: sale_id
+        type: number
+        sql: id
+    measures:
+      - name: total_sales
+        agg: sum
+        sql: amount
+joins:
+  - left_entity: sales
+    left_column: user_ref
+    right_entity: users
+    right_column: user_id
+    join_type: left
+metrics:
+  - name: sales_by_user
+    measure: total_sales
+    dimensions: [user_id]
+"#;
+    let model: SemanticModel = serde_norway::from_str(model_content).expect("parse model");
+    state.models.insert(model.name.clone(), model);
+
+    let state = Arc::new(state);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+
+    let request = SemanticRequest {
+        metric_name: "sales_by_user".to_string(),
+        dimensions: vec![],
+        filters: vec![],
+        time_granularity: None,
+        limit: None,
+    };
+
+    // 1. Compile with user_context = None (RLS bypassed)
+    let baseline_sql = compiler.compile(request.clone(), None).expect("compile baseline");
+    assert!(!baseline_sql.contains("tenant_id"));
+
+    // 2. Compile with user_context containing claim (RLS injected)
+    let mut claims = HashMap::new();
+    claims.insert("tenant".to_string(), "tenant_123".to_string());
+    let user_ctx = UserContext { claims };
+
+    let rls_sql = compiler.compile(request, Some(&user_ctx)).expect("compile rls");
+    assert!(rls_sql.contains("tenant_id = 'tenant_123'"), "RLS predicate must be injected: {}", rls_sql);
+}
+
