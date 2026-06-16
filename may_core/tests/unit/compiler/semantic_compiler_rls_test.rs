@@ -3,8 +3,7 @@ mod semantic_compiler_rls_test {
     use may_core::compiler::SemanticCompiler;
     use may_core::{
         AggregationType, Dimension, DimensionType, Entity, EntityType, Measure, Metric,
-        PostgresDialect, RlsPolicy, SemanticModel, SemanticRequest,
-        SemanticState, UserContext,
+        PostgresDialect, RlsPolicy, SemanticModel, SemanticRequest, SemanticState, UserContext,
     };
     use std::collections::HashMap;
     use std::sync::Arc;
