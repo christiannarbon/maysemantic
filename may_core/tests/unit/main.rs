@@ -53,4 +53,6 @@ pub mod compiler {
     pub mod request_test;
     #[path = "rls_test.rs"]
     pub mod rls_test;
+    #[path = "semantic_compiler_rls_test.rs"]
+    pub mod semantic_compiler_rls_test;
 }
