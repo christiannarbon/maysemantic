@@ -433,7 +433,9 @@ metrics:
     };
 
     // 1. Compile with user_context = None (RLS bypassed)
-    let baseline_sql = compiler.compile(request.clone(), None).expect("compile baseline");
+    let baseline_sql = compiler
+        .compile(request.clone(), None)
+        .expect("compile baseline");
     assert!(!baseline_sql.contains("tenant_id"));
 
     // 2. Compile with user_context containing claim (RLS injected)
@@ -441,7 +443,12 @@ metrics:
     claims.insert("tenant".to_string(), "tenant_123".to_string());
     let user_ctx = UserContext { claims };
 
-    let rls_sql = compiler.compile(request, Some(&user_ctx)).expect("compile rls");
-    assert!(rls_sql.contains("tenant_id = 'tenant_123'"), "RLS predicate must be injected: {}", rls_sql);
+    let rls_sql = compiler
+        .compile(request, Some(&user_ctx))
+        .expect("compile rls");
+    assert!(
+        rls_sql.contains("tenant_id = 'tenant_123'"),
+        "RLS predicate must be injected: {}",
+        rls_sql
+    );
 }
-
