@@ -240,7 +240,31 @@ impl SemanticCompiler {
                     .ok_or(CompilerError::ChasmTrapHandlingFailed(
                         ChasmTrapError::LinkDimensionNotFound,
                     ))?;
-                ChasmTrapHandler::inject_ctes(query_node, &classification, &link_entity.primary_key)
+                let mut fact_keys: Vec<(String, String)> = Vec::new();
+                for fact_name in fact_tables {
+                    let fact_entity = find_entity(fact_name)?;
+                    // Fact-side FK column of the hop joining this fact to the link dimension.
+                    let key_col = all_joins
+                        .iter()
+                        .find_map(|j| {
+                            if &j.left_table.entity_name == fact_name
+                                && j.right_table.entity_name == link_entity.name
+                            {
+                                Some(j.edge.left_column.clone())
+                            } else if &j.right_table.entity_name == fact_name
+                                && j.left_table.entity_name == link_entity.name
+                            {
+                                Some(j.edge.right_column.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .ok_or(CompilerError::ChasmTrapHandlingFailed(
+                            ChasmTrapError::LinkDimensionNotFound,
+                        ))?;
+                    fact_keys.push((fact_entity.table.clone(), key_col));
+                }
+                ChasmTrapHandler::inject_ctes(query_node, &classification, &fact_keys)
                     .map_err(CompilerError::ChasmTrapHandlingFailed)?
             }
             _ => query_node,
