@@ -28,7 +28,7 @@ impl ChasmTrapHandler {
     pub fn inject_ctes(
         query: SqlNode,
         classification: &PathClassification,
-        fact_keys: &[(String, String)],   // (physical_table, group_key_column)
+        fact_keys: &[(String, String)], // (physical_table, group_key_column)
     ) -> Result<SqlNode, ChasmTrapError> {
         match classification {
             PathClassification::SingleFact | PathClassification::PureDimension => Ok(query),
