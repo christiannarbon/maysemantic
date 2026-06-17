@@ -42,3 +42,34 @@ pub fn eq(left: Expr, right: Expr) -> Expr {
 pub fn literal_str(val: &str) -> Expr {
     Expr::Literal(format!("'{}'", val.replace('\'', "''")))
 }
+
+/// Builds an **unquoted** numeric SQL literal from an untrusted value.
+///
+/// Returns `None` when `val` is not a valid finite number, so callers can fail
+/// closed rather than emit an unquoted caller-controlled token (an injection
+/// vector). The emitted token is the re-formatted parsed value, so no stray
+/// characters from the input can survive.
+pub fn literal_num(val: &str) -> Option<Expr> {
+    if let Ok(i) = val.trim().parse::<i64>() {
+        return Some(Expr::Literal(i.to_string()));
+    }
+    if let Ok(f) = val.trim().parse::<f64>() {
+        if f.is_finite() {
+            return Some(Expr::Literal(f.to_string()));
+        }
+    }
+    None
+}
+
+/// Builds a boolean SQL literal (`TRUE`/`FALSE`) from an untrusted value.
+///
+/// Accepts only `"true"`/`"false"` (case-insensitive, trimmed); any other value
+/// returns `None` so callers can fail closed.
+pub fn literal_bool(val: &str) -> Option<Expr> {
+    match val.trim().to_ascii_lowercase().as_str() {
+        "true" => Some(Expr::Literal("TRUE".to_string())),
+        "false" => Some(Expr::Literal("FALSE".to_string())),
+        _ => None,
+    }
+}
+
