@@ -1,4 +1,4 @@
-use may_core::ast::{and, eq, literal_str, or};
+use may_core::ast::{and, eq, literal_bool, literal_num, literal_str, or};
 use may_core::{ColumnIdent, Expr, SqlNode, TableIdent};
 use may_core::{DummyDialect, SqlDialect};
 
@@ -78,4 +78,27 @@ fn test_literal_str_escapes_embedded_quotes() {
         sql,
         "SELECT id FROM t WHERE user_region = 'x'' OR ''1''=''1'"
     );
+}
+
+#[test]
+fn test_literal_num_renders_unquoted() {
+    let sql = render_where(eq(col("age"), literal_num("30").expect("valid number")));
+    assert_eq!(sql, "SELECT id FROM t WHERE age = 30");
+}
+
+#[test]
+fn test_literal_num_rejects_non_numeric() {
+    // A non-numeric (potentially malicious) value must not produce a literal.
+    assert!(literal_num("x' OR '1'='1").is_none());
+}
+
+#[test]
+fn test_literal_bool_renders_keyword() {
+    let sql = render_where(eq(col("active"), literal_bool("true").expect("valid bool")));
+    assert_eq!(sql, "SELECT id FROM t WHERE active = TRUE");
+}
+
+#[test]
+fn test_literal_bool_rejects_other() {
+    assert!(literal_bool("maybe").is_none());
 }
