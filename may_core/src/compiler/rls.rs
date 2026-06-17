@@ -88,10 +88,7 @@ fn deny_all() -> Expr {
 ///   strings (default). Numeric/boolean claim values are validated; an invalid
 ///   value fails closed (`1 = 0`).
 /// - A policy whose claim is ABSENT from the context fails closed (`1 = 0`).
-fn predicates_for_entity(
-    entity: &Entity,
-    user_ctx: &UserContext,
-) -> Result<Vec<Expr>, RlsError> {
+fn predicates_for_entity(entity: &Entity, user_ctx: &UserContext) -> Result<Vec<Expr>, RlsError> {
     entity
         .rls_policies
         .iter()
@@ -148,10 +145,7 @@ fn predicates_for_entity(
 /// Finds every entity across all loaded models whose physical `table`
 /// matches `table_name`, sorted by entity name for deterministic output.
 /// Returns an empty vec if no entity maps to that table.
-fn find_entities_for_table<'a>(
-    state: &'a SemanticState,
-    table_name: &str,
-) -> Vec<&'a Entity> {
+fn find_entities_for_table<'a>(state: &'a SemanticState, table_name: &str) -> Vec<&'a Entity> {
     let mut entities: Vec<&Entity> = state
         .models
         .values()

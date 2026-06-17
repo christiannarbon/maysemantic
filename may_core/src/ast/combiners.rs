@@ -72,4 +72,3 @@ pub fn literal_bool(val: &str) -> Option<Expr> {
         _ => None,
     }
 }
-
