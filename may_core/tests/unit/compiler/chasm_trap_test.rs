@@ -38,7 +38,7 @@ fn create_helper_query() -> SqlNode {
 fn test_single_fact_returns_query_unchanged() {
     let query = create_helper_query();
     let classification = PathClassification::SingleFact;
-    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, "user_id").unwrap();
+    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, &[]).unwrap();
     assert_eq!(result, query);
 }
 
@@ -46,7 +46,7 @@ fn test_single_fact_returns_query_unchanged() {
 fn test_pure_dimension_returns_query_unchanged() {
     let query = create_helper_query();
     let classification = PathClassification::PureDimension;
-    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, "user_id").unwrap();
+    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, &[]).unwrap();
     assert_eq!(result, query);
 }
 
@@ -56,7 +56,15 @@ fn test_multi_fact_injects_two_ctes() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
-    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+    let result = ChasmTrapHandler::inject_ctes(
+        query,
+        &classification,
+        &[
+            ("orders".to_string(), "user_id".to_string()),
+            ("returns".to_string(), "user_id".to_string()),
+        ],
+    )
+    .unwrap();
     if let SqlNode::Query { ctes, .. } = &result {
         assert_eq!(ctes.as_ref().unwrap().len(), 2);
     } else {
@@ -70,7 +78,15 @@ fn test_multi_fact_cte_aliases_are_correct() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
-    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+    let result = ChasmTrapHandler::inject_ctes(
+        query,
+        &classification,
+        &[
+            ("orders".to_string(), "user_id".to_string()),
+            ("returns".to_string(), "user_id".to_string()),
+        ],
+    )
+    .unwrap();
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.unwrap();
         assert_eq!(ctes.len(), 2);
@@ -95,7 +111,14 @@ fn test_not_a_query_node_returns_error() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
-    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id");
+    let result = ChasmTrapHandler::inject_ctes(
+        query,
+        &classification,
+        &[
+            ("orders".to_string(), "user_id".to_string()),
+            ("returns".to_string(), "user_id".to_string()),
+        ],
+    );
     assert_eq!(result.unwrap_err(), ChasmTrapError::NotAQueryNode);
 }
 
@@ -103,7 +126,7 @@ fn test_not_a_query_node_returns_error() {
 fn test_inject_ctes_single_fact() {
     let query = SqlNode::Table(TableIdent("orders".to_string()));
     let classification = PathClassification::SingleFact;
-    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, "user_id");
+    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, &[]);
     assert_eq!(result.unwrap(), query);
 }
 
@@ -111,7 +134,7 @@ fn test_inject_ctes_single_fact() {
 fn test_inject_ctes_pure_dimension() {
     let query = SqlNode::Table(TableIdent("users".to_string()));
     let classification = PathClassification::PureDimension;
-    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, "user_id");
+    let result = ChasmTrapHandler::inject_ctes(query.clone(), &classification, &[]);
     assert_eq!(result.unwrap(), query);
 }
 
@@ -121,7 +144,7 @@ fn test_inject_ctes_empty_fact_tables() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec![],
     };
-    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id");
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &[]);
     assert_eq!(result.unwrap_err(), ChasmTrapError::EmptyFactTableList);
 }
 
@@ -131,7 +154,14 @@ fn test_inject_ctes_not_a_query_node() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
-    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id");
+    let result = ChasmTrapHandler::inject_ctes(
+        query,
+        &classification,
+        &[
+            ("orders".to_string(), "user_id".to_string()),
+            ("returns".to_string(), "user_id".to_string()),
+        ],
+    );
     assert_eq!(result.unwrap_err(), ChasmTrapError::NotAQueryNode);
 }
 
@@ -155,7 +185,15 @@ fn test_inject_ctes_multi_fact_join_success() {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
 
-    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+    let result = ChasmTrapHandler::inject_ctes(
+        query,
+        &classification,
+        &[
+            ("orders".to_string(), "user_id".to_string()),
+            ("returns".to_string(), "user_id".to_string()),
+        ],
+    )
+    .unwrap();
 
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.expect("Expected CTEs to be injected");
@@ -270,7 +308,12 @@ fn test_inject_ctes_preserves_existing_ctes() {
         fact_tables: vec!["orders".to_string()],
     };
 
-    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+    let result = ChasmTrapHandler::inject_ctes(
+        query,
+        &classification,
+        &[("orders".to_string(), "user_id".to_string())],
+    )
+    .unwrap();
 
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.expect("Expected CTEs to be present");
@@ -336,7 +379,15 @@ fn test_inject_ctes_deduplicates_aliases() {
         fact_tables: vec!["orders".to_string(), "orders".to_string()],
     };
 
-    let result = ChasmTrapHandler::inject_ctes(query, &classification, "user_id").unwrap();
+    let result = ChasmTrapHandler::inject_ctes(
+        query,
+        &classification,
+        &[
+            ("orders".to_string(), "user_id".to_string()),
+            ("orders".to_string(), "user_id".to_string()),
+        ],
+    )
+    .unwrap();
 
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.expect("Expected CTEs to be present");
