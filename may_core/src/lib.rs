@@ -7,7 +7,7 @@ pub mod models;
 pub use ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 pub use compiler::{
     FilterOperator, MetricResolutionError, MetricResolver, RequestParseError, RequestParser,
-    ResolvedJoin, ResolvedMetric, RlsInjector, RlsPolicy, SemanticFilter, SemanticRequest,
+    ResolvedJoin, ResolvedMetric, RlsError, RlsInjector, RlsPolicy, SemanticFilter, SemanticRequest,
     UserContext,
 };
 #[doc(hidden)]
