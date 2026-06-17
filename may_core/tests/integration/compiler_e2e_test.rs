@@ -436,7 +436,7 @@ metrics:
     let baseline_sql = compiler
         .compile(request.clone(), None)
         .expect("compile baseline");
-    assert!(!baseline_sql.contains("tenant_id"));
+    assert!(!baseline_sql.contains("tenant"));
 
     // 2. Compile with user_context containing claim (RLS injected)
     let mut claims = HashMap::new();
@@ -447,7 +447,7 @@ metrics:
         .compile(request, Some(&user_ctx))
         .expect("compile rls");
     assert!(
-        rls_sql.contains("tenant_id = 'tenant_123'"),
+        rls_sql.contains("tenant = 'tenant_123'"),
         "RLS predicate must be injected: {}",
         rls_sql
     );
