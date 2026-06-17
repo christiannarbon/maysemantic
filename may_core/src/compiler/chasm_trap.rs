@@ -28,15 +28,15 @@ impl ChasmTrapHandler {
     pub fn inject_ctes(
         query: SqlNode,
         classification: &PathClassification,
-        link_key: &str,
+        fact_keys: &[(String, String)],   // (physical_table, group_key_column)
     ) -> Result<SqlNode, ChasmTrapError> {
         match classification {
             PathClassification::SingleFact | PathClassification::PureDimension => Ok(query),
-            PathClassification::MultiFactJoin { fact_tables } => {
-                if fact_tables.is_empty() {
+            PathClassification::MultiFactJoin { .. } => {
+                if fact_keys.is_empty() {
                     return Err(ChasmTrapError::EmptyFactTableList);
                 }
-                Self::build_cte_query(query, fact_tables, link_key)
+                Self::build_cte_query(query, fact_keys)
             }
         }
     }
@@ -48,8 +48,7 @@ impl ChasmTrapHandler {
     /// // TODO(SQL-ENGINE-REV-1.0.10, orig REV-1.0.5/F4): A single `link_key` is applied to all fact tables; per-fact join keys are not yet supported.
     fn build_cte_query(
         query: SqlNode,
-        fact_tables: &[String],
-        link_key: &str,
+        fact_keys: &[(String, String)],
     ) -> Result<SqlNode, ChasmTrapError> {
         if let SqlNode::Query {
             ctes,
@@ -70,8 +69,8 @@ impl ChasmTrapHandler {
                 }
             }
 
-            for fact_name in fact_tables {
-                let alias_str = format!("{}_agg", fact_name);
+            for (table, key) in fact_keys {
+                let alias_str = format!("{}_agg", table);
                 if !existing_aliases.insert(alias_str.clone()) {
                     continue; // Skip generating a duplicate CTE alias
                 }
@@ -79,15 +78,15 @@ impl ChasmTrapHandler {
                 let sub_query = SqlNode::Query {
                     ctes: None,
                     select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
-                        link_key.to_string(),
+                        key.clone(),
                     ))])),
                     from: Box::new(SqlNode::From {
-                        source: Box::new(SqlNode::Table(TableIdent(fact_name.clone()))),
+                        source: Box::new(SqlNode::Table(TableIdent(table.clone()))),
                         joins: vec![],
                     }),
                     r#where: None,
                     group_by: Some(Box::new(SqlNode::GroupBy(vec![Expr::Column(ColumnIdent(
-                        link_key.to_string(),
+                        key.clone(),
                     ))]))),
                     having: None,
                 };
