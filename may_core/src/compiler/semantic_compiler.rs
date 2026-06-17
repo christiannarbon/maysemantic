@@ -38,6 +38,9 @@ pub enum CompilerError {
 
     #[error("Chasm trap handling failed: {0}")]
     ChasmTrapHandlingFailed(#[from] ChasmTrapError),
+
+    #[error("Row-level security failed: {0}")]
+    Rls(#[from] crate::compiler::rls::RlsError),
 }
 
 pub struct SemanticCompiler {
@@ -250,7 +253,7 @@ impl SemanticCompiler {
         // Row-Level Security: inject JWT-claim-derived WHERE predicates.
         // Skipped entirely when no caller context is supplied (e.g. internal tooling).
         let ast = match user_context {
-            Some(ctx) => RlsInjector::inject(ast, ctx, state_ref),
+            Some(ctx) => RlsInjector::inject(ast, ctx, state_ref)?,
             None => ast,
         };
 
