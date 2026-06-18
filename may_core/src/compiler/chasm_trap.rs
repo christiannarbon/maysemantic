@@ -15,6 +15,19 @@ pub enum ChasmTrapError {
     LinkDimensionNotFound,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeasureProjection {
+    pub agg: crate::models::AggregationType,
+    pub sql: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FactPreAgg {
+    pub table: String,
+    pub group_key: String,
+    pub measures: Vec<MeasureProjection>,
+}
+
 pub struct ChasmTrapHandler;
 
 impl ChasmTrapHandler {
@@ -28,15 +41,15 @@ impl ChasmTrapHandler {
     pub fn inject_ctes(
         query: SqlNode,
         classification: &PathClassification,
-        fact_keys: &[(String, String)], // (physical_table, group_key_column)
+        facts: &[FactPreAgg],
     ) -> Result<SqlNode, ChasmTrapError> {
         match classification {
             PathClassification::SingleFact | PathClassification::PureDimension => Ok(query),
             PathClassification::MultiFactJoin { .. } => {
-                if fact_keys.is_empty() {
+                if facts.is_empty() {
                     return Err(ChasmTrapError::EmptyFactTableList);
                 }
-                Self::build_cte_query(query, fact_keys)
+                Self::build_cte_query(query, facts)
             }
         }
     }
@@ -48,7 +61,7 @@ impl ChasmTrapHandler {
     /// // TODO(SQL-ENGINE-REV-1.0.10, orig REV-1.0.5/F4): A single `link_key` is applied to all fact tables; per-fact join keys are not yet supported.
     fn build_cte_query(
         query: SqlNode,
-        fact_keys: &[(String, String)],
+        facts: &[FactPreAgg],
     ) -> Result<SqlNode, ChasmTrapError> {
         if let SqlNode::Query {
             ctes,
@@ -69,24 +82,31 @@ impl ChasmTrapHandler {
                 }
             }
 
-            for (table, key) in fact_keys {
-                let alias_str = format!("{}_agg", table);
+            for fact in facts {
+                let alias_str = format!("{}_agg", fact.table);
                 if !existing_aliases.insert(alias_str.clone()) {
                     continue; // Skip generating a duplicate CTE alias
                 }
                 let alias = TableIdent(alias_str);
+
+                let mut select_exprs = vec![Expr::Column(ColumnIdent(fact.group_key.clone()))];
+                for m in &fact.measures {
+                    select_exprs.push(Expr::Aliased {
+                        expr: Box::new(m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))),
+                        alias: m.sql.clone(),
+                    });
+                }
+
                 let sub_query = SqlNode::Query {
                     ctes: None,
-                    select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
-                        key.clone(),
-                    ))])),
+                    select: Box::new(SqlNode::Select(select_exprs)),
                     from: Box::new(SqlNode::From {
-                        source: Box::new(SqlNode::Table(TableIdent(table.clone()))),
+                        source: Box::new(SqlNode::Table(TableIdent(fact.table.clone()))),
                         joins: vec![],
                     }),
                     r#where: None,
                     group_by: Some(Box::new(SqlNode::GroupBy(vec![Expr::Column(ColumnIdent(
-                        key.clone(),
+                        fact.group_key.clone(),
                     ))]))),
                     having: None,
                 };
