@@ -194,6 +194,12 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 buf.push_str(sql);
                 Ok(())
             }
+            Expr::Aliased { expr, alias } => {
+                self.write_expr(buf, expr)?;
+                buf.push_str(" AS ");
+                buf.push_str(&self.quote_identifier(alias));
+                Ok(())
+            }
         }
     }
 
