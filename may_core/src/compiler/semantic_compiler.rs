@@ -1,4 +1,4 @@
-use crate::compiler::chasm_trap::{ChasmTrapError, ChasmTrapHandler};
+use crate::compiler::chasm_trap::{ChasmTrapError, ChasmTrapHandler, FactPreAgg, MeasureProjection};
 use crate::compiler::fanout::{FanOutDetector, PathClassification};
 use crate::compiler::rls::{RlsInjector, UserContext};
 use crate::compiler::{LoweringError, MetricResolutionError, RequestParseError, SemanticRequest};
@@ -240,7 +240,7 @@ impl SemanticCompiler {
                     .ok_or(CompilerError::ChasmTrapHandlingFailed(
                         ChasmTrapError::LinkDimensionNotFound,
                     ))?;
-                let mut fact_keys: Vec<(String, String)> = Vec::new();
+                let mut facts: Vec<FactPreAgg> = Vec::new();
                 for fact_name in fact_tables {
                     let fact_entity = find_entity(fact_name)?;
                     // Fact-side FK column of the hop joining this fact to the link dimension.
@@ -262,9 +262,21 @@ impl SemanticCompiler {
                         .ok_or(CompilerError::ChasmTrapHandlingFailed(
                             ChasmTrapError::LinkDimensionNotFound,
                         ))?;
-                    fact_keys.push((fact_entity.table.clone(), key_col));
+                    let measures = if fact_entity.name == resolved_metric.measure_entity.name {
+                        vec![MeasureProjection {
+                            agg: resolved_metric.measure.agg.clone(),
+                            sql: resolved_metric.measure.sql.clone(),
+                        }]
+                    } else {
+                        Vec::new()
+                    };
+                    facts.push(FactPreAgg {
+                        table: fact_entity.table.clone(),
+                        group_key: key_col,
+                        measures,
+                    });
                 }
-                ChasmTrapHandler::inject_ctes(query_node, &classification, &fact_keys)
+                ChasmTrapHandler::inject_ctes(query_node, &classification, &facts)
                     .map_err(CompilerError::ChasmTrapHandlingFailed)?
             }
             _ => query_node,
