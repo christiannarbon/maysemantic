@@ -17,12 +17,14 @@ pub enum ChasmTrapError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeasureProjection {
+    pub name: String,
     pub agg: crate::models::AggregationType,
     pub sql: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FactPreAgg {
+    pub entity: String,
     pub table: String,
     pub group_key: String,
     pub measures: Vec<MeasureProjection>,
@@ -49,7 +51,8 @@ impl ChasmTrapHandler {
                 if facts.is_empty() {
                     return Err(ChasmTrapError::EmptyFactTableList);
                 }
-                Self::build_cte_query(query, facts)
+                let cte_query = Self::build_cte_query(query, facts)?;
+                Self::rewrite_outer_query(cte_query, facts)
             }
         }
     }
@@ -123,6 +126,153 @@ impl ChasmTrapHandler {
             })
         } else {
             Err(ChasmTrapError::NotAQueryNode)
+        }
+    }
+
+    fn rewrite_outer_query(
+        query: SqlNode,
+        facts: &[FactPreAgg],
+    ) -> Result<SqlNode, ChasmTrapError> {
+        if let SqlNode::Query {
+            ctes,
+            select,
+            from,
+            r#where,
+            group_by,
+            having,
+        } = query
+        {
+            // 1. Swap table name in FROM / JOIN and rewrite JOIN ON
+            let mut rewritten_from = *from;
+            for fact in facts {
+                rewritten_from =
+                    Self::rewrite_from_and_joins(rewritten_from, &fact.table, &fact.group_key);
+            }
+
+            // 2. SELECT measure substitution
+            let mut select_exprs = match *select {
+                SqlNode::Select(exprs) => exprs,
+                _ => return Err(ChasmTrapError::NotAQueryNode),
+            };
+
+            for expr in &mut select_exprs {
+                Self::substitute_select_measure(expr, facts);
+            }
+
+            Ok(SqlNode::Query {
+                ctes,
+                select: Box::new(SqlNode::Select(select_exprs)),
+                from: Box::new(rewritten_from),
+                r#where,
+                group_by,
+                having,
+            })
+        } else {
+            Err(ChasmTrapError::NotAQueryNode)
+        }
+    }
+
+    fn rewrite_from_and_joins(from_node: SqlNode, table: &str, group_key: &str) -> SqlNode {
+        match from_node {
+            SqlNode::From { source, joins } => {
+                let new_source = match *source {
+                    SqlNode::Table(TableIdent(ref name)) if name == table => {
+                        SqlNode::Table(TableIdent(format!("{}_agg", table)))
+                    }
+                    other => other,
+                };
+                let new_joins = joins
+                    .into_iter()
+                    .map(|join| match join {
+                        SqlNode::Join {
+                            join_type,
+                            relation,
+                            on,
+                        } => {
+                            let new_relation = match *relation {
+                                SqlNode::Table(TableIdent(ref name)) if name == table => {
+                                    SqlNode::Table(TableIdent(format!("{}_agg", table)))
+                                }
+                                other => other,
+                            };
+                            let new_on = Self::rewrite_expr(on, table, group_key);
+                            SqlNode::Join {
+                                join_type,
+                                relation: Box::new(new_relation),
+                                on: new_on,
+                            }
+                        }
+                        other => other,
+                    })
+                    .collect();
+                SqlNode::From {
+                    source: Box::new(new_source),
+                    joins: new_joins,
+                }
+            }
+            other => other,
+        }
+    }
+
+    fn rewrite_expr(expr: Expr, table: &str, group_key: &str) -> Expr {
+        match expr {
+            Expr::Column(ColumnIdent(col_name)) => {
+                if col_name == table {
+                    Expr::Column(ColumnIdent(format!("{}_agg", table)))
+                } else if col_name.starts_with(&format!("{}.", table)) {
+                    Expr::Column(ColumnIdent(format!("{}_agg.{}", table, group_key)))
+                } else {
+                    Expr::Column(ColumnIdent(col_name))
+                }
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(Self::rewrite_expr(*left, table, group_key)),
+                op,
+                right: Box::new(Self::rewrite_expr(*right, table, group_key)),
+            },
+            Expr::Function { name, args } => Expr::Function {
+                name,
+                args: args
+                    .into_iter()
+                    .map(|arg| Self::rewrite_expr(arg, table, group_key))
+                    .collect(),
+            },
+            Expr::Aliased { expr, alias } => Expr::Aliased {
+                expr: Box::new(Self::rewrite_expr(*expr, table, group_key)),
+                alias,
+            },
+            other => other,
+        }
+    }
+
+    fn substitute_select_measure(expr: &mut Expr, facts: &[FactPreAgg]) {
+        match expr {
+            Expr::MeasureRef { entity, measure } => {
+                for fact in facts {
+                    if &fact.entity == entity {
+                        if let Some(m) = fact.measures.iter().find(|m| &m.name == measure) {
+                            *expr = Expr::Column(ColumnIdent(format!(
+                                "{}_agg.{}",
+                                fact.table, m.sql
+                            )));
+                            break;
+                        }
+                    }
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                Self::substitute_select_measure(left, facts);
+                Self::substitute_select_measure(right, facts);
+            }
+            Expr::Function { args, .. } => {
+                for arg in args {
+                    Self::substitute_select_measure(arg, facts);
+                }
+            }
+            Expr::Aliased { expr: inner, .. } => {
+                Self::substitute_select_measure(inner, facts);
+            }
+            _ => {}
         }
     }
 }
