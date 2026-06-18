@@ -114,6 +114,10 @@ impl<'a> SemanticLowering<'a> {
                 })
             }
             Expr::Column(_) | Expr::Literal(_) | Expr::Raw(_) => Ok(expr),
+            Expr::Aliased { expr, alias } => Ok(Expr::Aliased {
+                expr: Box::new(self.lower_expr(*expr)?),
+                alias,
+            }),
         }
     }
 
