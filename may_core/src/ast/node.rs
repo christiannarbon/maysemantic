@@ -93,6 +93,14 @@ pub enum Expr {
     /// unsanitized user input. Callers are responsible for ensuring the string
     /// is safe, trusted SQL.
     Raw(String),
+
+    /// An expression with a SQL output alias: `<expr> AS <alias>`.
+    Aliased {
+        /// The inner expression.
+        expr: Box<Expr>,
+        /// The SQL alias.
+        alias: String,
+    },
 }
 
 /// A highly recursive Abstract Syntax Tree node used to model both physical
