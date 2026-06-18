@@ -1,4 +1,6 @@
-use crate::compiler::chasm_trap::{ChasmTrapError, ChasmTrapHandler, FactPreAgg, MeasureProjection};
+use crate::compiler::chasm_trap::{
+    ChasmTrapError, ChasmTrapHandler, FactPreAgg, MeasureProjection,
+};
 use crate::compiler::fanout::{FanOutDetector, PathClassification};
 use crate::compiler::rls::{RlsInjector, UserContext};
 use crate::compiler::{LoweringError, MetricResolutionError, RequestParseError, SemanticRequest};

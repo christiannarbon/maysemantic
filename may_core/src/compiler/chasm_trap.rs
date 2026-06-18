@@ -59,10 +59,7 @@ impl ChasmTrapHandler {
     /// // TODO(SQL-ENGINE-REV-1.0.11, orig REV-1.0.5/F1): The generated CTE currently projects/groups by the link key ONLY and does not yet aggregate the fact tables' measures.
     /// // TODO(SQL-ENGINE-REV-1.0.12, orig REV-1.0.5/F2): The outer query's FROM/JOIN chain is NOT yet rewritten to reference the `_agg` CTEs, so the injected CTEs do not yet affect the emitted SQL.
     /// // TODO(SQL-ENGINE-REV-1.0.10, orig REV-1.0.5/F4): A single `link_key` is applied to all fact tables; per-fact join keys are not yet supported.
-    fn build_cte_query(
-        query: SqlNode,
-        facts: &[FactPreAgg],
-    ) -> Result<SqlNode, ChasmTrapError> {
+    fn build_cte_query(query: SqlNode, facts: &[FactPreAgg]) -> Result<SqlNode, ChasmTrapError> {
         if let SqlNode::Query {
             ctes,
             select,

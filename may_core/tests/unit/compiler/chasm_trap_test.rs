@@ -1,5 +1,7 @@
 use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-use may_core::compiler::{ChasmTrapError, ChasmTrapHandler, FactPreAgg, MeasureProjection, PathClassification};
+use may_core::compiler::{
+    ChasmTrapError, ChasmTrapHandler, FactPreAgg, MeasureProjection, PathClassification,
+};
 use may_core::models::AggregationType;
 
 fn create_helper_query() -> SqlNode {
@@ -72,12 +74,7 @@ fn test_multi_fact_injects_two_ctes() {
             measures: vec![],
         },
     ];
-    let result = ChasmTrapHandler::inject_ctes(
-        query,
-        &classification,
-        &facts,
-    )
-    .unwrap();
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
     if let SqlNode::Query { ctes, .. } = &result {
         assert_eq!(ctes.as_ref().unwrap().len(), 2);
     } else {
@@ -106,12 +103,7 @@ fn test_multi_fact_cte_aliases_are_correct() {
             measures: vec![],
         },
     ];
-    let result = ChasmTrapHandler::inject_ctes(
-        query,
-        &classification,
-        &facts,
-    )
-    .unwrap();
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.unwrap();
         assert_eq!(ctes.len(), 2);
@@ -151,11 +143,7 @@ fn test_not_a_query_node_returns_error() {
             measures: vec![],
         },
     ];
-    let result = ChasmTrapHandler::inject_ctes(
-        query,
-        &classification,
-        &facts,
-    );
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts);
     assert_eq!(result.unwrap_err(), ChasmTrapError::NotAQueryNode);
 }
 
@@ -206,11 +194,7 @@ fn test_inject_ctes_not_a_query_node() {
             measures: vec![],
         },
     ];
-    let result = ChasmTrapHandler::inject_ctes(
-        query,
-        &classification,
-        &facts,
-    );
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts);
     assert_eq!(result.unwrap_err(), ChasmTrapError::NotAQueryNode);
 }
 
@@ -250,12 +234,7 @@ fn test_inject_ctes_multi_fact_join_success() {
         },
     ];
 
-    let result = ChasmTrapHandler::inject_ctes(
-        query,
-        &classification,
-        &facts,
-    )
-    .unwrap();
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
 
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.expect("Expected CTEs to be injected");
@@ -389,12 +368,7 @@ fn test_inject_ctes_preserves_existing_ctes() {
         }],
     }];
 
-    let result = ChasmTrapHandler::inject_ctes(
-        query,
-        &classification,
-        &facts,
-    )
-    .unwrap();
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
 
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.expect("Expected CTEs to be present");
@@ -479,12 +453,7 @@ fn test_inject_ctes_deduplicates_aliases() {
         },
     ];
 
-    let result = ChasmTrapHandler::inject_ctes(
-        query,
-        &classification,
-        &facts,
-    )
-    .unwrap();
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
 
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.expect("Expected CTEs to be present");
