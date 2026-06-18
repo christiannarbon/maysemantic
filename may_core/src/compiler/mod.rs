@@ -20,7 +20,7 @@ pub mod fanout;
 pub use fanout::{FanOutDetector, PathClassification};
 
 pub mod chasm_trap;
-pub use chasm_trap::{ChasmTrapError, ChasmTrapHandler};
+pub use chasm_trap::{ChasmTrapError, ChasmTrapHandler, FactPreAgg, MeasureProjection};
 
 pub mod rls;
 pub use rls::{RlsError, RlsInjector, RlsPolicy, UserContext};
