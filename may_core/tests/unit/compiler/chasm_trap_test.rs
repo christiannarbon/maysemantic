@@ -1,5 +1,6 @@
 use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
-use may_core::compiler::{ChasmTrapError, ChasmTrapHandler, PathClassification};
+use may_core::compiler::{ChasmTrapError, ChasmTrapHandler, FactPreAgg, MeasureProjection, PathClassification};
+use may_core::models::AggregationType;
 
 fn create_helper_query() -> SqlNode {
     let select_node = SqlNode::Select(vec![
@@ -56,13 +57,25 @@ fn test_multi_fact_injects_two_ctes() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
+    let facts = vec![
+        FactPreAgg {
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            }],
+        },
+        FactPreAgg {
+            table: "returns".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![],
+        },
+    ];
     let result = ChasmTrapHandler::inject_ctes(
         query,
         &classification,
-        &[
-            ("orders".to_string(), "user_id".to_string()),
-            ("returns".to_string(), "user_id".to_string()),
-        ],
+        &facts,
     )
     .unwrap();
     if let SqlNode::Query { ctes, .. } = &result {
@@ -78,13 +91,25 @@ fn test_multi_fact_cte_aliases_are_correct() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
+    let facts = vec![
+        FactPreAgg {
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            }],
+        },
+        FactPreAgg {
+            table: "returns".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![],
+        },
+    ];
     let result = ChasmTrapHandler::inject_ctes(
         query,
         &classification,
-        &[
-            ("orders".to_string(), "user_id".to_string()),
-            ("returns".to_string(), "user_id".to_string()),
-        ],
+        &facts,
     )
     .unwrap();
     if let SqlNode::Query { ctes, .. } = result {
@@ -111,13 +136,25 @@ fn test_not_a_query_node_returns_error() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
+    let facts = vec![
+        FactPreAgg {
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            }],
+        },
+        FactPreAgg {
+            table: "returns".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![],
+        },
+    ];
     let result = ChasmTrapHandler::inject_ctes(
         query,
         &classification,
-        &[
-            ("orders".to_string(), "user_id".to_string()),
-            ("returns".to_string(), "user_id".to_string()),
-        ],
+        &facts,
     );
     assert_eq!(result.unwrap_err(), ChasmTrapError::NotAQueryNode);
 }
@@ -154,13 +191,25 @@ fn test_inject_ctes_not_a_query_node() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
+    let facts = vec![
+        FactPreAgg {
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            }],
+        },
+        FactPreAgg {
+            table: "returns".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![],
+        },
+    ];
     let result = ChasmTrapHandler::inject_ctes(
         query,
         &classification,
-        &[
-            ("orders".to_string(), "user_id".to_string()),
-            ("returns".to_string(), "user_id".to_string()),
-        ],
+        &facts,
     );
     assert_eq!(result.unwrap_err(), ChasmTrapError::NotAQueryNode);
 }
@@ -185,13 +234,26 @@ fn test_inject_ctes_multi_fact_join_success() {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
 
+    let facts = vec![
+        FactPreAgg {
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            }],
+        },
+        FactPreAgg {
+            table: "returns".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![],
+        },
+    ];
+
     let result = ChasmTrapHandler::inject_ctes(
         query,
         &classification,
-        &[
-            ("orders".to_string(), "user_id".to_string()),
-            ("returns".to_string(), "user_id".to_string()),
-        ],
+        &facts,
     )
     .unwrap();
 
@@ -212,8 +274,18 @@ fn test_inject_ctes_multi_fact_join_success() {
             {
                 assert!(inner_ctes.is_none());
                 if let SqlNode::Select(proj) = &**inner_select {
-                    assert_eq!(proj.len(), 1);
+                    assert_eq!(proj.len(), 2);
                     assert_eq!(proj[0], Expr::Column(ColumnIdent("user_id".to_string())));
+                    assert_eq!(
+                        proj[1],
+                        Expr::Aliased {
+                            expr: Box::new(Expr::Function {
+                                name: "SUM".to_string(),
+                                args: vec![Expr::Column(ColumnIdent("amount".to_string()))],
+                            }),
+                            alias: "amount".to_string(),
+                        }
+                    );
                 } else {
                     panic!("Expected Select node in CTE query");
                 }
@@ -308,10 +380,19 @@ fn test_inject_ctes_preserves_existing_ctes() {
         fact_tables: vec!["orders".to_string()],
     };
 
+    let facts = vec![FactPreAgg {
+        table: "orders".to_string(),
+        group_key: "user_id".to_string(),
+        measures: vec![MeasureProjection {
+            agg: AggregationType::Sum,
+            sql: "amount".to_string(),
+        }],
+    }];
+
     let result = ChasmTrapHandler::inject_ctes(
         query,
         &classification,
-        &[("orders".to_string(), "user_id".to_string())],
+        &facts,
     )
     .unwrap();
 
@@ -379,13 +460,29 @@ fn test_inject_ctes_deduplicates_aliases() {
         fact_tables: vec!["orders".to_string(), "orders".to_string()],
     };
 
+    let facts = vec![
+        FactPreAgg {
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            }],
+        },
+        FactPreAgg {
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            }],
+        },
+    ];
+
     let result = ChasmTrapHandler::inject_ctes(
         query,
         &classification,
-        &[
-            ("orders".to_string(), "user_id".to_string()),
-            ("orders".to_string(), "user_id".to_string()),
-        ],
+        &facts,
     )
     .unwrap();
 
