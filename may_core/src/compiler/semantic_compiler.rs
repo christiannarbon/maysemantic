@@ -266,6 +266,7 @@ impl SemanticCompiler {
                         ))?;
                     let measures = if fact_entity.name == resolved_metric.measure_entity.name {
                         vec![MeasureProjection {
+                            name: resolved_metric.measure.name.clone(),
                             agg: resolved_metric.measure.agg.clone(),
                             sql: resolved_metric.measure.sql.clone(),
                         }]
@@ -273,6 +274,7 @@ impl SemanticCompiler {
                         Vec::new()
                     };
                     facts.push(FactPreAgg {
+                        entity: fact_entity.name.clone(),
                         table: fact_entity.table.clone(),
                         group_key: key_col,
                         measures,
