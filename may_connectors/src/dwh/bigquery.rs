@@ -304,7 +304,13 @@ impl WarehouseConnector for BigQueryConnector {
             .json(&body)
             .send()
             .await
-            .map_err(|e| ConnectorError::QueryFailed(e.to_string()))?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    ConnectorError::Timeout
+                } else {
+                    ConnectorError::QueryFailed(e.to_string())
+                }
+            })?;
 
         if !res.status().is_success() {
             let err_text = res.text().await.unwrap_or_default();
@@ -352,7 +358,12 @@ impl WarehouseConnector for BigQueryConnector {
                     let res = match client.get(&poll_url).bearer_auth(token.as_str()).send().await {
                         Ok(r) => r,
                         Err(e) => {
-                            yield Err(ConnectorError::QueryFailed(format!("Poll request failed: {e}")));
+                            let err = if e.is_timeout() {
+                                ConnectorError::Timeout
+                            } else {
+                                ConnectorError::QueryFailed(format!("Poll request failed: {e}"))
+                            };
+                            yield Err(err);
                             return;
                         }
                     };
@@ -419,7 +430,12 @@ impl WarehouseConnector for BigQueryConnector {
                     let res = match client.get(&next_url).bearer_auth(token.as_str()).send().await {
                         Ok(r) => r,
                         Err(e) => {
-                            yield Err(ConnectorError::QueryFailed(format!("Next page request failed: {e}")));
+                            let err = if e.is_timeout() {
+                                ConnectorError::Timeout
+                            } else {
+                                ConnectorError::QueryFailed(format!("Next page request failed: {e}"))
+                            };
+                            yield Err(err);
                             return;
                         }
                     };
