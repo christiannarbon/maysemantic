@@ -90,7 +90,10 @@ metrics:
 
     // Verify aggregation in CTE
     // e.g., orders_agg should select customer_id and SUM(amount) AS amount
-    assert!(sql.contains("SUM(amount)"), "orders_agg CTE should sum the amount measure");
+    assert!(
+        sql.contains("SUM(amount)"),
+        "orders_agg CTE should sum the amount measure"
+    );
 
     // Assert that the outer SELECT projects from orders_agg and NOT raw orders,
     // and is NOT double-aggregated (so it selects orders_agg.amount, not SUM(orders_agg.amount) or SUM(amount))
@@ -98,7 +101,10 @@ metrics:
         sql.contains("public.orders_agg.amount") || sql.contains("orders_agg.amount"),
         "Outer SELECT should project orders_agg.amount"
     );
-    assert!(!sql.contains("SUM(public.orders_agg.amount)"), "Outer SELECT must not double aggregate orders_agg.amount");
+    assert!(
+        !sql.contains("SUM(public.orders_agg.amount)"),
+        "Outer SELECT must not double aggregate orders_agg.amount"
+    );
 
     // Verify outer FROM/JOIN references the aggregates
     assert!(
