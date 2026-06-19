@@ -251,10 +251,8 @@ impl ChasmTrapHandler {
                 for fact in facts {
                     if &fact.entity == entity {
                         if let Some(m) = fact.measures.iter().find(|m| &m.name == measure) {
-                            *expr = Expr::Column(ColumnIdent(format!(
-                                "{}_agg.{}",
-                                fact.table, m.sql
-                            )));
+                            *expr =
+                                Expr::Column(ColumnIdent(format!("{}_agg.{}", fact.table, m.sql)));
                             break;
                         }
                     }
