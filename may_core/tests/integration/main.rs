@@ -1,5 +1,5 @@
-mod compiler_e2e_test;
 mod chasm_trap_e2e_test;
+mod compiler_e2e_test;
 
 use tokio_postgres::NoTls;
 
