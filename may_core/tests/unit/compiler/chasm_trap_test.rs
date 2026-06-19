@@ -587,7 +587,9 @@ fn test_inject_ctes_rewrites_outer_query() {
                     Expr::BinaryOp {
                         left: Box::new(Expr::Column(ColumnIdent("orders_agg.user_id".to_string()))),
                         op: "=".to_string(),
-                        right: Box::new(Expr::Column(ColumnIdent("returns_agg.user_id".to_string()))),
+                        right: Box::new(Expr::Column(ColumnIdent(
+                            "returns_agg.user_id".to_string()
+                        ))),
                     }
                 );
             } else {
