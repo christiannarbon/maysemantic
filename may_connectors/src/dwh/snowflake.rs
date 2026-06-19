@@ -21,6 +21,14 @@ struct JwtClaims {
     exp: usize,
 }
 
+/// A minted JWT plus its unix-seconds expiry, cached to avoid re-signing
+/// on every query. Refreshed only when within 60 s of `exp`.
+#[derive(Clone)]
+struct CachedJwt {
+    token: String,
+    exp: usize,
+}
+
 #[derive(Clone)]
 pub struct SnowflakeConnector {
     account: String,
@@ -29,6 +37,7 @@ pub struct SnowflakeConnector {
     http_client: Client,
     base_url_override: Option<String>,
     delay_ms_override: Option<u64>,
+    token_cache: Arc<tokio::sync::Mutex<Option<CachedJwt>>>,
 }
 
 impl SnowflakeConnector {
@@ -58,6 +67,7 @@ impl SnowflakeConnector {
             http_client,
             base_url_override: None,
             delay_ms_override: None,
+            token_cache: Arc::new(tokio::sync::Mutex::new(None)),
         })
     }
 
@@ -69,8 +79,25 @@ impl SnowflakeConnector {
         self
     }
 
-    // TODO: Cache the JWT token and refresh only when within 60 seconds of expiry.
-    async fn get_jwt_token(&self) -> Result<String, ConnectorError> {
+    #[allow(
+        clippy::missing_errors_doc,
+        reason = "get_jwt_token is only public for testing purposes"
+    )]
+    pub async fn get_jwt_token(&self) -> Result<String, ConnectorError> {
+        let mut cache = self.token_cache.lock().await;
+
+        let now = chrono::Utc::now().timestamp();
+        let now_usize = usize::try_from(now).map_err(|e| {
+            ConnectorError::ConnectionFailed(format!("Timestamp conversion failed: {e}"))
+        })?;
+
+        if let Some(cached) = cache.as_ref() {
+            // Reuse while more than 60 s from expiry.
+            if now_usize + 60 < cached.exp {
+                return Ok(cached.token.clone());
+            }
+        }
+
         let secret = self
             .secrets
             .get_secret(&self.secret_name)
@@ -114,10 +141,7 @@ impl SnowflakeConnector {
         let account_upper = account_name.to_uppercase();
         let username_upper = username.to_uppercase();
 
-        let now = chrono::Utc::now().timestamp();
-        let iat = usize::try_from(now).map_err(|e| {
-            ConnectorError::ConnectionFailed(format!("Timestamp conversion failed: {e}"))
-        })?;
+        let iat = now_usize;
         let exp = usize::try_from(now + 3600).map_err(|e| {
             ConnectorError::ConnectionFailed(format!("Timestamp conversion failed: {e}"))
         })?;
@@ -139,6 +163,12 @@ impl SnowflakeConnector {
 
         let token = encode(&header, &claims, &encoding_key)
             .map_err(|e| ConnectorError::ConnectionFailed(format!("Failed to sign JWT: {e}")))?;
+
+        *cache = Some(CachedJwt {
+            token: token.clone(),
+            exp,
+        });
+
         Ok(token)
     }
 }
