@@ -220,3 +220,34 @@ async fn test_snowflake_partition_merging() {
 
     assert!(stream.next().await.is_none());
 }
+
+#[tokio::test]
+async fn test_jwt_token_is_cached() {
+    let secrets = Arc::new(MockSecretsProvider {
+        secret: DwhSecret::KeyPair {
+            account: "test_account".to_string(),
+            username: "test_user".to_string(),
+            private_key: generate_test_rsa_key_pem(),
+            passphrase: None,
+        },
+        called: Mutex::new(false),
+    });
+
+    let connector = SnowflakeConnector::new("test_account", "test_secret", secrets.clone())
+        .expect("Failed to build connector");
+
+    // Call get_jwt_token once
+    let token1 = connector.get_jwt_token().await.expect("Failed to generate token 1");
+    assert!(*secrets.called.lock().unwrap(), "MockSecretsProvider should have been called");
+
+    // Reset called flag
+    *secrets.called.lock().unwrap() = false;
+
+    // Call get_jwt_token again
+    let token2 = connector.get_jwt_token().await.expect("Failed to generate token 2");
+
+    // Assert tokens are identical (cached)
+    assert_eq!(token1, token2, "Token should be retrieved from cache");
+    assert!(!*secrets.called.lock().unwrap(), "MockSecretsProvider should NOT have been called again");
+}
+
