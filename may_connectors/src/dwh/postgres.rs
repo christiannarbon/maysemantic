@@ -8,6 +8,11 @@ use may_secrets::{DwhSecret, SecretsProvider};
 use std::sync::Arc;
 use tokio_postgres::types::Type;
 use tokio_postgres_rustls::MakeRustlsConnect;
+use std::time::Duration;
+
+/// Maximum wall-clock time for a single Postgres query before it is
+/// abandoned with `ConnectorError::Timeout`.
+const QUERY_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct PostgresConnector {
     secret_name: String,
@@ -100,94 +105,102 @@ fn map_column_value(row: &tokio_postgres::Row, i: usize) -> Result<ColumnValue, 
 #[async_trait]
 impl WarehouseConnector for PostgresConnector {
     async fn execute(&self, sql: &str) -> Result<QueryResult, ConnectorError> {
-        let secret = self
-            .secrets
-            .get_secret(&self.secret_name)
-            .await
-            .map_err(|e| ConnectorError::ConnectionFailed(e.to_string()))?;
-
-        let DwhSecret::UsernamePassword {
-            host,
-            port,
-            database,
-            username,
-            password,
-        } = secret
-        else {
-            return Err(ConnectorError::ConnectionFailed(
-                "Expected UsernamePassword secret for Postgres".to_string(),
-            ));
-        };
-
-        let mut config = tokio_postgres::Config::new();
-        config.host(&host);
-        config.port(port);
-        config.dbname(&database);
-        config.user(&username);
-        config.password(&password);
-
-        let mut root_store = rustls::RootCertStore::empty();
-        let certs = rustls_native_certs::load_native_certs().certs;
-
-        for cert in certs {
-            root_store
-                .add(cert)
+        let result = tokio::time::timeout(QUERY_TIMEOUT, async {
+            let secret = self
+                .secrets
+                .get_secret(&self.secret_name)
+                .await
                 .map_err(|e| ConnectorError::ConnectionFailed(e.to_string()))?;
-        }
 
-        let tls_config = rustls::ClientConfig::builder()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-
-        let tls = MakeRustlsConnect::new(tls_config);
-
-        let (client, connection) = config
-            .connect(tls)
-            .await
-            .map_err(|e| ConnectorError::ConnectionFailed(e.to_string()))?;
-
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                tracing::error!("postgres connection task error: {e}");
-            }
-        });
-
-        let owned_sql = sql.to_string();
-
-        let stream = stream! {
-            let row_stream = match client.query_raw(&owned_sql, std::iter::empty::<&i32>()).await {
-                Ok(rs) => rs,
-                Err(e) => {
-                    yield Err(ConnectorError::QueryFailed(e.to_string()));
-                    return;
-                }
+            let DwhSecret::UsernamePassword {
+                host,
+                port,
+                database,
+                username,
+                password,
+            } = secret
+            else {
+                return Err(ConnectorError::ConnectionFailed(
+                    "Expected UsernamePassword secret for Postgres".to_string(),
+                ));
             };
-            tokio::pin!(row_stream);
 
-            while let Some(res) = row_stream.next().await {
-                match res {
-                    Ok(row) => {
-                        let mut result_row = Vec::new();
-                        for i in 0..row.columns().len() {
-                            match map_column_value(&row, i) {
-                                Ok(val) => result_row.push(val),
-                                Err(e) => {
-                                    yield Err(e);
-                                    return;
-                                }
-                            }
-                        }
-                        yield Ok(result_row);
-                    }
+            let mut config = tokio_postgres::Config::new();
+            config.host(&host);
+            config.port(port);
+            config.dbname(&database);
+            config.user(&username);
+            config.password(&password);
+
+            let mut root_store = rustls::RootCertStore::empty();
+            let certs = rustls_native_certs::load_native_certs().certs;
+
+            for cert in certs {
+                root_store
+                    .add(cert)
+                    .map_err(|e| ConnectorError::ConnectionFailed(e.to_string()))?;
+            }
+
+            let tls_config = rustls::ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            let tls = MakeRustlsConnect::new(tls_config);
+
+            let (client, connection) = config
+                .connect(tls)
+                .await
+                .map_err(|e| ConnectorError::ConnectionFailed(e.to_string()))?;
+
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    tracing::error!("postgres connection task error: {e}");
+                }
+            });
+
+            let owned_sql = sql.to_string();
+
+            let stream = stream! {
+                let row_stream = match client.query_raw(&owned_sql, std::iter::empty::<&i32>()).await {
+                    Ok(rs) => rs,
                     Err(e) => {
                         yield Err(ConnectorError::QueryFailed(e.to_string()));
+                        return;
+                    }
+                };
+                tokio::pin!(row_stream);
+
+                while let Some(res) = row_stream.next().await {
+                    match res {
+                        Ok(row) => {
+                            let mut result_row = Vec::new();
+                            for i in 0..row.columns().len() {
+                                match map_column_value(&row, i) {
+                                    Ok(val) => result_row.push(val),
+                                    Err(e) => {
+                                        yield Err(e);
+                                        return;
+                                    }
+                                }
+                            }
+                            yield Ok(result_row);
+                        }
+                        Err(e) => {
+                            yield Err(ConnectorError::QueryFailed(e.to_string()));
+                        }
                     }
                 }
-            }
 
-            drop(client);
-        };
+                drop(client);
+            };
 
-        Ok(Box::pin(stream))
+            Ok(Box::pin(stream) as QueryResult)
+        })
+        .await;
+
+        match result {
+            Ok(inner) => inner,
+            Err(_) => Err(ConnectorError::Timeout),
+        }
     }
 }
