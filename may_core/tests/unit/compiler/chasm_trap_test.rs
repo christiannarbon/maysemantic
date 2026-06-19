@@ -61,14 +61,17 @@ fn test_multi_fact_injects_two_ctes() {
     };
     let facts = vec![
         FactPreAgg {
+            entity: "orders".to_string(),
             table: "orders".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![MeasureProjection {
+                name: "amount".to_string(),
                 agg: AggregationType::Sum,
                 sql: "amount".to_string(),
             }],
         },
         FactPreAgg {
+            entity: "returns".to_string(),
             table: "returns".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![],
@@ -90,14 +93,17 @@ fn test_multi_fact_cte_aliases_are_correct() {
     };
     let facts = vec![
         FactPreAgg {
+            entity: "orders".to_string(),
             table: "orders".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![MeasureProjection {
+                name: "amount".to_string(),
                 agg: AggregationType::Sum,
                 sql: "amount".to_string(),
             }],
         },
         FactPreAgg {
+            entity: "returns".to_string(),
             table: "returns".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![],
@@ -130,14 +136,17 @@ fn test_not_a_query_node_returns_error() {
     };
     let facts = vec![
         FactPreAgg {
+            entity: "orders".to_string(),
             table: "orders".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![MeasureProjection {
+                name: "amount".to_string(),
                 agg: AggregationType::Sum,
                 sql: "amount".to_string(),
             }],
         },
         FactPreAgg {
+            entity: "returns".to_string(),
             table: "returns".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![],
@@ -181,14 +190,17 @@ fn test_inject_ctes_not_a_query_node() {
     };
     let facts = vec![
         FactPreAgg {
+            entity: "orders".to_string(),
             table: "orders".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![MeasureProjection {
+                name: "amount".to_string(),
                 agg: AggregationType::Sum,
                 sql: "amount".to_string(),
             }],
         },
         FactPreAgg {
+            entity: "returns".to_string(),
             table: "returns".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![],
@@ -220,14 +232,17 @@ fn test_inject_ctes_multi_fact_join_success() {
 
     let facts = vec![
         FactPreAgg {
+            entity: "orders".to_string(),
             table: "orders".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![MeasureProjection {
+                name: "amount".to_string(),
                 agg: AggregationType::Sum,
                 sql: "amount".to_string(),
             }],
         },
         FactPreAgg {
+            entity: "returns".to_string(),
             table: "returns".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![],
@@ -360,9 +375,11 @@ fn test_inject_ctes_preserves_existing_ctes() {
     };
 
     let facts = vec![FactPreAgg {
+        entity: "orders".to_string(),
         table: "orders".to_string(),
         group_key: "user_id".to_string(),
         measures: vec![MeasureProjection {
+            name: "amount".to_string(),
             agg: AggregationType::Sum,
             sql: "amount".to_string(),
         }],
@@ -436,17 +453,21 @@ fn test_inject_ctes_deduplicates_aliases() {
 
     let facts = vec![
         FactPreAgg {
+            entity: "orders".to_string(),
             table: "orders".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![MeasureProjection {
+                name: "amount".to_string(),
                 agg: AggregationType::Sum,
                 sql: "amount".to_string(),
             }],
         },
         FactPreAgg {
+            entity: "orders".to_string(),
             table: "orders".to_string(),
             group_key: "user_id".to_string(),
             measures: vec![MeasureProjection {
+                name: "amount".to_string(),
                 agg: AggregationType::Sum,
                 sql: "amount".to_string(),
             }],
@@ -462,6 +483,118 @@ fn test_inject_ctes_deduplicates_aliases() {
             assert_eq!(alias.0, "orders_agg");
         } else {
             panic!("Expected CTE");
+        }
+    } else {
+        panic!("Expected Query node at root");
+    }
+}
+
+#[test]
+fn test_inject_ctes_rewrites_outer_query() {
+    // Select measure ref: Expr::MeasureRef { entity: "orders", measure: "amount" }
+    let select_node = SqlNode::Select(vec![
+        Expr::MeasureRef {
+            entity: "orders".to_string(),
+            measure: "amount".to_string(),
+        },
+        Expr::Column(ColumnIdent("users.region".to_string())),
+    ]);
+
+    // FROM orders JOIN returns ON orders.user_id = returns.user_id
+    let join_condition = Expr::BinaryOp {
+        left: Box::new(Expr::Column(ColumnIdent("orders.user_id".to_string()))),
+        op: "=".to_string(),
+        right: Box::new(Expr::Column(ColumnIdent("returns.user_id".to_string()))),
+    };
+    let join_node = SqlNode::Join {
+        join_type: JoinType::Left,
+        relation: Box::new(SqlNode::Table(TableIdent("returns".to_string()))),
+        on: join_condition,
+    };
+    let from_node = SqlNode::From {
+        source: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
+        joins: vec![join_node],
+    };
+
+    let query = SqlNode::Query {
+        ctes: None,
+        select: Box::new(select_node),
+        from: Box::new(from_node),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string(), "returns".to_string()],
+    };
+
+    let facts = vec![
+        FactPreAgg {
+            entity: "orders".to_string(),
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                name: "amount".to_string(),
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            }],
+        },
+        FactPreAgg {
+            entity: "returns".to_string(),
+            table: "returns".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![],
+        },
+    ];
+
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
+
+    if let SqlNode::Query { select, from, .. } = result {
+        // Verify SELECT is rewritten from MeasureRef to Column
+        if let SqlNode::Select(exprs) = *select {
+            assert_eq!(exprs.len(), 2);
+            assert_eq!(
+                exprs[0],
+                Expr::Column(ColumnIdent("orders_agg.amount".to_string()))
+            );
+            assert_eq!(
+                exprs[1],
+                Expr::Column(ColumnIdent("users.region".to_string()))
+            );
+        } else {
+            panic!("Expected Select node");
+        }
+
+        // Verify FROM and JOIN tables and ON condition are rewritten
+        if let SqlNode::From { source, joins } = *from {
+            if let SqlNode::Table(TableIdent(tbl)) = *source {
+                assert_eq!(tbl, "orders_agg");
+            } else {
+                panic!("Expected Table node");
+            }
+
+            assert_eq!(joins.len(), 1);
+            if let SqlNode::Join { relation, on, .. } = &joins[0] {
+                if let SqlNode::Table(TableIdent(tbl)) = &**relation {
+                    assert_eq!(tbl, "returns_agg");
+                } else {
+                    panic!("Expected Table node");
+                }
+
+                assert_eq!(
+                    *on,
+                    Expr::BinaryOp {
+                        left: Box::new(Expr::Column(ColumnIdent("orders_agg.user_id".to_string()))),
+                        op: "=".to_string(),
+                        right: Box::new(Expr::Column(ColumnIdent("returns_agg.user_id".to_string()))),
+                    }
+                );
+            } else {
+                panic!("Expected Join node");
+            }
+        } else {
+            panic!("Expected From node");
         }
     } else {
         panic!("Expected Query node at root");
