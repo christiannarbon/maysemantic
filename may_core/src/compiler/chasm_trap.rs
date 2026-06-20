@@ -33,6 +33,13 @@ pub struct FactPreAgg {
 pub struct ChasmTrapHandler;
 
 impl ChasmTrapHandler {
+    /// The pre-aggregation CTE alias for a fact table, as a single unqualified,
+    /// identifier-safe token (e.g. `public.orders` -> `orders_agg`).
+    fn agg_alias(table: &str) -> String {
+        let base = table.rsplit('.').next().unwrap_or(table);
+        format!("{}_agg", base)
+    }
+
     /// Apply pre-aggregation CTE injection if the path classification requires it.
     ///
     /// - `SingleFact` and `PureDimension` → returns `query` unchanged (zero cost)
@@ -83,7 +90,7 @@ impl ChasmTrapHandler {
             }
 
             for fact in facts {
-                let alias_str = format!("{}_agg", fact.table);
+                let alias_str = Self::agg_alias(&fact.table);
                 if !existing_aliases.insert(alias_str.clone()) {
                     continue; // Skip generating a duplicate CTE alias
                 }
@@ -177,7 +184,7 @@ impl ChasmTrapHandler {
             SqlNode::From { source, joins } => {
                 let new_source = match *source {
                     SqlNode::Table(TableIdent(ref name)) if name == table => {
-                        SqlNode::Table(TableIdent(format!("{}_agg", table)))
+                        SqlNode::Table(TableIdent(Self::agg_alias(table)))
                     }
                     other => other,
                 };
@@ -191,7 +198,7 @@ impl ChasmTrapHandler {
                         } => {
                             let new_relation = match *relation {
                                 SqlNode::Table(TableIdent(ref name)) if name == table => {
-                                    SqlNode::Table(TableIdent(format!("{}_agg", table)))
+                                    SqlNode::Table(TableIdent(Self::agg_alias(table)))
                                 }
                                 other => other,
                             };
@@ -214,31 +221,30 @@ impl ChasmTrapHandler {
         }
     }
 
-    fn rewrite_expr(expr: Expr, table: &str, group_key: &str) -> Expr {
+    pub fn rewrite_expr(expr: Expr, table: &str, _group_key: &str) -> Expr {
         match expr {
             Expr::Column(ColumnIdent(col_name)) => {
-                if col_name == table {
-                    Expr::Column(ColumnIdent(format!("{}_agg", table)))
-                } else if col_name.starts_with(&format!("{}.", table)) {
-                    Expr::Column(ColumnIdent(format!("{}_agg.{}", table, group_key)))
+                let prefix = format!("{}.", table);
+                if let Some(suffix) = col_name.strip_prefix(&prefix) {
+                    Expr::Column(ColumnIdent(format!("{}.{}", Self::agg_alias(table), suffix)))
                 } else {
                     Expr::Column(ColumnIdent(col_name))
                 }
             }
             Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
-                left: Box::new(Self::rewrite_expr(*left, table, group_key)),
+                left: Box::new(Self::rewrite_expr(*left, table, _group_key)),
                 op,
-                right: Box::new(Self::rewrite_expr(*right, table, group_key)),
+                right: Box::new(Self::rewrite_expr(*right, table, _group_key)),
             },
             Expr::Function { name, args } => Expr::Function {
                 name,
                 args: args
                     .into_iter()
-                    .map(|arg| Self::rewrite_expr(arg, table, group_key))
+                    .map(|arg| Self::rewrite_expr(arg, table, _group_key))
                     .collect(),
             },
             Expr::Aliased { expr, alias } => Expr::Aliased {
-                expr: Box::new(Self::rewrite_expr(*expr, table, group_key)),
+                expr: Box::new(Self::rewrite_expr(*expr, table, _group_key)),
                 alias,
             },
             other => other,
@@ -251,8 +257,11 @@ impl ChasmTrapHandler {
                 for fact in facts {
                     if &fact.entity == entity {
                         if let Some(m) = fact.measures.iter().find(|m| &m.name == measure) {
-                            *expr =
-                                Expr::Column(ColumnIdent(format!("{}_agg.{}", fact.table, m.sql)));
+                            *expr = Expr::Column(ColumnIdent(format!(
+                                "{}.{}",
+                                Self::agg_alias(&fact.table),
+                                m.sql
+                            )));
                             break;
                         }
                     }
