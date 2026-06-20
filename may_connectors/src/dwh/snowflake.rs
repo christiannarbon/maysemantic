@@ -291,7 +291,12 @@ impl WarehouseConnector for SnowflakeConnector {
             {
                 Ok(r) => r,
                 Err(e) => {
-                    yield Err(ConnectorError::ConnectionFailed(e.to_string()));
+                    let err = if e.is_timeout() {
+                        ConnectorError::Timeout
+                    } else {
+                        ConnectorError::ConnectionFailed(e.to_string())
+                    };
+                    yield Err(err);
                     return;
                 }
             };
@@ -350,7 +355,12 @@ impl WarehouseConnector for SnowflakeConnector {
                     {
                         Ok(r) => r,
                         Err(e) => {
-                            yield Err(ConnectorError::ConnectionFailed(format!("Polling failed: {e}")));
+                            let err = if e.is_timeout() {
+                                ConnectorError::Timeout
+                            } else {
+                                ConnectorError::ConnectionFailed(format!("Polling failed: {e}"))
+                            };
+                            yield Err(err);
                             return;
                         }
                     };
@@ -443,7 +453,12 @@ impl WarehouseConnector for SnowflakeConnector {
                     {
                         Ok(r) => r,
                         Err(e) => {
-                            yield Err(ConnectorError::ConnectionFailed(format!("Partition fetch failed: {e}")));
+                            let err = if e.is_timeout() {
+                                ConnectorError::Timeout
+                            } else {
+                                ConnectorError::ConnectionFailed(format!("Partition fetch failed: {e}"))
+                            };
+                            yield Err(err);
                             return;
                         }
                     };
