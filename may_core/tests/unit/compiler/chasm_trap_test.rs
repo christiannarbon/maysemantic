@@ -602,3 +602,14 @@ fn test_inject_ctes_rewrites_outer_query() {
         panic!("Expected Query node at root");
     }
 }
+
+#[test]
+fn test_rewrite_expr_preserves_column_suffix_sql_engine_rev_1_1_0() {
+    let input = Expr::Column(ColumnIdent("orders.foo".to_string()));
+    let result = ChasmTrapHandler::rewrite_expr(input, "orders", "customer_id");
+    assert_eq!(
+        result,
+        Expr::Column(ColumnIdent("orders_agg.foo".to_string()))
+    );
+}
+
