@@ -612,4 +612,3 @@ fn test_rewrite_expr_preserves_column_suffix_sql_engine_rev_1_1_0() {
         Expr::Column(ColumnIdent("orders_agg.foo".to_string()))
     );
 }
-

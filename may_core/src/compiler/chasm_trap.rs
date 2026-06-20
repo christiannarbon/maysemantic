@@ -226,7 +226,11 @@ impl ChasmTrapHandler {
             Expr::Column(ColumnIdent(col_name)) => {
                 let prefix = format!("{}.", table);
                 if let Some(suffix) = col_name.strip_prefix(&prefix) {
-                    Expr::Column(ColumnIdent(format!("{}.{}", Self::agg_alias(table), suffix)))
+                    Expr::Column(ColumnIdent(format!(
+                        "{}.{}",
+                        Self::agg_alias(table),
+                        suffix
+                    )))
                 } else {
                     Expr::Column(ColumnIdent(col_name))
                 }
