@@ -213,6 +213,9 @@ entities:
       - name: return_id
         type: number
         sql: id
+      - name: return_user_id
+        type: number
+        sql: user_id
     measures:
       - name: total_refunds
         agg: sum
@@ -254,7 +257,7 @@ joins:
 metrics:
   - name: revenue_with_dimensions
     measure: total_revenue
-    dimensions: [user_id, currency_code, return_id]
+    dimensions: [user_id, currency_code, return_user_id]
 "#;
     let model: SemanticModel = serde_norway::from_str(model_content).expect("parse model");
     state.models.insert(model.name.clone(), model);
