@@ -6,9 +6,9 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use may_secrets::{DwhSecret, SecretsProvider};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio_postgres::types::Type;
 use tokio_postgres_rustls::MakeRustlsConnect;
-use std::time::Duration;
 
 /// Maximum wall-clock time for a single Postgres query before it is
 /// abandoned with `ConnectorError::Timeout`.

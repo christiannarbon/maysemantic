@@ -273,4 +273,3 @@ async fn test_timeout_mapping_deterministic() {
     };
     assert!(matches!(mapped, Err(ConnectorError::Timeout)));
 }
-
