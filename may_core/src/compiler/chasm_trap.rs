@@ -13,6 +13,16 @@ pub enum ChasmTrapError {
 
     #[error("No conformed dimension table found in the join path for a MultiFactJoin")]
     LinkDimensionNotFound,
+
+    #[error("Average aggregation in chasm-trap joins is not yet supported")]
+    UnsupportedAverageAggregation,
+
+    #[error("dimension '{dimension}' (entity '{entity}') is finer than the conformed chasm-trap grain '{conformed_grain}' and cannot be selected through a pre-aggregated join")]
+    FinerThanConformedGrain {
+        dimension: String,
+        entity: String,
+        conformed_grain: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,38 +163,73 @@ impl ChasmTrapHandler {
             let mut rewritten_from = *from;
             for fact in facts {
                 rewritten_from =
-                    Self::rewrite_from_and_joins(rewritten_from, &fact.table, &fact.group_key);
+                    Self::rewrite_from_and_joins(rewritten_from, fact);
             }
 
-            // 2. SELECT measure substitution
+            // 2. SELECT measure/dimension substitution
             let mut select_exprs = match *select {
                 SqlNode::Select(exprs) => exprs,
                 _ => return Err(ChasmTrapError::NotAQueryNode),
             };
 
             for expr in &mut select_exprs {
-                Self::substitute_select_measure(expr, facts);
+                Self::rewrite_outer_expr(expr, facts);
             }
+
+            // 3. GROUP BY dimension/key substitution
+            let rewritten_group_by = if let Some(gb) = group_by {
+                let mut gb_node = *gb;
+                if let SqlNode::GroupBy(ref mut exprs) = gb_node {
+                    for expr in exprs {
+                        Self::rewrite_outer_expr(expr, facts);
+                    }
+                }
+                Some(Box::new(gb_node))
+            } else {
+                None
+            };
+
+            // 4. HAVING clause substitution
+            let rewritten_having = if let Some(hv) = having {
+                let mut hv_node = *hv;
+                if let SqlNode::Having(ref mut expr) = hv_node {
+                    Self::rewrite_outer_expr(expr, facts);
+                }
+                Some(Box::new(hv_node))
+            } else {
+                None
+            };
+
+            // 5. WHERE clause substitution
+            let rewritten_where = if let Some(wh) = r#where {
+                let mut wh_node = *wh;
+                if let SqlNode::Where(ref mut expr) = wh_node {
+                    Self::rewrite_outer_expr(expr, facts);
+                }
+                Some(Box::new(wh_node))
+            } else {
+                None
+            };
 
             Ok(SqlNode::Query {
                 ctes,
                 select: Box::new(SqlNode::Select(select_exprs)),
                 from: Box::new(rewritten_from),
-                r#where,
-                group_by,
-                having,
+                r#where: rewritten_where,
+                group_by: rewritten_group_by,
+                having: rewritten_having,
             })
         } else {
             Err(ChasmTrapError::NotAQueryNode)
         }
     }
 
-    fn rewrite_from_and_joins(from_node: SqlNode, table: &str, group_key: &str) -> SqlNode {
+    fn rewrite_from_and_joins(from_node: SqlNode, fact: &FactPreAgg) -> SqlNode {
         match from_node {
             SqlNode::From { source, joins } => {
                 let new_source = match *source {
-                    SqlNode::Table(TableIdent(ref name)) if name == table => {
-                        SqlNode::Table(TableIdent(Self::agg_alias(table)))
+                    SqlNode::Table(TableIdent(ref name)) if name == &fact.table => {
+                        SqlNode::Table(TableIdent(Self::agg_alias(&fact.table)))
                     }
                     other => other,
                 };
@@ -197,12 +242,12 @@ impl ChasmTrapHandler {
                             on,
                         } => {
                             let new_relation = match *relation {
-                                SqlNode::Table(TableIdent(ref name)) if name == table => {
-                                    SqlNode::Table(TableIdent(Self::agg_alias(table)))
+                                SqlNode::Table(TableIdent(ref name)) if name == &fact.table => {
+                                    SqlNode::Table(TableIdent(Self::agg_alias(&fact.table)))
                                 }
                                 other => other,
                             };
-                            let new_on = Self::rewrite_expr(on, table, group_key);
+                            let new_on = Self::rewrite_expr(on, fact);
                             SqlNode::Join {
                                 join_type,
                                 relation: Box::new(new_relation),
@@ -221,67 +266,103 @@ impl ChasmTrapHandler {
         }
     }
 
-    pub fn rewrite_expr(expr: Expr, table: &str, _group_key: &str) -> Expr {
+    pub fn rewrite_expr(expr: Expr, fact: &FactPreAgg) -> Expr {
         match expr {
             Expr::Column(ColumnIdent(col_name)) => {
-                let prefix = format!("{}.", table);
+                let prefix = format!("{}.", fact.table);
                 if let Some(suffix) = col_name.strip_prefix(&prefix) {
                     Expr::Column(ColumnIdent(format!(
                         "{}.{}",
-                        Self::agg_alias(table),
+                        Self::agg_alias(&fact.table),
                         suffix
                     )))
                 } else {
                     Expr::Column(ColumnIdent(col_name))
                 }
             }
+            Expr::DimensionRef { entity, dimension } => {
+                if entity == fact.entity {
+                    Expr::Column(ColumnIdent(format!(
+                        "{}.{}",
+                        Self::agg_alias(&fact.table),
+                        fact.group_key
+                    )))
+                } else {
+                    Expr::DimensionRef { entity, dimension }
+                }
+            }
             Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
-                left: Box::new(Self::rewrite_expr(*left, table, _group_key)),
+                left: Box::new(Self::rewrite_expr(*left, fact)),
                 op,
-                right: Box::new(Self::rewrite_expr(*right, table, _group_key)),
+                right: Box::new(Self::rewrite_expr(*right, fact)),
             },
             Expr::Function { name, args } => Expr::Function {
                 name,
                 args: args
                     .into_iter()
-                    .map(|arg| Self::rewrite_expr(arg, table, _group_key))
+                    .map(|arg| Self::rewrite_expr(arg, fact))
                     .collect(),
             },
             Expr::Aliased { expr, alias } => Expr::Aliased {
-                expr: Box::new(Self::rewrite_expr(*expr, table, _group_key)),
+                expr: Box::new(Self::rewrite_expr(*expr, fact)),
                 alias,
             },
             other => other,
         }
     }
 
-    fn substitute_select_measure(expr: &mut Expr, facts: &[FactPreAgg]) {
+    fn reaggregate(agg: &crate::models::AggregationType) -> crate::models::AggregationType {
+        match agg {
+            crate::models::AggregationType::Sum => crate::models::AggregationType::Sum,
+            crate::models::AggregationType::Count => crate::models::AggregationType::Sum,
+            crate::models::AggregationType::Min => crate::models::AggregationType::Min,
+            crate::models::AggregationType::Max => crate::models::AggregationType::Max,
+            crate::models::AggregationType::Average => {
+                debug_assert!(false, "Average aggregation should have been rejected upstream");
+                crate::models::AggregationType::Sum
+            }
+        }
+    }
+
+    fn rewrite_outer_expr(expr: &mut Expr, facts: &[FactPreAgg]) {
         match expr {
             Expr::MeasureRef { entity, measure } => {
                 for fact in facts {
                     if &fact.entity == entity {
                         if let Some(m) = fact.measures.iter().find(|m| &m.name == measure) {
-                            *expr = Expr::Column(ColumnIdent(format!(
+                            *expr = Self::reaggregate(&m.agg).to_expr(Expr::Column(ColumnIdent(format!(
                                 "{}.{}",
                                 Self::agg_alias(&fact.table),
                                 m.sql
-                            )));
+                            ))));
                             break;
                         }
                     }
                 }
             }
+            Expr::DimensionRef { entity, dimension: _ } => {
+                for fact in facts {
+                    if &fact.entity == entity {
+                        *expr = Expr::Column(ColumnIdent(format!(
+                            "{}.{}",
+                            Self::agg_alias(&fact.table),
+                            fact.group_key
+                        )));
+                        break;
+                    }
+                }
+            }
             Expr::BinaryOp { left, right, .. } => {
-                Self::substitute_select_measure(left, facts);
-                Self::substitute_select_measure(right, facts);
+                Self::rewrite_outer_expr(left, facts);
+                Self::rewrite_outer_expr(right, facts);
             }
             Expr::Function { args, .. } => {
                 for arg in args {
-                    Self::substitute_select_measure(arg, facts);
+                    Self::rewrite_outer_expr(arg, facts);
                 }
             }
             Expr::Aliased { expr: inner, .. } => {
-                Self::substitute_select_measure(inner, facts);
+                Self::rewrite_outer_expr(inner, facts);
             }
             _ => {}
         }
