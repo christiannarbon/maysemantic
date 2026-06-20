@@ -78,41 +78,6 @@ metrics:
 
     println!("Generated SQL:\n{}", sql);
 
-    // Assert that the pre-aggregation CTEs are defined
-    assert!(
-        sql.contains("\"public.orders_agg\" AS (") || sql.contains("orders_agg AS ("),
-        "Should contain orders_agg CTE"
-    );
-    assert!(
-        sql.contains("\"public.returns_agg\" AS (") || sql.contains("returns_agg AS ("),
-        "Should contain returns_agg CTE"
-    );
-
-    // Verify aggregation in CTE
-    // e.g., orders_agg should select customer_id and SUM(amount) AS amount
-    assert!(
-        sql.contains("SUM(amount)"),
-        "orders_agg CTE should sum the amount measure"
-    );
-
-    // Assert that the outer SELECT projects from orders_agg and NOT raw orders,
-    // and is NOT double-aggregated (so it selects orders_agg.amount, not SUM(orders_agg.amount) or SUM(amount))
-    assert!(
-        sql.contains("public.orders_agg.amount") || sql.contains("orders_agg.amount"),
-        "Outer SELECT should project orders_agg.amount"
-    );
-    assert!(
-        !sql.contains("SUM(public.orders_agg.amount)"),
-        "Outer SELECT must not double aggregate orders_agg.amount"
-    );
-
-    // Verify outer FROM/JOIN references the aggregates
-    assert!(
-        sql.contains("public.orders_agg") || sql.contains("orders_agg"),
-        "Outer FROM/JOIN should reference orders_agg table"
-    );
-    assert!(
-        sql.contains("public.returns_agg") || sql.contains("returns_agg"),
-        "Outer FROM/JOIN should reference returns_agg table"
-    );
+    let expected_sql = "WITH \"orders_agg\" AS (SELECT customer_id, SUM(amount) AS \"amount\" FROM public.orders GROUP BY customer_id), \"returns_agg\" AS (SELECT customer_id FROM public.returns GROUP BY customer_id) SELECT region, return_id, orders_agg.amount FROM orders_agg LEFT JOIN public.customers ON orders_agg.customer_id = public.customers.customer_id LEFT JOIN returns_agg ON public.customers.customer_id = returns_agg.customer_id GROUP BY region, return_id";
+    assert_eq!(sql, expected_sql);
 }
