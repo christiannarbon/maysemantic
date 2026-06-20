@@ -218,6 +218,12 @@ impl SemanticCompiler {
 
         let query_node = match &classification {
             PathClassification::MultiFactJoin { fact_tables } => {
+                if resolved_metric.measure.agg == crate::models::AggregationType::Average {
+                    return Err(CompilerError::ChasmTrapHandlingFailed(
+                        ChasmTrapError::UnsupportedAverageAggregation,
+                    ));
+                }
+
                 let link_entity = path_entities
                     .iter()
                     .filter(|e| e.entity_type == EntityType::Dimension)
@@ -264,6 +270,20 @@ impl SemanticCompiler {
                         .ok_or(CompilerError::ChasmTrapHandlingFailed(
                             ChasmTrapError::LinkDimensionNotFound,
                         ))?;
+
+                    // Verify Class 3: fact dimension finer than the conformed key
+                    for (dim_entity, dim) in &resolved_metric.dimensions {
+                        if &dim_entity.name == fact_name && dim.sql != key_col {
+                            return Err(CompilerError::ChasmTrapHandlingFailed(
+                                ChasmTrapError::FinerThanConformedGrain {
+                                    dimension: dim.name.clone(),
+                                    entity: dim_entity.name.clone(),
+                                    conformed_grain: key_col.clone(),
+                                },
+                            ));
+                        }
+                    }
+
                     let measures = if fact_entity.name == resolved_metric.measure_entity.name {
                         vec![MeasureProjection {
                             name: resolved_metric.measure.name.clone(),
