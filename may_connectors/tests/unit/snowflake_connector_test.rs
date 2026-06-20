@@ -262,3 +262,15 @@ async fn test_jwt_token_is_cached() {
         "MockSecretsProvider should NOT have been called again"
     );
 }
+
+#[tokio::test]
+async fn test_timeout_mapping_deterministic() {
+    let never_completes = futures::future::pending::<Result<(), ConnectorError>>();
+    let result = tokio::time::timeout(std::time::Duration::from_millis(0), never_completes).await;
+    let mapped = match result {
+        Ok(res) => res,
+        Err(_) => Err(ConnectorError::Timeout),
+    };
+    assert!(matches!(mapped, Err(ConnectorError::Timeout)));
+}
+
