@@ -556,7 +556,10 @@ fn test_inject_ctes_rewrites_outer_query() {
             assert_eq!(exprs.len(), 2);
             assert_eq!(
                 exprs[0],
-                Expr::Column(ColumnIdent("orders_agg.amount".to_string()))
+                Expr::Function {
+                    name: "SUM".to_string(),
+                    args: vec![Expr::Column(ColumnIdent("orders_agg.amount".to_string()))],
+                }
             );
             assert_eq!(
                 exprs[1],
@@ -575,7 +578,13 @@ fn test_inject_ctes_rewrites_outer_query() {
             }
 
             assert_eq!(joins.len(), 1);
-            if let SqlNode::Join { relation, on, .. } = &joins[0] {
+            if let SqlNode::Join {
+                join_type,
+                relation,
+                on,
+            } = &joins[0]
+            {
+                assert_eq!(*join_type, JoinType::Left);
                 if let SqlNode::Table(TableIdent(tbl)) = &**relation {
                     assert_eq!(tbl, "returns_agg");
                 } else {
@@ -605,10 +614,247 @@ fn test_inject_ctes_rewrites_outer_query() {
 
 #[test]
 fn test_rewrite_expr_preserves_column_suffix_sql_engine_rev_1_1_0() {
+    let fact = FactPreAgg {
+        entity: "orders".to_string(),
+        table: "orders".to_string(),
+        group_key: "customer_id".to_string(),
+        measures: vec![],
+    };
     let input = Expr::Column(ColumnIdent("orders.foo".to_string()));
-    let result = ChasmTrapHandler::rewrite_expr(input, "orders", "customer_id");
+    let result = ChasmTrapHandler::rewrite_expr(input, &fact);
     assert_eq!(
         result,
         Expr::Column(ColumnIdent("orders_agg.foo".to_string()))
     );
+}
+
+#[test]
+fn test_reaggregate_measure_wrapping_by_type() {
+    let select_node = SqlNode::Select(vec![
+        Expr::MeasureRef { entity: "orders".to_string(), measure: "count_measure".to_string() },
+        Expr::MeasureRef { entity: "orders".to_string(), measure: "sum_measure".to_string() },
+        Expr::MeasureRef { entity: "orders".to_string(), measure: "min_measure".to_string() },
+        Expr::MeasureRef { entity: "orders".to_string(), measure: "max_measure".to_string() },
+    ]);
+    let query = SqlNode::Query {
+        ctes: None,
+        select: Box::new(select_node),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string()],
+    };
+    let facts = vec![FactPreAgg {
+        entity: "orders".to_string(),
+        table: "orders".to_string(),
+        group_key: "customer_id".to_string(),
+        measures: vec![
+            MeasureProjection {
+                name: "count_measure".to_string(),
+                agg: AggregationType::Count,
+                sql: "order_id".to_string(),
+            },
+            MeasureProjection {
+                name: "sum_measure".to_string(),
+                agg: AggregationType::Sum,
+                sql: "amount".to_string(),
+            },
+            MeasureProjection {
+                name: "min_measure".to_string(),
+                agg: AggregationType::Min,
+                sql: "amount".to_string(),
+            },
+            MeasureProjection {
+                name: "max_measure".to_string(),
+                agg: AggregationType::Max,
+                sql: "amount".to_string(),
+            },
+        ],
+    }];
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
+    if let SqlNode::Query { select, .. } = result {
+        if let SqlNode::Select(exprs) = *select {
+            assert_eq!(exprs.len(), 4);
+            // Count -> SUM
+            assert_eq!(
+                exprs[0],
+                Expr::Function {
+                    name: "SUM".to_string(),
+                    args: vec![Expr::Column(ColumnIdent("orders_agg.order_id".to_string()))],
+                }
+            );
+            // Sum -> SUM
+            assert_eq!(
+                exprs[1],
+                Expr::Function {
+                    name: "SUM".to_string(),
+                    args: vec![Expr::Column(ColumnIdent("orders_agg.amount".to_string()))],
+                }
+            );
+            // Min -> MIN
+            assert_eq!(
+                exprs[2],
+                Expr::Function {
+                    name: "MIN".to_string(),
+                    args: vec![Expr::Column(ColumnIdent("orders_agg.amount".to_string()))],
+                }
+            );
+            // Max -> MAX
+            assert_eq!(
+                exprs[3],
+                Expr::Function {
+                    name: "MAX".to_string(),
+                    args: vec![Expr::Column(ColumnIdent("orders_agg.amount".to_string()))],
+                }
+            );
+        } else {
+            panic!("Expected Select node");
+        }
+    } else {
+        panic!("Expected Query node");
+    }
+}
+
+#[test]
+fn test_rewrite_dimension_ref_repoints_to_group_key() {
+    let fact = FactPreAgg {
+        entity: "orders".to_string(),
+        table: "orders".to_string(),
+        group_key: "customer_id".to_string(),
+        measures: vec![],
+    };
+    let input = Expr::DimensionRef {
+        entity: "orders".to_string(),
+        dimension: "customer_id".to_string(),
+    };
+    let result = ChasmTrapHandler::rewrite_expr(input, &fact);
+    assert_eq!(
+        result,
+        Expr::Column(ColumnIdent("orders_agg.customer_id".to_string()))
+    );
+}
+
+fn get_test_chasm_trap_state(measure_agg: &str, dimensions: &[&str]) -> std::sync::Arc<may_core::models::SemanticState> {
+    use may_core::models::{SemanticModel, SemanticState};
+    let mut state = SemanticState::new();
+    let model_content = format!(
+        r#"
+name: chasm_trap_unit_model
+entities:
+  - name: customers
+    table: public.customers
+    primary_key: customer_id
+    entity_type: dimension
+    dimensions:
+      - name: customer_id
+        type: number
+        sql: customer_id
+      - name: region
+        type: string
+        sql: region
+    measures: []
+  - name: orders
+    table: public.orders
+    primary_key: order_id
+    entity_type: fact
+    dimensions:
+      - name: customer_id
+        type: number
+        sql: customer_id
+    measures:
+      - name: amount
+        agg: {}
+        sql: amount
+  - name: returns
+    table: public.returns
+    primary_key: return_id
+    entity_type: fact
+    dimensions:
+      - name: return_id
+        type: number
+        sql: return_id
+      - name: return_customer_id
+        type: number
+        sql: customer_id
+    measures: []
+joins:
+  - left_entity: orders
+    left_column: customer_id
+    right_entity: customers
+    right_column: customer_id
+    join_type: left
+  - left_entity: customers
+    left_column: customer_id
+    right_entity: returns
+    right_column: customer_id
+    join_type: left
+metrics:
+  - name: test_metric
+    measure: amount
+    dimensions: {:?}
+"#,
+        measure_agg, dimensions
+    );
+    let model: SemanticModel = serde_norway::from_str(&model_content).expect("parse model");
+    state.models.insert(model.name.clone(), model);
+    std::sync::Arc::new(state)
+}
+
+#[test]
+fn test_compiler_rejects_average_in_chasm_trap() {
+    use may_core::compiler::{SemanticCompiler, SemanticRequest, CompilerError};
+    use may_core::dialects::PostgresDialect;
+    let state = get_test_chasm_trap_state("average", &["region", "return_customer_id"]);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+    let request = SemanticRequest {
+        metric_name: "test_metric".to_string(),
+        dimensions: vec![],
+        filters: vec![],
+        time_granularity: None,
+        limit: None,
+    };
+    let result = compiler.compile(request, None);
+    assert!(
+        matches!(
+            result,
+            Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::UnsupportedAverageAggregation))
+        ),
+        "Expected ChasmTrapError::UnsupportedAverageAggregation, got {:?}",
+        result
+    );
+}
+
+#[test]
+fn test_compiler_rejects_finer_grain_fact_dimension() {
+    use may_core::compiler::{SemanticCompiler, SemanticRequest, CompilerError};
+    use may_core::dialects::PostgresDialect;
+    let state = get_test_chasm_trap_state("sum", &["region", "return_id"]);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+    let request = SemanticRequest {
+        metric_name: "test_metric".to_string(),
+        dimensions: vec![],
+        filters: vec![],
+        time_granularity: None,
+        limit: None,
+    };
+    let result = compiler.compile(request, None);
+    assert!(
+        matches!(
+            result,
+            Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::FinerThanConformedGrain { .. }))
+        ),
+        "Expected ChasmTrapError::FinerThanConformedGrain, got {:?}",
+        result
+    );
+    if let Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::FinerThanConformedGrain { dimension, entity, conformed_grain })) = result {
+        assert_eq!(dimension, "return_id");
+        assert_eq!(entity, "returns");
+        assert_eq!(conformed_grain, "customer_id");
+    }
 }
