@@ -182,7 +182,10 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 buf.push(')');
                 Ok(())
             }
-            Expr::DateTrunc { granularity, column } => {
+            Expr::DateTrunc {
+                granularity,
+                column,
+            } => {
                 // `write_date_trunc` takes the column as a raw &str. We only support a
                 // simple `Expr::Column` as the truncation target for now; anything else
                 // is rejected explicitly rather than silently producing wrong SQL.
@@ -190,7 +193,8 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                     self.write_date_trunc(buf, granularity, &ident.0)
                 } else {
                     Err(DialectError::UnsupportedExpr(
-                        "DateTrunc currently only supports a simple Column as its argument".to_string(),
+                        "DateTrunc currently only supports a simple Column as its argument"
+                            .to_string(),
                     ))
                 }
             }
