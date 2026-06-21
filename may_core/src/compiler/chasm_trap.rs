@@ -118,11 +118,17 @@ impl ChasmTrapHandler {
                 for m in &fact.measures {
                     if m.agg == crate::models::AggregationType::Average {
                         select_exprs.push(Expr::Aliased {
-                            expr: Box::new(crate::models::AggregationType::Sum.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))),
+                            expr: Box::new(
+                                crate::models::AggregationType::Sum
+                                    .to_expr(Expr::Column(ColumnIdent(m.sql.clone()))),
+                            ),
                             alias: Self::avg_sum_col(&m.sql),
                         });
                         select_exprs.push(Expr::Aliased {
-                            expr: Box::new(crate::models::AggregationType::Count.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))),
+                            expr: Box::new(
+                                crate::models::AggregationType::Count
+                                    .to_expr(Expr::Column(ColumnIdent(m.sql.clone()))),
+                            ),
                             alias: Self::avg_cnt_col(&m.sql),
                         });
                     } else {
@@ -362,10 +368,7 @@ impl ChasmTrapHandler {
 
                                 let nullif_expr = Expr::Function {
                                     name: "NULLIF".to_string(),
-                                    args: vec![
-                                        cnt_expr,
-                                        Expr::Literal("0".to_string()),
-                                    ],
+                                    args: vec![cnt_expr, Expr::Literal("0".to_string())],
                                 };
 
                                 let mul_expr = Expr::BinaryOp {
@@ -380,9 +383,10 @@ impl ChasmTrapHandler {
                                     right: Box::new(nullif_expr),
                                 };
                             } else {
-                                *expr = Self::reaggregate(&m.agg).to_expr(Expr::Column(ColumnIdent(
-                                    format!("{}.{}", Self::agg_alias(&fact.table), m.sql),
-                                )));
+                                *expr =
+                                    Self::reaggregate(&m.agg).to_expr(Expr::Column(ColumnIdent(
+                                        format!("{}.{}", Self::agg_alias(&fact.table), m.sql),
+                                    )));
                             }
                             break;
                         }

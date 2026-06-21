@@ -218,7 +218,6 @@ impl SemanticCompiler {
 
         let query_node = match &classification {
             PathClassification::MultiFactJoin { fact_tables } => {
-
                 let link_entity = path_entities
                     .iter()
                     .filter(|e| e.entity_type == EntityType::Dimension)

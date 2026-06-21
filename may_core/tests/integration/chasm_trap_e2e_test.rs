@@ -164,13 +164,15 @@ metrics:
         limit: None,
     };
 
-    let sql = compiler.compile(request, None).expect("compile should succeed");
+    let sql = compiler
+        .compile(request, None)
+        .expect("compile should succeed");
 
     // Connect to Pagila database
     let connect_str = "host=localhost port=5433 user=postgres password=may_password dbname=pagila";
-    let (client, connection) = tokio_postgres::connect(connect_str, NoTls).await.expect(
-        "Failed to connect to Pagila Postgres database on port 5433.",
-    );
+    let (client, connection) = tokio_postgres::connect(connect_str, NoTls)
+        .await
+        .expect("Failed to connect to Pagila Postgres database on port 5433.");
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection error: {}", e);
@@ -212,8 +214,15 @@ metrics:
         *computed_store_totals.entry(store_id).or_insert(0.0) += amount;
     }
 
-    assert!(!true_store_totals.is_empty(), "true totals should not be empty");
-    assert_eq!(computed_store_totals.len(), true_store_totals.len(), "should have the same number of stores");
+    assert!(
+        !true_store_totals.is_empty(),
+        "true totals should not be empty"
+    );
+    assert_eq!(
+        computed_store_totals.len(),
+        true_store_totals.len(),
+        "should have the same number of stores"
+    );
 
     for (store_id, true_total) in &true_store_totals {
         let computed_total = computed_store_totals.get(store_id).copied().unwrap_or(0.0);
@@ -222,7 +231,10 @@ metrics:
         assert!(
             diff < 1e-5,
             "Total mismatch for store {}: computed {}, true {}, diff {}",
-            store_id, computed_total, true_total, diff
+            store_id,
+            computed_total,
+            true_total,
+            diff
         );
     }
 }
@@ -230,7 +242,9 @@ metrics:
 #[tokio::test]
 async fn test_execute_chasm_trap_average_positive_case() {
     if std::env::var("PAGILA_TESTS").is_err() {
-        eprintln!("Skipping Pagila chasm trap E2E average positive test (set PAGILA_TESTS=1 to run)");
+        eprintln!(
+            "Skipping Pagila chasm trap E2E average positive test (set PAGILA_TESTS=1 to run)"
+        );
         return;
     }
 
@@ -305,13 +319,15 @@ metrics:
         limit: None,
     };
 
-    let sql = compiler.compile(request, None).expect("compile should succeed");
+    let sql = compiler
+        .compile(request, None)
+        .expect("compile should succeed");
 
     // Connect to Pagila database
     let connect_str = "host=localhost port=5433 user=postgres password=may_password dbname=pagila";
-    let (client, connection) = tokio_postgres::connect(connect_str, NoTls).await.expect(
-        "Failed to connect to Pagila Postgres database on port 5433.",
-    );
+    let (client, connection) = tokio_postgres::connect(connect_str, NoTls)
+        .await
+        .expect("Failed to connect to Pagila Postgres database on port 5433.");
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection error: {}", e);
@@ -357,17 +373,29 @@ metrics:
         let customer_id: i32 = row.get(1);
         let avg_opt: Option<f64> = row.get(2);
 
-        let &(true_sum, true_cnt) = true_customer_data.get(&(store_id, customer_id))
+        let &(true_sum, true_cnt) = true_customer_data
+            .get(&(store_id, customer_id))
             .expect("customer not found in reference data");
 
         if true_cnt == 0 {
             // Empty-group case must yield NULL (Option::None)
-            assert!(avg_opt.is_none(), "Expected NULL average for customer {} with 0 payments, got {:?}", customer_id, avg_opt);
+            assert!(
+                avg_opt.is_none(),
+                "Expected NULL average for customer {} with 0 payments, got {:?}",
+                customer_id,
+                avg_opt
+            );
         } else {
             let computed_avg = avg_opt.expect("Expected non-NULL average");
             let true_avg = true_sum / (true_cnt as f64);
             let diff = (computed_avg - true_avg).abs();
-            assert!(diff < 1e-5, "Customer {} average mismatch: computed {}, true {}", customer_id, computed_avg, true_avg);
+            assert!(
+                diff < 1e-5,
+                "Customer {} average mismatch: computed {}, true {}",
+                customer_id,
+                computed_avg,
+                true_avg
+            );
 
             *computed_store_sum.entry(store_id).or_insert(0.0) += true_sum;
             *computed_store_cnt.entry(store_id).or_insert(0) += true_cnt;
@@ -387,13 +415,21 @@ metrics:
                 customer_averages.push(c_sum / (c_cnt as f64));
             }
         }
-        let mean_of_means = customer_averages.iter().sum::<f64>() / (customer_averages.len() as f64);
+        let mean_of_means =
+            customer_averages.iter().sum::<f64>() / (customer_averages.len() as f64);
 
         // Assert that true weighted average is different from mean-of-means
         let mean_diff = (true_weighted_avg - mean_of_means).abs();
-        assert!(mean_diff > 1e-5, "True row-weighted average and mean-of-means are too close (diff {}).", mean_diff);
+        assert!(
+            mean_diff > 1e-5,
+            "True row-weighted average and mean-of-means are too close (diff {}).",
+            mean_diff
+        );
 
-        println!("Store {}: true weighted average = {}, mean of means = {}", store_id, true_weighted_avg, mean_of_means);
+        println!(
+            "Store {}: true weighted average = {}, mean of means = {}",
+            store_id, true_weighted_avg, mean_of_means
+        );
     }
 }
 

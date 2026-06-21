@@ -838,7 +838,9 @@ fn test_compiler_accepts_average_in_chasm_trap() {
     let sql = result.expect("Average compilation should succeed");
     assert!(sql.contains("amount__sum"));
     assert!(sql.contains("amount__cnt"));
-    assert!(sql.contains("SUM(orders_agg.amount__sum) * 1.0 / NULLIF(SUM(orders_agg.amount__cnt), 0)"));
+    assert!(
+        sql.contains("SUM(orders_agg.amount__sum) * 1.0 / NULLIF(SUM(orders_agg.amount__cnt), 0)")
+    );
 }
 
 #[test]
@@ -861,11 +863,14 @@ fn test_average_decomposition_cte_projection() {
     if let SqlNode::Query { ctes, .. } = result {
         let ctes = ctes.unwrap();
         assert_eq!(ctes.len(), 1);
-        if let SqlNode::CTE { query: cte_query, .. } = &ctes[0] {
+        if let SqlNode::CTE {
+            query: cte_query, ..
+        } = &ctes[0]
+        {
             if let SqlNode::Query { select, .. } = &**cte_query {
                 if let SqlNode::Select(exprs) = &**select {
                     assert_eq!(exprs.len(), 3); // user_id, amount__sum, amount__cnt
-                    // Verify sum component
+                                                // Verify sum component
                     assert_eq!(
                         exprs[1],
                         Expr::Aliased {
@@ -903,9 +908,10 @@ fn test_average_decomposition_cte_projection() {
 
 #[test]
 fn test_average_decomposition_outer_query_rewrite() {
-    let select_node = SqlNode::Select(vec![
-        Expr::MeasureRef { entity: "orders".to_string(), measure: "amount".to_string() },
-    ]);
+    let select_node = SqlNode::Select(vec![Expr::MeasureRef {
+        entity: "orders".to_string(),
+        measure: "amount".to_string(),
+    }]);
     let query = SqlNode::Query {
         ctes: None,
         select: Box::new(select_node),
@@ -941,7 +947,9 @@ fn test_average_decomposition_outer_query_rewrite() {
                     left: Box::new(Expr::BinaryOp {
                         left: Box::new(Expr::Function {
                             name: "SUM".to_string(),
-                            args: vec![Expr::Column(ColumnIdent("orders_agg.amount__sum".to_string()))],
+                            args: vec![Expr::Column(ColumnIdent(
+                                "orders_agg.amount__sum".to_string()
+                            ))],
                         }),
                         op: "*".to_string(),
                         right: Box::new(Expr::Literal("1.0".to_string())),
@@ -952,7 +960,9 @@ fn test_average_decomposition_outer_query_rewrite() {
                         args: vec![
                             Expr::Function {
                                 name: "SUM".to_string(),
-                                args: vec![Expr::Column(ColumnIdent("orders_agg.amount__cnt".to_string()))],
+                                args: vec![Expr::Column(ColumnIdent(
+                                    "orders_agg.amount__cnt".to_string()
+                                ))],
                             },
                             Expr::Literal("0".to_string()),
                         ],
