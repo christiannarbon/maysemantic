@@ -69,6 +69,17 @@ pub enum Expr {
         args: Vec<Expr>,
     },
 
+    /// Represents a date truncation expression (e.g., truncate a timestamp to the month).
+    ///
+    /// This variant is dialect-aware: the actual SQL is produced by each dialect's
+    /// `write_date_trunc` hook (argument order and quoting differ per warehouse).
+    DateTrunc {
+        /// The granularity to truncate to (e.g., "day", "month", "year").
+        granularity: String,
+        /// The column or expression to truncate.
+        column: Box<Expr>,
+    },
+
     /// Represents a reference to a semantic dimension defined in the configuration.
     DimensionRef {
         /// The entity containing the dimension.
