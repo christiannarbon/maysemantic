@@ -118,6 +118,10 @@ impl<'a> SemanticLowering<'a> {
                 expr: Box::new(self.lower_expr(*expr)?),
                 alias,
             }),
+            Expr::DateTrunc { granularity, column } => Ok(Expr::DateTrunc {
+                granularity,
+                column: Box::new(self.lower_expr(*column)?),
+            }),
         }
     }
 
