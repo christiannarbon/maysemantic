@@ -631,10 +631,22 @@ fn test_rewrite_expr_preserves_column_suffix_sql_engine_rev_1_1_0() {
 #[test]
 fn test_reaggregate_measure_wrapping_by_type() {
     let select_node = SqlNode::Select(vec![
-        Expr::MeasureRef { entity: "orders".to_string(), measure: "count_measure".to_string() },
-        Expr::MeasureRef { entity: "orders".to_string(), measure: "sum_measure".to_string() },
-        Expr::MeasureRef { entity: "orders".to_string(), measure: "min_measure".to_string() },
-        Expr::MeasureRef { entity: "orders".to_string(), measure: "max_measure".to_string() },
+        Expr::MeasureRef {
+            entity: "orders".to_string(),
+            measure: "count_measure".to_string(),
+        },
+        Expr::MeasureRef {
+            entity: "orders".to_string(),
+            measure: "sum_measure".to_string(),
+        },
+        Expr::MeasureRef {
+            entity: "orders".to_string(),
+            measure: "min_measure".to_string(),
+        },
+        Expr::MeasureRef {
+            entity: "orders".to_string(),
+            measure: "max_measure".to_string(),
+        },
     ]);
     let query = SqlNode::Query {
         ctes: None,
@@ -740,7 +752,10 @@ fn test_rewrite_dimension_ref_repoints_to_group_key() {
     );
 }
 
-fn get_test_chasm_trap_state(measure_agg: &str, dimensions: &[&str]) -> std::sync::Arc<may_core::models::SemanticState> {
+fn get_test_chasm_trap_state(
+    measure_agg: &str,
+    dimensions: &[&str],
+) -> std::sync::Arc<may_core::models::SemanticState> {
     use may_core::models::{SemanticModel, SemanticState};
     let mut state = SemanticState::new();
     let model_content = format!(
@@ -808,7 +823,7 @@ metrics:
 
 #[test]
 fn test_compiler_rejects_average_in_chasm_trap() {
-    use may_core::compiler::{SemanticCompiler, SemanticRequest, CompilerError};
+    use may_core::compiler::{CompilerError, SemanticCompiler, SemanticRequest};
     use may_core::dialects::PostgresDialect;
     let state = get_test_chasm_trap_state("average", &["region", "return_customer_id"]);
     let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
@@ -823,7 +838,9 @@ fn test_compiler_rejects_average_in_chasm_trap() {
     assert!(
         matches!(
             result,
-            Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::UnsupportedAverageAggregation))
+            Err(CompilerError::ChasmTrapHandlingFailed(
+                ChasmTrapError::UnsupportedAverageAggregation
+            ))
         ),
         "Expected ChasmTrapError::UnsupportedAverageAggregation, got {:?}",
         result
@@ -832,7 +849,7 @@ fn test_compiler_rejects_average_in_chasm_trap() {
 
 #[test]
 fn test_compiler_rejects_finer_grain_fact_dimension() {
-    use may_core::compiler::{SemanticCompiler, SemanticRequest, CompilerError};
+    use may_core::compiler::{CompilerError, SemanticCompiler, SemanticRequest};
     use may_core::dialects::PostgresDialect;
     let state = get_test_chasm_trap_state("sum", &["region", "return_id"]);
     let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
@@ -847,12 +864,19 @@ fn test_compiler_rejects_finer_grain_fact_dimension() {
     assert!(
         matches!(
             result,
-            Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::FinerThanConformedGrain { .. }))
+            Err(CompilerError::ChasmTrapHandlingFailed(
+                ChasmTrapError::FinerThanConformedGrain { .. }
+            ))
         ),
         "Expected ChasmTrapError::FinerThanConformedGrain, got {:?}",
         result
     );
-    if let Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::FinerThanConformedGrain { dimension, entity, conformed_grain })) = result {
+    if let Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::FinerThanConformedGrain {
+        dimension,
+        entity,
+        conformed_grain,
+    })) = result
+    {
         assert_eq!(dimension, "return_id");
         assert_eq!(entity, "returns");
         assert_eq!(conformed_grain, "customer_id");
