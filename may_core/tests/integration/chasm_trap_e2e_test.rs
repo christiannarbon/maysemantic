@@ -1,4 +1,4 @@
-use may_core::compiler::{SemanticCompiler, SemanticRequest, CompilerError, ChasmTrapError};
+use may_core::compiler::{ChasmTrapError, CompilerError, SemanticCompiler, SemanticRequest};
 use may_core::dialects::PostgresDialect;
 use may_core::models::{SemanticModel, SemanticState};
 use std::sync::Arc;
@@ -164,13 +164,15 @@ metrics:
         limit: None,
     };
 
-    let sql = compiler.compile(request, None).expect("compile should succeed");
+    let sql = compiler
+        .compile(request, None)
+        .expect("compile should succeed");
 
     // Connect to Pagila database
     let connect_str = "host=localhost port=5433 user=postgres password=may_password dbname=pagila";
-    let (client, connection) = tokio_postgres::connect(connect_str, NoTls).await.expect(
-        "Failed to connect to Pagila Postgres database on port 5433.",
-    );
+    let (client, connection) = tokio_postgres::connect(connect_str, NoTls)
+        .await
+        .expect("Failed to connect to Pagila Postgres database on port 5433.");
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection error: {}", e);
@@ -212,8 +214,15 @@ metrics:
         *computed_store_totals.entry(store_id).or_insert(0.0) += amount;
     }
 
-    assert!(!true_store_totals.is_empty(), "true totals should not be empty");
-    assert_eq!(computed_store_totals.len(), true_store_totals.len(), "should have the same number of stores");
+    assert!(
+        !true_store_totals.is_empty(),
+        "true totals should not be empty"
+    );
+    assert_eq!(
+        computed_store_totals.len(),
+        true_store_totals.len(),
+        "should have the same number of stores"
+    );
 
     for (store_id, true_total) in &true_store_totals {
         let computed_total = computed_store_totals.get(store_id).copied().unwrap_or(0.0);
@@ -222,7 +231,10 @@ metrics:
         assert!(
             diff < 1e-5,
             "Total mismatch for store {}: computed {}, true {}, diff {}",
-            store_id, computed_total, true_total, diff
+            store_id,
+            computed_total,
+            true_total,
+            diff
         );
     }
 }
@@ -301,12 +313,19 @@ metrics:
     assert!(
         matches!(
             result,
-            Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::FinerThanConformedGrain { .. }))
+            Err(CompilerError::ChasmTrapHandlingFailed(
+                ChasmTrapError::FinerThanConformedGrain { .. }
+            ))
         ),
         "Expected FinerThanConformedGrain error, got {:?}",
         result
     );
-    if let Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::FinerThanConformedGrain { dimension, entity, conformed_grain })) = result {
+    if let Err(CompilerError::ChasmTrapHandlingFailed(ChasmTrapError::FinerThanConformedGrain {
+        dimension,
+        entity,
+        conformed_grain,
+    })) = result
+    {
         assert_eq!(dimension, "rental_id");
         assert_eq!(entity, "rentals");
         assert_eq!(conformed_grain, "customer_id");
