@@ -164,15 +164,13 @@ metrics:
         limit: None,
     };
 
-    let sql = compiler
-        .compile(request, None)
-        .expect("compile should succeed");
+    let sql = compiler.compile(request, None).expect("compile should succeed");
 
     // Connect to Pagila database
     let connect_str = "host=localhost port=5433 user=postgres password=may_password dbname=pagila";
-    let (client, connection) = tokio_postgres::connect(connect_str, NoTls)
-        .await
-        .expect("Failed to connect to Pagila Postgres database on port 5433.");
+    let (client, connection) = tokio_postgres::connect(connect_str, NoTls).await.expect(
+        "Failed to connect to Pagila Postgres database on port 5433.",
+    );
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection error: {}", e);
@@ -197,7 +195,7 @@ metrics:
 
     // Wrap the semantic query to cast columns to simple float8/int types for tokio-postgres compatibility
     let execute_sql = format!(
-        "SELECT store_id::int, customer_id::int, sum::float8 FROM ({}) AS sub",
+        "SELECT store_id::int, customer_id::int, amount::float8 FROM ({}) AS sub(store_id, customer_id, amount)",
         sql
     );
 
@@ -214,15 +212,8 @@ metrics:
         *computed_store_totals.entry(store_id).or_insert(0.0) += amount;
     }
 
-    assert!(
-        !true_store_totals.is_empty(),
-        "true totals should not be empty"
-    );
-    assert_eq!(
-        computed_store_totals.len(),
-        true_store_totals.len(),
-        "should have the same number of stores"
-    );
+    assert!(!true_store_totals.is_empty(), "true totals should not be empty");
+    assert_eq!(computed_store_totals.len(), true_store_totals.len(), "should have the same number of stores");
 
     for (store_id, true_total) in &true_store_totals {
         let computed_total = computed_store_totals.get(store_id).copied().unwrap_or(0.0);
@@ -231,11 +222,178 @@ metrics:
         assert!(
             diff < 1e-5,
             "Total mismatch for store {}: computed {}, true {}, diff {}",
-            store_id,
-            computed_total,
-            true_total,
-            diff
+            store_id, computed_total, true_total, diff
         );
+    }
+}
+
+#[tokio::test]
+async fn test_execute_chasm_trap_average_positive_case() {
+    if std::env::var("PAGILA_TESTS").is_err() {
+        eprintln!("Skipping Pagila chasm trap E2E average positive test (set PAGILA_TESTS=1 to run)");
+        return;
+    }
+
+    let mut state = SemanticState::new();
+    let model_content = r#"
+name: pagila_chasm_trap_avg_model
+entities:
+  - name: customers
+    table: public.customer
+    primary_key: customer_id
+    entity_type: dimension
+    dimensions:
+      - name: customer_id
+        type: number
+        sql: customer_id
+      - name: store_id
+        type: number
+        sql: store_id
+    measures: []
+  - name: payments
+    table: public.payment
+    primary_key: payment_id
+    entity_type: fact
+    dimensions:
+      - name: customer_id
+        type: number
+        sql: customer_id
+    measures:
+      - name: amount
+        agg: average
+        sql: amount
+  - name: rentals
+    table: public.rental
+    primary_key: rental_id
+    entity_type: fact
+    dimensions:
+      - name: rental_id
+        type: number
+        sql: rental_id
+      - name: rental_customer_id
+        type: number
+        sql: customer_id
+    measures: []
+joins:
+  - left_entity: payments
+    left_column: customer_id
+    right_entity: customers
+    right_column: customer_id
+    join_type: left
+  - left_entity: customers
+    left_column: customer_id
+    right_entity: rentals
+    right_column: customer_id
+    join_type: left
+metrics:
+  - name: payments_avg_amount_by_store
+    measure: amount
+    dimensions: [store_id, rental_customer_id]
+"#;
+
+    let model: SemanticModel = serde_norway::from_str(model_content).expect("parse model");
+    state.models.insert(model.name.clone(), model);
+
+    let state = Arc::new(state);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+
+    let request = SemanticRequest {
+        metric_name: "payments_avg_amount_by_store".to_string(),
+        dimensions: vec![],
+        filters: vec![],
+        time_granularity: None,
+        limit: None,
+    };
+
+    let sql = compiler.compile(request, None).expect("compile should succeed");
+
+    // Connect to Pagila database
+    let connect_str = "host=localhost port=5433 user=postgres password=may_password dbname=pagila";
+    let (client, connection) = tokio_postgres::connect(connect_str, NoTls).await.expect(
+        "Failed to connect to Pagila Postgres database on port 5433.",
+    );
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
+    // Get true customer-level sum and count to compute true row-weighted averages
+    let reference_rows = client
+        .query(
+            "SELECT c.store_id::int, c.customer_id::int, COALESCE(SUM(p.amount), 0)::float8, COALESCE(COUNT(p.amount), 0)::int FROM public.customer c LEFT JOIN public.payment p ON p.customer_id = c.customer_id GROUP BY c.store_id, c.customer_id",
+            &[],
+        )
+        .await
+        .expect("failed to execute reference query");
+
+    let mut true_customer_data = std::collections::HashMap::new();
+    for row in reference_rows {
+        let store_id: i32 = row.get(0);
+        let customer_id: i32 = row.get(1);
+        let sum: f64 = row.get(2);
+        let cnt: i32 = row.get(3);
+        true_customer_data.insert((store_id, customer_id), (sum, cnt));
+    }
+
+    // Wrap the semantic query and alias output columns
+    let execute_sql = format!(
+        "SELECT store_id::int, customer_id::int, amount::float8 FROM ({}) AS sub(store_id, customer_id, amount)",
+        sql
+    );
+
+    let rows = client
+        .query(&execute_sql, &[])
+        .await
+        .expect("failed to execute semantic query");
+
+    let mut computed_store_sum = std::collections::HashMap::new();
+    let mut computed_store_cnt = std::collections::HashMap::new();
+    let mut total_customers = 0;
+
+    for row in rows {
+        total_customers += 1;
+        let store_id: i32 = row.get(0);
+        let customer_id: i32 = row.get(1);
+        let avg_opt: Option<f64> = row.get(2);
+
+        let &(true_sum, true_cnt) = true_customer_data.get(&(store_id, customer_id))
+            .expect("customer not found in reference data");
+
+        if true_cnt == 0 {
+            // Empty-group case must yield NULL (Option::None)
+            assert!(avg_opt.is_none(), "Expected NULL average for customer {} with 0 payments, got {:?}", customer_id, avg_opt);
+        } else {
+            let computed_avg = avg_opt.expect("Expected non-NULL average");
+            let true_avg = true_sum / (true_cnt as f64);
+            let diff = (computed_avg - true_avg).abs();
+            assert!(diff < 1e-5, "Customer {} average mismatch: computed {}, true {}", customer_id, computed_avg, true_avg);
+
+            *computed_store_sum.entry(store_id).or_insert(0.0) += true_sum;
+            *computed_store_cnt.entry(store_id).or_insert(0) += true_cnt;
+        }
+    }
+
+    assert!(total_customers > 0, "No customers returned");
+
+    // Verify store-level row-weighted averages vs mean-of-means
+    for (store_id, sum) in computed_store_sum {
+        let cnt = computed_store_cnt[&store_id] as f64;
+        let true_weighted_avg = sum / cnt;
+
+        let mut customer_averages = Vec::new();
+        for ((s_id, _), &(c_sum, c_cnt)) in &true_customer_data {
+            if *s_id == store_id && c_cnt > 0 {
+                customer_averages.push(c_sum / (c_cnt as f64));
+            }
+        }
+        let mean_of_means = customer_averages.iter().sum::<f64>() / (customer_averages.len() as f64);
+
+        // Assert that true weighted average is different from mean-of-means
+        let mean_diff = (true_weighted_avg - mean_of_means).abs();
+        assert!(mean_diff > 1e-5, "True row-weighted average and mean-of-means are too close (diff {}).", mean_diff);
+
+        println!("Store {}: true weighted average = {}, mean of means = {}", store_id, true_weighted_avg, mean_of_means);
     }
 }
 
