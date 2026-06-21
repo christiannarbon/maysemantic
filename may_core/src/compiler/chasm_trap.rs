@@ -50,6 +50,14 @@ impl ChasmTrapHandler {
         format!("{}_agg", base)
     }
 
+    fn avg_sum_col(sql: &str) -> String {
+        format!("{}__sum", sql)
+    }
+
+    fn avg_cnt_col(sql: &str) -> String {
+        format!("{}__cnt", sql)
+    }
+
     /// Apply pre-aggregation CTE injection if the path classification requires it.
     ///
     /// - `SingleFact` and `PureDimension` → returns `query` unchanged (zero cost)
@@ -108,10 +116,21 @@ impl ChasmTrapHandler {
 
                 let mut select_exprs = vec![Expr::Column(ColumnIdent(fact.group_key.clone()))];
                 for m in &fact.measures {
-                    select_exprs.push(Expr::Aliased {
-                        expr: Box::new(m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))),
-                        alias: m.sql.clone(),
-                    });
+                    if m.agg == crate::models::AggregationType::Average {
+                        select_exprs.push(Expr::Aliased {
+                            expr: Box::new(crate::models::AggregationType::Sum.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))),
+                            alias: Self::avg_sum_col(&m.sql),
+                        });
+                        select_exprs.push(Expr::Aliased {
+                            expr: Box::new(crate::models::AggregationType::Count.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))),
+                            alias: Self::avg_cnt_col(&m.sql),
+                        });
+                    } else {
+                        select_exprs.push(Expr::Aliased {
+                            expr: Box::new(m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone())))),
+                            alias: m.sql.clone(),
+                        });
+                    }
                 }
 
                 let sub_query = SqlNode::Query {
@@ -316,13 +335,7 @@ impl ChasmTrapHandler {
             crate::models::AggregationType::Count => crate::models::AggregationType::Sum,
             crate::models::AggregationType::Min => crate::models::AggregationType::Min,
             crate::models::AggregationType::Max => crate::models::AggregationType::Max,
-            crate::models::AggregationType::Average => {
-                debug_assert!(
-                    false,
-                    "Average aggregation should have been rejected upstream"
-                );
-                crate::models::AggregationType::Sum
-            }
+            crate::models::AggregationType::Average => crate::models::AggregationType::Average,
         }
     }
 
@@ -332,9 +345,45 @@ impl ChasmTrapHandler {
                 for fact in facts {
                     if &fact.entity == entity {
                         if let Some(m) = fact.measures.iter().find(|m| &m.name == measure) {
-                            *expr = Self::reaggregate(&m.agg).to_expr(Expr::Column(ColumnIdent(
-                                format!("{}.{}", Self::agg_alias(&fact.table), m.sql),
-                            )));
+                            if m.agg == crate::models::AggregationType::Average {
+                                let sum_col = Expr::Column(ColumnIdent(format!(
+                                    "{}.{}",
+                                    Self::agg_alias(&fact.table),
+                                    Self::avg_sum_col(&m.sql)
+                                )));
+                                let sum_expr = crate::models::AggregationType::Sum.to_expr(sum_col);
+
+                                let cnt_col = Expr::Column(ColumnIdent(format!(
+                                    "{}.{}",
+                                    Self::agg_alias(&fact.table),
+                                    Self::avg_cnt_col(&m.sql)
+                                )));
+                                let cnt_expr = crate::models::AggregationType::Sum.to_expr(cnt_col);
+
+                                let nullif_expr = Expr::Function {
+                                    name: "NULLIF".to_string(),
+                                    args: vec![
+                                        cnt_expr,
+                                        Expr::Literal("0".to_string()),
+                                    ],
+                                };
+
+                                let mul_expr = Expr::BinaryOp {
+                                    left: Box::new(sum_expr),
+                                    op: "*".to_string(),
+                                    right: Box::new(Expr::Literal("1.0".to_string())),
+                                };
+
+                                *expr = Expr::BinaryOp {
+                                    left: Box::new(mul_expr),
+                                    op: "/".to_string(),
+                                    right: Box::new(nullif_expr),
+                                };
+                            } else {
+                                *expr = Self::reaggregate(&m.agg).to_expr(Expr::Column(ColumnIdent(
+                                    format!("{}.{}", Self::agg_alias(&fact.table), m.sql),
+                                )));
+                            }
                             break;
                         }
                     }
