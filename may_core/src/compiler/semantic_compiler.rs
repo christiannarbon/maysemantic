@@ -218,11 +218,6 @@ impl SemanticCompiler {
 
         let query_node = match &classification {
             PathClassification::MultiFactJoin { fact_tables } => {
-                if resolved_metric.measure.agg == crate::models::AggregationType::Average {
-                    return Err(CompilerError::ChasmTrapHandlingFailed(
-                        ChasmTrapError::UnsupportedAverageAggregation,
-                    ));
-                }
 
                 let link_entity = path_entities
                     .iter()
