@@ -169,3 +169,30 @@ fn test_snowflake_dialect_ctes_are_uppercased() {
         "WITH \"ACTIVE_USERS\" AS (SELECT id FROM users) SELECT * FROM active_users"
     );
 }
+
+#[test]
+fn test_snowflake_date_trunc_expr_variant() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![
+            Expr::DateTrunc {
+                granularity: "month".to_string(),
+                column: Box::new(Expr::Column(ColumnIdent("created_at".to_string()))),
+            }
+        ])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+
+    let dialect = SnowflakeDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(
+        sql,
+        "SELECT DATE_TRUNC('MONTH', \"CREATED_AT\") FROM public.users"
+    );
+}
