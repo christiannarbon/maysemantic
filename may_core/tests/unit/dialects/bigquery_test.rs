@@ -158,3 +158,30 @@ fn test_bigquery_dialect_ctes_use_backticks() {
         "WITH `active_users` AS (SELECT id FROM users) SELECT * FROM active_users"
     );
 }
+
+#[test]
+fn test_bigquery_date_trunc_expr_variant() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![
+            Expr::DateTrunc {
+                granularity: "month".to_string(),
+                column: Box::new(Expr::Column(ColumnIdent("created_at".to_string()))),
+            }
+        ])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+
+    let dialect = BigQueryDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(
+        sql,
+        "SELECT DATE_TRUNC(`created_at`, MONTH) FROM public.users"
+    );
+}
