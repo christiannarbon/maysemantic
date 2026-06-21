@@ -144,3 +144,30 @@ fn test_postgres_dialect_quote_identifier_uses_ansi_default() {
     assert_eq!(dialect.quote_identifier("users"), "\"users\"");
     assert_eq!(dialect.quote_identifier("my\"table"), "\"my\"\"table\"");
 }
+
+#[test]
+fn test_postgres_date_trunc_expr_variant() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![
+            Expr::DateTrunc {
+                granularity: "month".to_string(),
+                column: Box::new(Expr::Column(ColumnIdent("created_at".to_string()))),
+            }
+        ])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(
+        sql,
+        "SELECT DATE_TRUNC('month', \"created_at\") FROM public.users"
+    );
+}
