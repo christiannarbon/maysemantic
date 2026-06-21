@@ -822,8 +822,8 @@ metrics:
 }
 
 #[test]
-fn test_compiler_rejects_average_in_chasm_trap() {
-    use may_core::compiler::{CompilerError, SemanticCompiler, SemanticRequest};
+fn test_compiler_accepts_average_in_chasm_trap() {
+    use may_core::compiler::{SemanticCompiler, SemanticRequest};
     use may_core::dialects::PostgresDialect;
     let state = get_test_chasm_trap_state("average", &["region", "return_customer_id"]);
     let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
@@ -835,16 +835,136 @@ fn test_compiler_rejects_average_in_chasm_trap() {
         limit: None,
     };
     let result = compiler.compile(request, None);
-    assert!(
-        matches!(
-            result,
-            Err(CompilerError::ChasmTrapHandlingFailed(
-                ChasmTrapError::UnsupportedAverageAggregation
-            ))
-        ),
-        "Expected ChasmTrapError::UnsupportedAverageAggregation, got {:?}",
-        result
-    );
+    let sql = result.expect("Average compilation should succeed");
+    assert!(sql.contains("amount__sum"));
+    assert!(sql.contains("amount__cnt"));
+    assert!(sql.contains("SUM(orders_agg.amount__sum) * 1.0 / NULLIF(SUM(orders_agg.amount__cnt), 0)"));
+}
+
+#[test]
+fn test_average_decomposition_cte_projection() {
+    let query = create_helper_query();
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string()],
+    };
+    let facts = vec![FactPreAgg {
+        entity: "orders".to_string(),
+        table: "orders".to_string(),
+        group_key: "user_id".to_string(),
+        measures: vec![MeasureProjection {
+            name: "amount".to_string(),
+            agg: AggregationType::Average,
+            sql: "amount".to_string(),
+        }],
+    }];
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
+    if let SqlNode::Query { ctes, .. } = result {
+        let ctes = ctes.unwrap();
+        assert_eq!(ctes.len(), 1);
+        if let SqlNode::CTE { query: cte_query, .. } = &ctes[0] {
+            if let SqlNode::Query { select, .. } = &**cte_query {
+                if let SqlNode::Select(exprs) = &**select {
+                    assert_eq!(exprs.len(), 3); // user_id, amount__sum, amount__cnt
+                    // Verify sum component
+                    assert_eq!(
+                        exprs[1],
+                        Expr::Aliased {
+                            expr: Box::new(Expr::Function {
+                                name: "SUM".to_string(),
+                                args: vec![Expr::Column(ColumnIdent("amount".to_string()))],
+                            }),
+                            alias: "amount__sum".to_string(),
+                        }
+                    );
+                    // Verify count component
+                    assert_eq!(
+                        exprs[2],
+                        Expr::Aliased {
+                            expr: Box::new(Expr::Function {
+                                name: "COUNT".to_string(),
+                                args: vec![Expr::Column(ColumnIdent("amount".to_string()))],
+                            }),
+                            alias: "amount__cnt".to_string(),
+                        }
+                    );
+                } else {
+                    panic!("Expected Select node in CTE");
+                }
+            } else {
+                panic!("Expected Query node in CTE body");
+            }
+        } else {
+            panic!("Expected CTE node");
+        }
+    } else {
+        panic!("Expected Query node");
+    }
+}
+
+#[test]
+fn test_average_decomposition_outer_query_rewrite() {
+    let select_node = SqlNode::Select(vec![
+        Expr::MeasureRef { entity: "orders".to_string(), measure: "amount".to_string() },
+    ]);
+    let query = SqlNode::Query {
+        ctes: None,
+        select: Box::new(select_node),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string()],
+    };
+    let facts = vec![FactPreAgg {
+        entity: "orders".to_string(),
+        table: "orders".to_string(),
+        group_key: "customer_id".to_string(),
+        measures: vec![MeasureProjection {
+            name: "amount".to_string(),
+            agg: AggregationType::Average,
+            sql: "amount".to_string(),
+        }],
+    }];
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts).unwrap();
+    if let SqlNode::Query { select, .. } = result {
+        if let SqlNode::Select(exprs) = *select {
+            assert_eq!(exprs.len(), 1);
+            // Verify SUM(amount__sum) * 1.0 / NULLIF(SUM(amount__cnt), 0)
+            assert_eq!(
+                exprs[0],
+                Expr::BinaryOp {
+                    left: Box::new(Expr::BinaryOp {
+                        left: Box::new(Expr::Function {
+                            name: "SUM".to_string(),
+                            args: vec![Expr::Column(ColumnIdent("orders_agg.amount__sum".to_string()))],
+                        }),
+                        op: "*".to_string(),
+                        right: Box::new(Expr::Literal("1.0".to_string())),
+                    }),
+                    op: "/".to_string(),
+                    right: Box::new(Expr::Function {
+                        name: "NULLIF".to_string(),
+                        args: vec![
+                            Expr::Function {
+                                name: "SUM".to_string(),
+                                args: vec![Expr::Column(ColumnIdent("orders_agg.amount__cnt".to_string()))],
+                            },
+                            Expr::Literal("0".to_string()),
+                        ],
+                    }),
+                }
+            );
+        } else {
+            panic!("Expected Select node");
+        }
+    } else {
+        panic!("Expected Query node");
+    }
 }
 
 #[test]
