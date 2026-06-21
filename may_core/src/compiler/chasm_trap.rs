@@ -162,8 +162,7 @@ impl ChasmTrapHandler {
             // 1. Swap table name in FROM / JOIN and rewrite JOIN ON
             let mut rewritten_from = *from;
             for fact in facts {
-                rewritten_from =
-                    Self::rewrite_from_and_joins(rewritten_from, fact);
+                rewritten_from = Self::rewrite_from_and_joins(rewritten_from, fact);
             }
 
             // 2. SELECT measure/dimension substitution
@@ -318,7 +317,10 @@ impl ChasmTrapHandler {
             crate::models::AggregationType::Min => crate::models::AggregationType::Min,
             crate::models::AggregationType::Max => crate::models::AggregationType::Max,
             crate::models::AggregationType::Average => {
-                debug_assert!(false, "Average aggregation should have been rejected upstream");
+                debug_assert!(
+                    false,
+                    "Average aggregation should have been rejected upstream"
+                );
                 crate::models::AggregationType::Sum
             }
         }
@@ -330,17 +332,18 @@ impl ChasmTrapHandler {
                 for fact in facts {
                     if &fact.entity == entity {
                         if let Some(m) = fact.measures.iter().find(|m| &m.name == measure) {
-                            *expr = Self::reaggregate(&m.agg).to_expr(Expr::Column(ColumnIdent(format!(
-                                "{}.{}",
-                                Self::agg_alias(&fact.table),
-                                m.sql
-                            ))));
+                            *expr = Self::reaggregate(&m.agg).to_expr(Expr::Column(ColumnIdent(
+                                format!("{}.{}", Self::agg_alias(&fact.table), m.sql),
+                            )));
                             break;
                         }
                     }
                 }
             }
-            Expr::DimensionRef { entity, dimension: _ } => {
+            Expr::DimensionRef {
+                entity,
+                dimension: _,
+            } => {
                 for fact in facts {
                     if &fact.entity == entity {
                         *expr = Expr::Column(ColumnIdent(format!(
