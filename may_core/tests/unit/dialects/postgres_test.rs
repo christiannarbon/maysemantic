@@ -1,7 +1,7 @@
 use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
+use may_core::DialectError;
 use may_core::PostgresDialect;
 use may_core::SqlDialect;
-use may_core::DialectError;
 
 #[test]
 fn test_postgres_dialect_generates_basic_select() {
