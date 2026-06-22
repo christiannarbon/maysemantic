@@ -80,6 +80,17 @@ pub enum Expr {
         column: Box<Expr>,
     },
 
+    /// Represents a type cast (e.g., `CAST(col AS DATE)` / `col::DATE`).
+    ///
+    /// Rendering is dialect-specific: ANSI dialects use `CAST(expr AS type)`,
+    /// Postgres uses the `expr::type` shorthand. See `SqlDialect::write_cast_expr`.
+    Cast {
+        /// The expression being cast.
+        expr: Box<Expr>,
+        /// The SQL target type written verbatim into output (e.g., "DATE", "NUMERIC(10,2)").
+        target_type: String,
+    },
+
     /// Represents a reference to a semantic dimension defined in the configuration.
     DimensionRef {
         /// The entity containing the dimension.
