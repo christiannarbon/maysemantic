@@ -211,6 +211,7 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                     ))
                 }
             }
+            Expr::Cast { expr, target_type } => self.write_cast_expr(buf, expr, target_type),
             Expr::DimensionRef { entity, dimension } => Err(DialectError::UnsupportedExpr(
                 format!("DimensionRef({entity}.{dimension})"),
             )),
@@ -313,6 +314,23 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
             "DATE_TRUNC('{granularity}', {})",
             self.quote_identifier(column)
         )?;
+        Ok(())
+    }
+
+    /// Writes a type-cast expression. Default is ANSI `CAST(expr AS type)`.
+    ///
+    /// Dialects with a different syntax (e.g. Postgres `expr::type`) override this.
+    fn write_cast_expr(
+        &self,
+        buf: &mut String,
+        expr: &Expr,
+        target_type: &str,
+    ) -> Result<(), DialectError> {
+        buf.push_str("CAST(");
+        self.write_expr(buf, expr)?;
+        buf.push_str(" AS ");
+        buf.push_str(target_type);
+        buf.push(')');
         Ok(())
     }
 }
