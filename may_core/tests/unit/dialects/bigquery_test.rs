@@ -1,6 +1,7 @@
 use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 use may_core::BigQueryDialect;
 use may_core::SqlDialect;
+use may_core::DialectError;
 
 #[test]
 fn test_bigquery_dialect_generates_basic_select() {
@@ -182,4 +183,46 @@ fn test_bigquery_date_trunc_expr_variant() {
         sql,
         "SELECT DATE_TRUNC(`created_at`, MONTH) FROM public.users"
     );
+}
+
+#[test]
+fn test_bigquery_date_trunc_invalid_target_rejected() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::DateTrunc {
+            granularity: "month".to_string(),
+            column: Box::new(Expr::Literal("'2020-01-01'".to_string())),
+        }])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = BigQueryDialect;
+    let err = dialect.generate_sql(&ast).unwrap_err();
+    assert!(matches!(err, DialectError::UnsupportedExpr(_)));
+}
+
+#[test]
+fn test_bigquery_date_trunc_invalid_granularity_rejected() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::DateTrunc {
+            granularity: "monthh".to_string(),
+            column: Box::new(Expr::Column(ColumnIdent("created_at".to_string()))),
+        }])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = BigQueryDialect;
+    let err = dialect.generate_sql(&ast).unwrap_err();
+    assert!(matches!(err, DialectError::UnsupportedExpr(_)));
 }
