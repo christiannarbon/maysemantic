@@ -186,6 +186,18 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 granularity,
                 column,
             } => {
+                const VALID_DATE_PARTS: [&str; 8] =
+                    ["year", "quarter", "month", "week", "day", "hour", "minute", "second"];
+
+                if !VALID_DATE_PARTS
+                    .iter()
+                    .any(|p| p.eq_ignore_ascii_case(granularity))
+                {
+                    return Err(DialectError::UnsupportedExpr(format!(
+                        "DateTrunc: unsupported granularity {granularity:?}"
+                    )));
+                }
+
                 // `write_date_trunc` takes the column as a raw &str. We only support a
                 // simple `Expr::Column` as the truncation target for now; anything else
                 // is rejected explicitly rather than silently producing wrong SQL.
@@ -284,12 +296,11 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
         Ok(())
     }
 
-    /// Provides dialect-specific date truncation syntax.
+    /// Provides dialect-specific date-truncation syntax for `Expr::DateTrunc`.
     ///
-    /// **Note:** This method is not automatically called during AST traversal
-    /// because no `Expr::DateTrunc` variant exists yet. It is provided as a
-    /// hook for dialect implementations to override, and will be wired in
-    /// when the `Expr` enum is extended with a `DateTrunc` variant.
+    /// This is the default ANSI rendering (`DATE_TRUNC('<gran>', "<col>")`). It is invoked
+    /// from the `Expr::DateTrunc` arm of `write_expr`. Dialects override it where their
+    /// syntax differs (BigQuery reverses the argument order; Snowflake uppercases the part).
     fn write_date_trunc(
         &self,
         buf: &mut String,
