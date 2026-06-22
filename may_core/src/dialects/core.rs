@@ -186,8 +186,9 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 granularity,
                 column,
             } => {
-                const VALID_DATE_PARTS: [&str; 8] =
-                    ["year", "quarter", "month", "week", "day", "hour", "minute", "second"];
+                const VALID_DATE_PARTS: [&str; 8] = [
+                    "year", "quarter", "month", "week", "day", "hour", "minute", "second",
+                ];
 
                 if !VALID_DATE_PARTS
                     .iter()
