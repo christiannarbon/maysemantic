@@ -1,7 +1,7 @@
 use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
 use may_core::BigQueryDialect;
-use may_core::SqlDialect;
 use may_core::DialectError;
+use may_core::SqlDialect;
 
 #[test]
 fn test_bigquery_dialect_generates_basic_select() {
