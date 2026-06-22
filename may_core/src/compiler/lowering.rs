@@ -125,6 +125,10 @@ impl<'a> SemanticLowering<'a> {
                 granularity,
                 column: Box::new(self.lower_expr(*column)?),
             }),
+            Expr::Cast { expr, target_type } => Ok(Expr::Cast {
+                expr: Box::new(self.lower_expr(*expr)?),
+                target_type,
+            }),
         }
     }
 
