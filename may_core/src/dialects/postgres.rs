@@ -4,9 +4,8 @@
 //! from the generic `SqlNode` AST. PostgreSQL uses standard ANSI double-quote
 //! escaping for identifiers, so most default trait implementations are inherited.
 //!
-//! This module also provides Postgres-specific helpers (e.g., shorthand casting
-//! via `::type`) that will be wired into the trait as the AST is extended in
-//! future tickets.
+//! This module also provides Postgres-specific overrides (e.g., shorthand casting
+//! via `::type`) that are wired into the trait.
 
 use crate::ast::Expr;
 use crate::dialects::{DialectError, SqlDialect};
@@ -44,20 +43,9 @@ impl SqlDialect for PostgresDialect {
         )?;
         Ok(())
     }
-}
 
-impl PostgresDialect {
-    /// Writes a Postgres-style shorthand cast expression: `expression::type`.
-    ///
-    /// This is a Postgres-specific helper that will be called from a future
-    /// `write_expr` override once an `Expr::Cast` variant is added to the AST.
-    ///
-    /// # Example Output
-    /// Given `Expr::Column("created_at")` and `target_type = "DATE"`:
-    /// ```sql
-    /// created_at::DATE
-    /// ```
-    pub fn write_cast(
+    /// Postgres shorthand cast: `expr::TYPE` (instead of ANSI `CAST(expr AS TYPE)`).
+    fn write_cast_expr(
         &self,
         buf: &mut String,
         expr: &Expr,
