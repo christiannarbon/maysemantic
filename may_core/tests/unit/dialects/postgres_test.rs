@@ -98,12 +98,12 @@ fn test_postgres_dialect_write_cast_column() {
     let dialect = PostgresDialect;
     let mut buf = String::new();
     dialect
-        .write_cast(
+        .write_cast_expr(
             &mut buf,
             &Expr::Column(ColumnIdent("created_at".to_string())),
             "DATE",
         )
-        .expect("write_cast failed");
+        .expect("write_cast_expr failed");
     assert_eq!(buf, "created_at::DATE");
 }
 
@@ -112,12 +112,12 @@ fn test_postgres_dialect_write_cast_literal() {
     let dialect = PostgresDialect;
     let mut buf = String::new();
     dialect
-        .write_cast(
+        .write_cast_expr(
             &mut buf,
             &Expr::Literal("'2024-01-01'".to_string()),
             "TIMESTAMP",
         )
-        .expect("write_cast failed");
+        .expect("write_cast_expr failed");
     assert_eq!(buf, "'2024-01-01'::TIMESTAMP");
 }
 
@@ -126,7 +126,7 @@ fn test_postgres_dialect_write_cast_function() {
     let dialect = PostgresDialect;
     let mut buf = String::new();
     dialect
-        .write_cast(
+        .write_cast_expr(
             &mut buf,
             &Expr::Function {
                 name: "COUNT".to_string(),
@@ -134,7 +134,7 @@ fn test_postgres_dialect_write_cast_function() {
             },
             "VARCHAR",
         )
-        .expect("write_cast failed");
+        .expect("write_cast_expr failed");
     assert_eq!(buf, "COUNT(id)::VARCHAR");
 }
 
