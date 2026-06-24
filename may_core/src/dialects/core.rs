@@ -212,6 +212,8 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 }
             }
             Expr::Cast { expr, target_type } => self.write_cast_expr(buf, expr, target_type),
+            Expr::JsonAccess { column, path } => self.write_json_access(buf, column, path),
+            Expr::Unnest { expr } => self.write_unnest_expr(buf, expr),
             Expr::DimensionRef { entity, dimension } => Err(DialectError::UnsupportedExpr(
                 format!("DimensionRef({entity}.{dimension})"),
             )),
@@ -332,5 +334,24 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
         buf.push_str(target_type);
         buf.push(')');
         Ok(())
+    }
+
+    /// Writes a JSON/VARIANT path extraction. Default: unsupported.
+    fn write_json_access(
+        &self,
+        _buf: &mut String,
+        _column: &Expr,
+        _path: &str,
+    ) -> Result<(), DialectError> {
+        Err(DialectError::UnsupportedExpr(
+            "JSON path access is not supported by this dialect".to_string(),
+        ))
+    }
+
+    /// Writes an array UNNEST expression. Default: unsupported.
+    fn write_unnest_expr(&self, _buf: &mut String, _expr: &Expr) -> Result<(), DialectError> {
+        Err(DialectError::UnsupportedExpr(
+            "UNNEST is not supported by this dialect".to_string(),
+        ))
     }
 }
