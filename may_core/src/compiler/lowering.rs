@@ -129,6 +129,13 @@ impl<'a> SemanticLowering<'a> {
                 expr: Box::new(self.lower_expr(*expr)?),
                 target_type,
             }),
+            Expr::JsonAccess { column, path } => Ok(Expr::JsonAccess {
+                column: Box::new(self.lower_expr(*column)?),
+                path,
+            }),
+            Expr::Unnest { expr } => Ok(Expr::Unnest {
+                expr: Box::new(self.lower_expr(*expr)?),
+            }),
         }
     }
 
