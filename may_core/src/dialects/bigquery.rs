@@ -73,15 +73,24 @@ impl SqlDialect for BigQueryDialect {
         buf.push(')');
         Ok(())
     }
-}
 
-impl BigQueryDialect {
-    /// Writes a BigQuery-specific UNNEST extraction expression.
-    ///
-    /// Generates the `UNNEST(array_column)` function call, which expands arrays
-    /// into sets of rows. This helper will be wired into the AST tree traversal
-    /// when an `Expr::Unnest` variant is added to the AST.
-    pub fn write_unnest(&self, buf: &mut String, expr: &Expr) -> Result<(), DialectError> {
+    /// BigQuery safe JSON read: `JSON_EXTRACT_SCALAR(col, '$.path')`.
+    fn write_json_access(
+        &self,
+        buf: &mut String,
+        column: &Expr,
+        path: &str,
+    ) -> Result<(), DialectError> {
+        buf.push_str("JSON_EXTRACT_SCALAR(");
+        self.write_expr(buf, column)?;
+        buf.push_str(", '");
+        buf.push_str(path);
+        buf.push_str("')");
+        Ok(())
+    }
+
+    /// BigQuery array expansion: `UNNEST(col)`.
+    fn write_unnest_expr(&self, buf: &mut String, expr: &Expr) -> Result<(), DialectError> {
         buf.push_str("UNNEST(");
         self.write_expr(buf, expr)?;
         buf.push(')');
