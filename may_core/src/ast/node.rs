@@ -91,6 +91,23 @@ pub enum Expr {
         target_type: String,
     },
 
+    /// Represents JSON / VARIANT path extraction (e.g., BigQuery `JSON_EXTRACT_SCALAR`,
+    /// Snowflake `GET_PATH`). Unsupported by dialects without native JSON path access.
+    JsonAccess {
+        /// The column or expression holding the JSON/VARIANT value.
+        column: Box<Expr>,
+        /// The extraction path, written verbatim into the quoted path literal
+        /// (e.g., "$.user.id" for BigQuery, "user_id" for Snowflake GET_PATH).
+        path: String,
+    },
+
+    /// Represents array expansion via `UNNEST(...)` (BigQuery). Unsupported by
+    /// dialects without a native row-generating unnest at this level.
+    Unnest {
+        /// The array-typed expression to expand.
+        expr: Box<Expr>,
+    },
+
     /// Represents a reference to a semantic dimension defined in the configuration.
     DimensionRef {
         /// The entity containing the dimension.
