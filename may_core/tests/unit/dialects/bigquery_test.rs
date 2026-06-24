@@ -101,11 +101,11 @@ fn test_bigquery_dialect_write_unnest() {
     let dialect = BigQueryDialect;
     let mut buf = String::new();
     dialect
-        .write_unnest(
+        .write_unnest_expr(
             &mut buf,
             &Expr::Column(ColumnIdent("user.tags".to_string())),
         )
-        .expect("write_unnest failed");
+        .expect("write_unnest_expr failed");
 
     assert_eq!(buf, "UNNEST(user.tags)");
 }
