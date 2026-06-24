@@ -74,15 +74,9 @@ impl SqlDialect for SnowflakeDialect {
         buf.push(')');
         Ok(())
     }
-}
 
-impl SnowflakeDialect {
-    /// Writes a Snowflake-specific JSON extraction expression.
-    ///
-    /// Generates the `GET_PATH(column, 'path')` function call, which safely
-    /// extracts variant/JSON data. This helper will be wired into `write_expr`
-    /// when an `Expr::JsonAccess` variant is added to the AST.
-    pub fn write_json_extract(
+    /// Snowflake VARIANT path read: `GET_PATH("COL", 'path')`.
+    fn write_json_access(
         &self,
         buf: &mut String,
         column: &Expr,
@@ -90,7 +84,7 @@ impl SnowflakeDialect {
     ) -> Result<(), DialectError> {
         buf.push_str("GET_PATH(");
         self.write_expr(buf, column)?;
-        write!(buf, ", '{}')", path)?;
+        write!(buf, ", '{path}')")?;
         Ok(())
     }
 }
