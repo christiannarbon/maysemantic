@@ -106,12 +106,12 @@ fn test_snowflake_dialect_write_json_extract() {
     let dialect = SnowflakeDialect;
     let mut buf = String::new();
     dialect
-        .write_json_extract(
+        .write_json_access(
             &mut buf,
             &Expr::Column(ColumnIdent("raw_data".to_string())),
             "user.name",
         )
-        .expect("write_json_extract failed");
+        .expect("write_json_access failed");
 
     // The column identifier inside write_json_extract is passed as an Expr,
     // which delegates to write_expr. write_expr for Column pushes raw.
