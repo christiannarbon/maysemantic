@@ -5,8 +5,8 @@
 //! identifier case-sensitivity and provides custom functions for JSON extraction.
 
 use crate::ast::Expr;
+use crate::dialects::core::write_sql_string_literal;
 use crate::dialects::{DialectError, SqlDialect};
-use std::fmt::Write;
 
 /// A dialect adapter that generates Snowflake-compliant SQL.
 ///
@@ -84,7 +84,9 @@ impl SqlDialect for SnowflakeDialect {
     ) -> Result<(), DialectError> {
         buf.push_str("GET_PATH(");
         self.write_expr(buf, column)?;
-        write!(buf, ", '{path}')")?;
+        buf.push_str(", ");
+        write_sql_string_literal(buf, path);
+        buf.push(')');
         Ok(())
     }
 }
