@@ -17,9 +17,9 @@ use std::fmt::Write;
 /// inherits the default trait implementations and overrides only where
 /// Postgres diverges (e.g., `DATE_TRUNC` syntax, shorthand casts).
 ///
-/// Future Postgres-specific overrides (JSON operators `->>`/`#>>`,
-/// array unnesting `UNNEST()`, regex `~` matching) will be added here
-/// as the AST is extended with the corresponding expression variants.
+/// The `Expr::JsonAccess` and `Expr::Unnest` variants now exist; Postgres intentionally
+/// inherits the `UnsupportedExpr` default for them for now. Native renderings (JSON operators
+/// `->>`/`#>>`, array `UNNEST()`, regex `~` matching) may be added here as overrides later.
 #[derive(Debug)]
 pub struct PostgresDialect;
 
