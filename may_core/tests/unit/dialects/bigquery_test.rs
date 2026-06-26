@@ -226,3 +226,23 @@ fn test_bigquery_date_trunc_invalid_granularity_rejected() {
     let err = dialect.generate_sql(&ast).unwrap_err();
     assert!(matches!(err, DialectError::UnsupportedExpr(_)));
 }
+
+#[test]
+fn test_bigquery_dialect_write_json_access_escaped() {
+    let dialect = BigQueryDialect;
+    let mut buf = String::new();
+    dialect
+        .write_json_access(&mut buf, &Expr::Column(ColumnIdent("data".to_string())), "a'b")
+        .expect("write_json_access failed");
+    assert_eq!(buf, "JSON_EXTRACT_SCALAR(data, 'a''b')");
+}
+
+#[test]
+fn test_bigquery_dialect_write_cast() {
+    let dialect = BigQueryDialect;
+    let mut buf = String::new();
+    dialect
+        .write_cast_expr(&mut buf, &Expr::Column(ColumnIdent("col".to_string())), "DATE")
+        .expect("write_cast_expr failed");
+    assert_eq!(buf, "CAST(col AS DATE)");
+}
