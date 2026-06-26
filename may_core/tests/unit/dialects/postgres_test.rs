@@ -172,6 +172,28 @@ fn test_postgres_date_trunc_expr_variant() {
 }
 
 #[test]
+fn test_postgres_cast_expr_variant() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Cast {
+            expr: Box::new(Expr::Column(ColumnIdent("created_at".to_string()))),
+            target_type: "DATE".to_string(),
+        }])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    // Postgres uses the `::` shorthand; column renders raw today.
+    assert_eq!(sql, "SELECT created_at::DATE FROM public.users");
+}
+
+#[test]
 fn test_postgres_date_trunc_invalid_target_rejected() {
     let ast = SqlNode::Query {
         ctes: None,
