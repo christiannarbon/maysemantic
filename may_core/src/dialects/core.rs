@@ -38,6 +38,21 @@ impl From<std::fmt::Error> for DialectError {
     }
 }
 
+/// Writes `s` into `buf` as a single-quoted SQL string literal, escaping any
+/// embedded single quote by doubling it (`'` -> `''`) so the value cannot break
+/// out of the literal. Used for JSON/VARIANT path literals.
+pub(crate) fn write_sql_string_literal(buf: &mut String, s: &str) {
+    buf.push('\'');
+    for c in s.chars() {
+        if c == '\'' {
+            buf.push_str("''");
+        } else {
+            buf.push(c);
+        }
+    }
+    buf.push('\'');
+}
+
 /// The core SQL dialect trait.
 ///
 /// This defines how the generic `SqlNode` AST is converted into a raw,
