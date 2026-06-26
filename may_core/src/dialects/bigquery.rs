@@ -6,6 +6,7 @@
 //! argument ordering (e.g., DATE_TRUNC).
 
 use crate::ast::Expr;
+use crate::dialects::core::write_sql_string_literal;
 use crate::dialects::{DialectError, SqlDialect};
 
 /// A dialect adapter that generates BigQuery-compliant SQL.
@@ -83,9 +84,9 @@ impl SqlDialect for BigQueryDialect {
     ) -> Result<(), DialectError> {
         buf.push_str("JSON_EXTRACT_SCALAR(");
         self.write_expr(buf, column)?;
-        buf.push_str(", '");
-        buf.push_str(path);
-        buf.push_str("')");
+        buf.push_str(", ");
+        write_sql_string_literal(buf, path);
+        buf.push(')');
         Ok(())
     }
 
