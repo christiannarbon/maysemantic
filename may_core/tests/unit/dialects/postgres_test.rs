@@ -28,7 +28,7 @@ fn test_postgres_dialect_generates_basic_select() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT users.id, users.name FROM \"public\".\"users\" WHERE users.status = 'active'"
+        "SELECT \"users\".\"id\", \"users\".\"name\" FROM \"public\".\"users\" WHERE \"users\".\"status\" = 'active'"
     );
 }
 
@@ -61,7 +61,7 @@ fn test_postgres_dialect_generates_joins() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT orders.amount, users.name FROM \"orders\" INNER JOIN \"users\" ON orders.user_id = users.id"
+        "SELECT \"orders\".\"amount\", \"users\".\"name\" FROM \"orders\" INNER JOIN \"users\" ON \"orders\".\"user_id\" = \"users\".\"id\""
     );
 }
 
@@ -104,7 +104,7 @@ fn test_postgres_dialect_write_cast_column() {
             "DATE",
         )
         .expect("write_cast_expr failed");
-    assert_eq!(buf, "created_at::DATE");
+    assert_eq!(buf, "\"created_at\"::DATE");
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn test_postgres_dialect_write_cast_function() {
             "VARCHAR",
         )
         .expect("write_cast_expr failed");
-    assert_eq!(buf, "COUNT(id)::VARCHAR");
+    assert_eq!(buf, "COUNT(\"id\")::VARCHAR");
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn test_postgres_cast_expr_variant() {
     let dialect = PostgresDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     // Postgres uses the `::` shorthand; column renders raw today.
-    assert_eq!(sql, "SELECT created_at::DATE FROM \"public\".\"users\"");
+    assert_eq!(sql, "SELECT \"created_at\"::DATE FROM \"public\".\"users\"");
 }
 
 #[test]
