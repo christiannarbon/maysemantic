@@ -67,7 +67,7 @@ fn render_where(pred: Expr) -> String {
 #[test]
 fn test_eq_with_literal_str_renders_quoted_value() {
     let sql = render_where(eq(col("user_region"), literal_str("EMEA")));
-    assert_eq!(sql, "SELECT id FROM t WHERE user_region = 'EMEA'");
+    assert_eq!(sql, "SELECT id FROM \"t\" WHERE user_region = 'EMEA'");
 }
 
 #[test]
@@ -76,14 +76,14 @@ fn test_literal_str_escapes_embedded_quotes() {
     let sql = render_where(eq(col("user_region"), literal_str("x' OR '1'='1")));
     assert_eq!(
         sql,
-        "SELECT id FROM t WHERE user_region = 'x'' OR ''1''=''1'"
+        "SELECT id FROM \"t\" WHERE user_region = 'x'' OR ''1''=''1'"
     );
 }
 
 #[test]
 fn test_literal_num_renders_unquoted() {
     let sql = render_where(eq(col("age"), literal_num("30").expect("valid number")));
-    assert_eq!(sql, "SELECT id FROM t WHERE age = 30");
+    assert_eq!(sql, "SELECT id FROM \"t\" WHERE age = 30");
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn test_literal_num_rejects_non_numeric() {
 #[test]
 fn test_literal_bool_renders_keyword() {
     let sql = render_where(eq(col("active"), literal_bool("true").expect("valid bool")));
-    assert_eq!(sql, "SELECT id FROM t WHERE active = TRUE");
+    assert_eq!(sql, "SELECT id FROM \"t\" WHERE active = TRUE");
 }
 
 #[test]
