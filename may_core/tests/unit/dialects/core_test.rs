@@ -35,7 +35,7 @@ fn test_dummy_dialect_generates_group_by_and_having() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT region, SUM(amount) FROM \"orders\" GROUP BY region HAVING SUM(amount) > 1000"
+        "SELECT \"region\", SUM(\"amount\") FROM \"orders\" GROUP BY \"region\" HAVING SUM(\"amount\") > 1000"
     );
 }
 
@@ -89,7 +89,7 @@ fn test_dummy_dialect_generates_basic_sql() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT users.id, users.name FROM \"public\".\"users\" WHERE users.status = 'active'"
+        "SELECT \"users\".\"id\", \"users\".\"name\" FROM \"public\".\"users\" WHERE \"users\".\"status\" = 'active'"
     );
 }
 
@@ -121,7 +121,7 @@ fn test_dummy_dialect_generates_joins() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT orders.amount FROM \"orders\" LEFT JOIN \"users\" ON orders.user_id = users.id"
+        "SELECT \"orders\".\"amount\" FROM \"orders\" LEFT JOIN \"users\" ON \"orders\".\"user_id\" = \"users\".\"id\""
     );
 }
 
@@ -162,6 +162,6 @@ fn test_dummy_dialect_generates_ctes() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "WITH \"active_users\" AS (SELECT id FROM \"users\") SELECT * FROM \"active_users\""
+        "WITH \"active_users\" AS (SELECT \"id\" FROM \"users\") SELECT \"*\" FROM \"active_users\""
     );
 }
