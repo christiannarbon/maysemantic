@@ -118,7 +118,7 @@ mod join_builder_tests {
         let sql = render(&result);
         assert_eq!(
             sql,
-            "FROM \"orders\" LEFT JOIN \"users\" ON orders.user_id = users.id"
+            "FROM \"orders\" LEFT JOIN \"users\" ON \"orders\".\"user_id\" = \"users\".\"id\""
         );
     }
 
