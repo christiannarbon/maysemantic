@@ -121,7 +121,10 @@ fn test_bigquery_dialect_quote_identifier_backticks() {
 #[test]
 fn test_bigquery_dialect_quote_schema_qualified() {
     let dialect = BigQueryDialect;
-    assert_eq!(dialect.quote_schema_qualified("public.users"), "`public`.`users`");
+    assert_eq!(
+        dialect.quote_schema_qualified("public.users"),
+        "`public`.`users`"
+    );
     assert_eq!(dialect.quote_schema_qualified("users"), "`users`");
 }
 
