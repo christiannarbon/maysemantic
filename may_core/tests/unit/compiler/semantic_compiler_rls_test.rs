@@ -70,7 +70,7 @@ fn test_compile_with_user_context_injects_where() {
         .expect("compile should succeed");
 
     assert!(
-        sql.contains("region = 'EMEA'"),
+        sql.contains("\"region\" = 'EMEA'"),
         "expected RLS predicate in SQL, got: {sql}"
     );
 }
@@ -243,11 +243,11 @@ fn test_compile_injects_policies_from_all_entities_on_table() {
         .compile(request, Some(&user))
         .expect("compile should succeed");
     assert!(
-        sql.contains("region = 'EMEA'"),
+        sql.contains("\"region\" = 'EMEA'"),
         "expected first entity's RLS predicate, got: {sql}"
     );
     assert!(
-        sql.contains("tenant_id = 'acme'"),
+        sql.contains("\"tenant_id\" = 'acme'"),
         "expected second entity's RLS predicate, got: {sql}"
     );
 }
@@ -301,7 +301,7 @@ fn test_inject_recurses_into_cte_subqueries() {
     // Without CTE recursion the inner query would have no WHERE, so this
     // substring proves the predicate landed inside the CTE body.
     assert!(
-        sql.contains("region = 'EMEA'"),
+        sql.contains("\"region\" = 'EMEA'"),
         "expected RLS predicate inside the CTE body, got: {sql}"
     );
 }
