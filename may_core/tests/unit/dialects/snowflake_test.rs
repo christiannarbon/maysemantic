@@ -132,7 +132,10 @@ fn test_snowflake_dialect_quote_identifier_uppercases() {
 #[test]
 fn test_snowflake_dialect_quote_schema_qualified() {
     let dialect = SnowflakeDialect;
-    assert_eq!(dialect.quote_schema_qualified("public.users"), "\"PUBLIC\".\"USERS\"");
+    assert_eq!(
+        dialect.quote_schema_qualified("public.users"),
+        "\"PUBLIC\".\"USERS\""
+    );
     assert_eq!(dialect.quote_schema_qualified("users"), "\"USERS\"");
 }
 
