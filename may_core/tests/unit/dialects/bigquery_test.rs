@@ -30,7 +30,7 @@ fn test_bigquery_dialect_generates_basic_select() {
     // However, BigQuery uses backticks in CTE aliases and specific functions like write_date_trunc.
     assert_eq!(
         sql,
-        "SELECT users.id, users.name FROM public.users WHERE users.status = 'active'"
+        "SELECT users.id, users.name FROM `public`.`users` WHERE users.status = 'active'"
     );
 }
 
@@ -63,7 +63,7 @@ fn test_bigquery_dialect_generates_joins() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT orders.amount, users.name FROM orders LEFT JOIN users ON orders.user_id = users.id"
+        "SELECT orders.amount, users.name FROM `orders` LEFT JOIN `users` ON orders.user_id = users.id"
     );
 }
 
@@ -166,7 +166,7 @@ fn test_bigquery_dialect_ctes_use_backticks() {
     // CTE aliases use quote_identifier, which will wrap in backticks
     assert_eq!(
         sql,
-        "WITH `active_users` AS (SELECT id FROM users) SELECT * FROM active_users"
+        "WITH `active_users` AS (SELECT id FROM `users`) SELECT * FROM `active_users`"
     );
 }
 
@@ -191,7 +191,7 @@ fn test_bigquery_date_trunc_expr_variant() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT DATE_TRUNC(`created_at`, MONTH) FROM public.users"
+        "SELECT DATE_TRUNC(`created_at`, MONTH) FROM `public`.`users`"
     );
 }
 
