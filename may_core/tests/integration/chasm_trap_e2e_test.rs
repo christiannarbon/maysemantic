@@ -82,7 +82,7 @@ metrics:
 
     println!("Generated SQL:\n{}", sql);
 
-    let expected_sql = "WITH \"orders_agg\" AS (SELECT customer_id, SUM(amount) AS \"amount\" FROM public.orders GROUP BY customer_id), \"returns_agg\" AS (SELECT customer_id FROM public.returns GROUP BY customer_id) SELECT region, returns_agg.customer_id, SUM(orders_agg.amount) FROM orders_agg LEFT JOIN public.customers ON orders_agg.customer_id = public.customers.customer_id LEFT JOIN returns_agg ON public.customers.customer_id = returns_agg.customer_id GROUP BY region, returns_agg.customer_id";
+    let expected_sql = "WITH \"orders_agg\" AS (SELECT customer_id, SUM(amount) AS \"amount\" FROM \"public\".\"orders\" GROUP BY customer_id), \"returns_agg\" AS (SELECT customer_id FROM \"public\".\"returns\" GROUP BY customer_id) SELECT region, returns_agg.customer_id, SUM(orders_agg.amount) FROM \"orders_agg\" LEFT JOIN \"public\".\"customers\" ON orders_agg.customer_id = public.customers.customer_id LEFT JOIN \"returns_agg\" ON public.customers.customer_id = returns_agg.customer_id GROUP BY region, returns_agg.customer_id";
     assert_eq!(sql, expected_sql);
 }
 
