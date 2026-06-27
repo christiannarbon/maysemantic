@@ -28,7 +28,7 @@ fn test_postgres_dialect_generates_basic_select() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT users.id, users.name FROM public.users WHERE users.status = 'active'"
+        "SELECT users.id, users.name FROM \"public\".\"users\" WHERE users.status = 'active'"
     );
 }
 
@@ -61,7 +61,7 @@ fn test_postgres_dialect_generates_joins() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT orders.amount, users.name FROM orders INNER JOIN users ON orders.user_id = users.id"
+        "SELECT orders.amount, users.name FROM \"orders\" INNER JOIN \"users\" ON orders.user_id = users.id"
     );
 }
 
@@ -177,7 +177,7 @@ fn test_postgres_date_trunc_expr_variant() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT DATE_TRUNC('month', \"created_at\") FROM public.users"
+        "SELECT DATE_TRUNC('month', \"created_at\") FROM \"public\".\"users\""
     );
 }
 
@@ -200,7 +200,7 @@ fn test_postgres_cast_expr_variant() {
     let dialect = PostgresDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     // Postgres uses the `::` shorthand; column renders raw today.
-    assert_eq!(sql, "SELECT created_at::DATE FROM public.users");
+    assert_eq!(sql, "SELECT created_at::DATE FROM \"public\".\"users\"");
 }
 
 #[test]
