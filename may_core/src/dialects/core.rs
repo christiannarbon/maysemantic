@@ -150,11 +150,9 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 buf.push_str("HAVING ");
                 self.write_expr(buf, expr)
             }
-            // Table identifiers are written raw (not quoted) because they may contain
-            // schema-qualified names (e.g., `public.users`). Individual segment quoting
-            // will be handled when schema-aware identifier parsing is implemented.
+            // Table identifiers are schema-qualified quoted segment-by-segment.
             SqlNode::Table(ident) => {
-                buf.push_str(&ident.0);
+                buf.push_str(&self.quote_schema_qualified(&ident.0));
                 Ok(())
             }
             SqlNode::TimeSpine { granularity } => Err(DialectError::UnsupportedASTNode(format!(
