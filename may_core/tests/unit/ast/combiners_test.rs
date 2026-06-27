@@ -67,7 +67,10 @@ fn render_where(pred: Expr) -> String {
 #[test]
 fn test_eq_with_literal_str_renders_quoted_value() {
     let sql = render_where(eq(col("user_region"), literal_str("EMEA")));
-    assert_eq!(sql, "SELECT \"id\" FROM \"t\" WHERE \"user_region\" = 'EMEA'");
+    assert_eq!(
+        sql,
+        "SELECT \"id\" FROM \"t\" WHERE \"user_region\" = 'EMEA'"
+    );
 }
 
 #[test]
