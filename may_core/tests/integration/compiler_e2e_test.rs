@@ -36,7 +36,7 @@ fn test_compile_demo_metric_produces_valid_sql() {
     // Strengthened assertions (FN-6)
     assert!(!sql.trim().is_empty(), "SQL output must not be empty");
     assert!(
-        sql.contains("public.orders"),
+        sql.contains("\"public\".\"orders\""),
         "SQL must contain the base table name"
     );
     assert!(
