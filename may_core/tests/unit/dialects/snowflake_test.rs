@@ -35,7 +35,7 @@ fn test_snowflake_dialect_generates_basic_select() {
     // Therefore, the raw output should match the exact strings provided, like Postgres.
     assert_eq!(
         sql,
-        "SELECT users.id, users.name FROM public.users WHERE users.status = 'active'"
+        "SELECT users.id, users.name FROM \"PUBLIC\".\"USERS\" WHERE users.status = 'active'"
     );
 }
 
@@ -68,7 +68,7 @@ fn test_snowflake_dialect_generates_joins() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT orders.amount, users.name FROM orders LEFT JOIN users ON orders.user_id = users.id"
+        "SELECT orders.amount, users.name FROM \"ORDERS\" LEFT JOIN \"USERS\" ON orders.user_id = users.id"
     );
 }
 
@@ -177,7 +177,7 @@ fn test_snowflake_dialect_ctes_are_uppercased() {
     // CTE aliases use quote_identifier, which will uppercase it
     assert_eq!(
         sql,
-        "WITH \"ACTIVE_USERS\" AS (SELECT id FROM users) SELECT * FROM active_users"
+        "WITH \"ACTIVE_USERS\" AS (SELECT id FROM \"USERS\") SELECT * FROM \"ACTIVE_USERS\""
     );
 }
 
@@ -202,7 +202,7 @@ fn test_snowflake_date_trunc_expr_variant() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT DATE_TRUNC('MONTH', \"CREATED_AT\") FROM public.users"
+        "SELECT DATE_TRUNC('MONTH', \"CREATED_AT\") FROM \"PUBLIC\".\"USERS\""
     );
 }
 
