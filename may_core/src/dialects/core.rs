@@ -164,11 +164,9 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
     /// Recursively writes an Expression to the string buffer.
     fn write_expr(&self, buf: &mut String, expr: &Expr) -> Result<(), DialectError> {
         match expr {
-            // Column identifiers are written raw (not quoted) because they may contain
-            // table-qualified names (e.g., `users.id`). Individual segment quoting
-            // will be handled when schema-aware identifier parsing is implemented.
+            // Column identifiers are schema-qualified quoted segment-by-segment.
             Expr::Column(ident) => {
-                buf.push_str(&ident.0);
+                buf.push_str(&self.quote_schema_qualified(&ident.0));
                 Ok(())
             }
             Expr::Literal(val) => {
