@@ -255,7 +255,7 @@ mod lowering_tests {
             .expect("sql generation failed");
         assert_eq!(
             sql,
-            "SELECT orders.country, SUM(amount) FROM orders GROUP BY orders.country"
+            "SELECT orders.country, SUM(amount) FROM \"orders\" GROUP BY orders.country"
         );
         assert!(!sql.contains("DimensionRef") && !sql.contains("MeasureRef"));
     }
