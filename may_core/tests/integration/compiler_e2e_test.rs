@@ -450,7 +450,7 @@ metrics:
         .compile(request, Some(&user_ctx))
         .expect("compile rls");
     assert!(
-        rls_sql.contains("tenant = 'tenant_123'"),
+        rls_sql.contains("\"tenant\" = 'tenant_123'"),
         "RLS predicate must be injected: {}",
         rls_sql
     );
