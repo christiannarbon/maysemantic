@@ -839,7 +839,7 @@ fn test_compiler_accepts_average_in_chasm_trap() {
     assert!(sql.contains("amount__sum"));
     assert!(sql.contains("amount__cnt"));
     assert!(
-        sql.contains("SUM(orders_agg.amount__sum) * 1.0 / NULLIF(SUM(orders_agg.amount__cnt), 0)")
+        sql.contains("SUM(\"orders_agg\".\"amount__sum\") * 1.0 / NULLIF(SUM(\"orders_agg\".\"amount__cnt\"), 0)")
     );
 }
 
