@@ -268,6 +268,17 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
         buf
     }
 
+    /// Quotes a possibly dot-qualified identifier (e.g., `public.users`, `users.id`)
+    /// by quoting each `.`-separated segment with `quote_identifier` and rejoining
+    /// with `.`. A single identifier (no dot) is quoted as-is.
+    fn quote_schema_qualified(&self, ident: &str) -> String {
+        ident
+            .split('.')
+            .map(|segment| self.quote_identifier(segment))
+            .collect::<Vec<_>>()
+            .join(".")
+    }
+
     /// Writes the SELECT projection list.
     fn write_select(&self, buf: &mut String, exprs: &[Expr]) -> Result<(), DialectError> {
         buf.push_str("SELECT ");
