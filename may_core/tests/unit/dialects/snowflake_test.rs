@@ -35,7 +35,7 @@ fn test_snowflake_dialect_generates_basic_select() {
     // Therefore, the raw output should match the exact strings provided, like Postgres.
     assert_eq!(
         sql,
-        "SELECT users.id, users.name FROM \"PUBLIC\".\"USERS\" WHERE users.status = 'active'"
+        "SELECT \"USERS\".\"ID\", \"USERS\".\"NAME\" FROM \"PUBLIC\".\"USERS\" WHERE \"USERS\".\"STATUS\" = 'active'"
     );
 }
 
@@ -68,7 +68,7 @@ fn test_snowflake_dialect_generates_joins() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT orders.amount, users.name FROM \"ORDERS\" LEFT JOIN \"USERS\" ON orders.user_id = users.id"
+        "SELECT \"ORDERS\".\"AMOUNT\", \"USERS\".\"NAME\" FROM \"ORDERS\" LEFT JOIN \"USERS\" ON \"ORDERS\".\"USER_ID\" = \"USERS\".\"ID\""
     );
 }
 
@@ -115,8 +115,8 @@ fn test_snowflake_dialect_write_json_extract() {
 
     // The column identifier inside write_json_extract is passed as an Expr,
     // which delegates to write_expr. write_expr for Column pushes raw.
-    // So it should be `GET_PATH(raw_data, 'user.name')`.
-    assert_eq!(buf, "GET_PATH(raw_data, 'user.name')");
+    // So it should be `GET_PATH("RAW_DATA", 'user.name')`.
+    assert_eq!(buf, "GET_PATH(\"RAW_DATA\", 'user.name')");
 }
 
 #[test]
@@ -177,7 +177,7 @@ fn test_snowflake_dialect_ctes_are_uppercased() {
     // CTE aliases use quote_identifier, which will uppercase it
     assert_eq!(
         sql,
-        "WITH \"ACTIVE_USERS\" AS (SELECT id FROM \"USERS\") SELECT * FROM \"ACTIVE_USERS\""
+        "WITH \"ACTIVE_USERS\" AS (SELECT \"ID\" FROM \"USERS\") SELECT \"*\" FROM \"ACTIVE_USERS\""
     );
 }
 
@@ -259,7 +259,7 @@ fn test_snowflake_dialect_write_json_access_escaped() {
             "a'b",
         )
         .expect("write_json_access failed");
-    assert_eq!(buf, "GET_PATH(raw_data, 'a''b')");
+    assert_eq!(buf, "GET_PATH(\"RAW_DATA\", 'a''b')");
 }
 
 #[test]
@@ -273,5 +273,5 @@ fn test_snowflake_dialect_write_cast() {
             "DATE",
         )
         .expect("write_cast_expr failed");
-    assert_eq!(buf, "CAST(col AS DATE)");
+    assert_eq!(buf, "CAST(\"COL\" AS DATE)");
 }
