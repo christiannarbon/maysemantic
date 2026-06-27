@@ -271,10 +271,6 @@ fn test_find_join_path_resolved_orders_to_teams() {
         .expect("should generate SQL");
 
     assert!(sql.contains("FROM \"public\".\"orders\""));
-    assert!(sql.contains(
-        "LEFT JOIN \"public\".\"users\" ON public.orders.order_user_id = public.users.id"
-    ));
-    assert!(sql.contains(
-        "INNER JOIN \"public\".\"teams\" ON public.users.user_team_id = public.teams.id"
-    ));
+    assert!(sql.contains("LEFT JOIN \"public\".\"users\" ON \"public\".\"orders\".\"order_user_id\" = \"public\".\"users\".\"id\""));
+    assert!(sql.contains("INNER JOIN \"public\".\"teams\" ON \"public\".\"users\".\"user_team_id\" = \"public\".\"teams\".\"id\""));
 }
