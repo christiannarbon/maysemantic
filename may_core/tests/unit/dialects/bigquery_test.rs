@@ -30,7 +30,7 @@ fn test_bigquery_dialect_generates_basic_select() {
     // However, BigQuery uses backticks in CTE aliases and specific functions like write_date_trunc.
     assert_eq!(
         sql,
-        "SELECT users.id, users.name FROM `public`.`users` WHERE users.status = 'active'"
+        "SELECT `users`.`id`, `users`.`name` FROM `public`.`users` WHERE `users`.`status` = 'active'"
     );
 }
 
@@ -63,7 +63,7 @@ fn test_bigquery_dialect_generates_joins() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(
         sql,
-        "SELECT orders.amount, users.name FROM `orders` LEFT JOIN `users` ON orders.user_id = users.id"
+        "SELECT `orders`.`amount`, `users`.`name` FROM `orders` LEFT JOIN `users` ON `orders`.`user_id` = `users`.`id`"
     );
 }
 
@@ -107,7 +107,7 @@ fn test_bigquery_dialect_write_unnest() {
         )
         .expect("write_unnest_expr failed");
 
-    assert_eq!(buf, "UNNEST(user.tags)");
+    assert_eq!(buf, "UNNEST(`user`.`tags`)");
 }
 
 #[test]
@@ -166,7 +166,7 @@ fn test_bigquery_dialect_ctes_use_backticks() {
     // CTE aliases use quote_identifier, which will wrap in backticks
     assert_eq!(
         sql,
-        "WITH `active_users` AS (SELECT id FROM `users`) SELECT * FROM `active_users`"
+        "WITH `active_users` AS (SELECT `id` FROM `users`) SELECT `*` FROM `active_users`"
     );
 }
 
@@ -248,7 +248,7 @@ fn test_bigquery_dialect_write_json_access_escaped() {
             "a'b",
         )
         .expect("write_json_access failed");
-    assert_eq!(buf, "JSON_EXTRACT_SCALAR(data, 'a''b')");
+    assert_eq!(buf, "JSON_EXTRACT_SCALAR(`data`, 'a''b')");
 }
 
 #[test]
@@ -262,5 +262,5 @@ fn test_bigquery_dialect_write_cast() {
             "DATE",
         )
         .expect("write_cast_expr failed");
-    assert_eq!(buf, "CAST(col AS DATE)");
+    assert_eq!(buf, "CAST(`col` AS DATE)");
 }
