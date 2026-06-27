@@ -118,7 +118,7 @@ mod join_builder_tests {
         let sql = render(&result);
         assert_eq!(
             sql,
-            "FROM orders LEFT JOIN users ON orders.user_id = users.id"
+            "FROM \"orders\" LEFT JOIN \"users\" ON orders.user_id = users.id"
         );
     }
 
@@ -132,7 +132,7 @@ mod join_builder_tests {
         let result = build_join(&resolved_join);
 
         let sql = render(&result);
-        assert!(sql.starts_with("INNER JOIN users ON "));
+        assert!(sql.starts_with("INNER JOIN \"users\" ON "));
     }
 
     #[test]
