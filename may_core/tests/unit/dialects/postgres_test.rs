@@ -244,3 +244,39 @@ fn test_postgres_date_trunc_invalid_granularity_rejected() {
     let err = dialect.generate_sql(&ast).unwrap_err();
     assert!(matches!(err, DialectError::UnsupportedExpr(_)));
 }
+
+#[test]
+fn test_postgres_schema_qualified_table() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("id".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(sql, "SELECT \"id\" FROM \"public\".\"users\"");
+}
+
+#[test]
+fn test_postgres_qualified_column() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("users.id".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(sql, "SELECT \"users\".\"id\" FROM \"users\"");
+}
