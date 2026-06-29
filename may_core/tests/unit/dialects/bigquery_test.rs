@@ -79,6 +79,17 @@ fn test_bigquery_dialect_write_date_trunc() {
 }
 
 #[test]
+fn test_bigquery_dialect_write_date_trunc_qualified() {
+    let dialect = BigQueryDialect;
+    let mut buf = String::new();
+    dialect
+        .write_date_trunc(&mut buf, "month", "users.created_at")
+        .expect("write_date_trunc failed");
+    assert_eq!(buf, "DATE_TRUNC(`users`.`created_at`, MONTH)");
+}
+
+
+#[test]
 fn test_bigquery_dialect_write_date_trunc_with_granularities() {
     let dialect = BigQueryDialect;
 
@@ -303,4 +314,48 @@ fn test_bigquery_qualified_column() {
     let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(sql, "SELECT `users`.`id` FROM `users`");
+}
+
+#[test]
+fn test_bigquery_json_access_generate_sql() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::JsonAccess {
+            column: Box::new(Expr::Column(ColumnIdent("data".to_string()))),
+            path: "$.user_id".to_string(),
+        }])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("events".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = BigQueryDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(
+        sql,
+        "SELECT JSON_EXTRACT_SCALAR(`data`, '$.user_id') FROM `events`"
+    );
+}
+
+#[test]
+fn test_bigquery_unnest_generate_sql() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Unnest {
+            expr: Box::new(Expr::Column(ColumnIdent("tags".to_string()))),
+        }])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("events".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = BigQueryDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(sql, "SELECT UNNEST(`tags`) FROM `events`");
 }
