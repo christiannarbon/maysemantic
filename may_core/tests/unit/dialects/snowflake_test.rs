@@ -93,7 +93,6 @@ fn test_snowflake_dialect_write_date_trunc_qualified() {
     assert_eq!(buf, "DATE_TRUNC('MONTH', \"USERS\".\"CREATED_AT\")");
 }
 
-
 #[test]
 fn test_snowflake_dialect_write_date_trunc_with_granularities() {
     let dialect = SnowflakeDialect;
