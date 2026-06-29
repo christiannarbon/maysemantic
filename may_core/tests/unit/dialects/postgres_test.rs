@@ -76,6 +76,17 @@ fn test_postgres_dialect_write_date_trunc() {
 }
 
 #[test]
+fn test_postgres_dialect_write_date_trunc_qualified() {
+    let dialect = PostgresDialect;
+    let mut buf = String::new();
+    dialect
+        .write_date_trunc(&mut buf, "month", "users.created_at")
+        .expect("write_date_trunc failed");
+    assert_eq!(buf, "DATE_TRUNC('month', \"users\".\"created_at\")");
+}
+
+
+#[test]
 fn test_postgres_dialect_write_date_trunc_with_granularities() {
     let dialect = PostgresDialect;
 
@@ -283,4 +294,45 @@ fn test_postgres_qualified_column() {
     let dialect = PostgresDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(sql, "SELECT \"users\".\"id\" FROM \"users\"");
+}
+
+#[test]
+fn test_postgres_json_access_unsupported() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::JsonAccess {
+            column: Box::new(Expr::Column(ColumnIdent("data".to_string()))),
+            path: "x".to_string(),
+        }])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = PostgresDialect;
+    let err = dialect.generate_sql(&ast).unwrap_err();
+    assert!(matches!(err, DialectError::UnsupportedExpr(_)));
+}
+
+#[test]
+fn test_postgres_unnest_unsupported() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Unnest {
+            expr: Box::new(Expr::Column(ColumnIdent("tags".to_string()))),
+        }])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = PostgresDialect;
+    let err = dialect.generate_sql(&ast).unwrap_err();
+    assert!(matches!(err, DialectError::UnsupportedExpr(_)));
 }
