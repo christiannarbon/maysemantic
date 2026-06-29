@@ -67,8 +67,8 @@ impl SqlDialect for SnowflakeDialect {
 
         buf.push_str("', ");
 
-        // quote_identifier still returns a String (required by trait signature)
-        let quoted = self.quote_identifier(column);
+        // quote_schema_qualified returns a String
+        let quoted = self.quote_schema_qualified(column);
         buf.push_str(&quoted);
 
         buf.push(')');
