@@ -84,6 +84,17 @@ fn test_snowflake_dialect_write_date_trunc() {
 }
 
 #[test]
+fn test_snowflake_dialect_write_date_trunc_qualified() {
+    let dialect = SnowflakeDialect;
+    let mut buf = String::new();
+    dialect
+        .write_date_trunc(&mut buf, "month", "users.created_at")
+        .expect("write_date_trunc failed");
+    assert_eq!(buf, "DATE_TRUNC('MONTH', \"USERS\".\"CREATED_AT\")");
+}
+
+
+#[test]
 fn test_snowflake_dialect_write_date_trunc_with_granularities() {
     let dialect = SnowflakeDialect;
 
