@@ -39,7 +39,7 @@ impl SqlDialect for PostgresDialect {
         write!(
             buf,
             "DATE_TRUNC('{granularity}', {})",
-            self.quote_identifier(column)
+            self.quote_schema_qualified(column)
         )?;
         Ok(())
     }
