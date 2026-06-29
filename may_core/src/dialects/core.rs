@@ -268,6 +268,9 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
     /// by quoting each `.`-separated segment with `quote_identifier` and rejoining
     /// with `.`. A single identifier (no dot) is quoted as-is.
     fn quote_schema_qualified(&self, ident: &str) -> String {
+        if !ident.contains('.') {
+            return self.quote_identifier(ident);
+        }
         ident
             .split('.')
             .map(|segment| self.quote_identifier(segment))
@@ -336,7 +339,7 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
         write!(
             buf,
             "DATE_TRUNC('{granularity}', {})",
-            self.quote_identifier(column)
+            self.quote_schema_qualified(column)
         )?;
         Ok(())
     }
