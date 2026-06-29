@@ -85,7 +85,6 @@ fn test_postgres_dialect_write_date_trunc_qualified() {
     assert_eq!(buf, "DATE_TRUNC('month', \"users\".\"created_at\")");
 }
 
-
 #[test]
 fn test_postgres_dialect_write_date_trunc_with_granularities() {
     let dialect = PostgresDialect;
