@@ -280,7 +280,9 @@ fn test_snowflake_dialect_write_cast() {
 fn test_snowflake_schema_qualified_table() {
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("id".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "id".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("public.users".to_string()))),
             joins: vec![],
@@ -298,7 +300,9 @@ fn test_snowflake_schema_qualified_table() {
 fn test_snowflake_qualified_column() {
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("users.id".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "users.id".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
