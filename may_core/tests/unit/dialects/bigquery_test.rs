@@ -88,7 +88,6 @@ fn test_bigquery_dialect_write_date_trunc_qualified() {
     assert_eq!(buf, "DATE_TRUNC(`users`.`created_at`, MONTH)");
 }
 
-
 #[test]
 fn test_bigquery_dialect_write_date_trunc_with_granularities() {
     let dialect = BigQueryDialect;
