@@ -60,7 +60,7 @@ impl SqlDialect for BigQueryDialect {
         buf.push_str("DATE_TRUNC(");
 
         // First argument is the column (identifier)
-        let quoted = self.quote_identifier(column);
+        let quoted = self.quote_schema_qualified(column);
         buf.push_str(&quoted);
 
         buf.push_str(", ");
