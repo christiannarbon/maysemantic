@@ -335,3 +335,29 @@ fn test_postgres_unnest_unsupported() {
     let err = dialect.generate_sql(&ast).unwrap_err();
     assert!(matches!(err, DialectError::UnsupportedExpr(_)));
 }
+
+#[test]
+fn test_postgres_join_on_qualified_columns() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("users.id".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![SqlNode::Join {
+                join_type: JoinType::Inner,
+                relation: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
+                on: Expr::BinaryOp {
+                    left: Box::new(Expr::Column(ColumnIdent("users.id".into()))),
+                    op: "=".to_string(),
+                    right: Box::new(Expr::Column(ColumnIdent("orders.user_id".into()))),
+                },
+            }],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert!(sql.contains("ON \"users\".\"id\" = \"orders\".\"user_id\""));
+}
