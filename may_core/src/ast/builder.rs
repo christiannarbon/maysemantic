@@ -68,6 +68,9 @@ pub fn build_semantic_timespine_query(
         r#where: None,
         group_by: group_by.map(Box::new),
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     }
 }
 
