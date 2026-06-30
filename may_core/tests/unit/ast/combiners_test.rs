@@ -58,6 +58,9 @@ fn render_where(pred: Expr) -> String {
         r#where: Some(Box::new(SqlNode::Where(pred))),
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     DummyDialect
         .generate_sql(&ast)
