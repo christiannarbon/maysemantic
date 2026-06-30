@@ -214,6 +214,9 @@ impl SemanticCompiler {
             r#where: None,
             group_by: group_by_node.map(Box::new),
             having: None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let query_node = match &classification {
