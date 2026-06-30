@@ -330,7 +330,9 @@ fn test_snowflake_qualified_column() {
 fn test_snowflake_join_on_qualified_columns() {
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("users.id".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "users.id".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![SqlNode::Join {
