@@ -22,6 +22,9 @@ fn test_snowflake_dialect_generates_basic_select() {
         }))),
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = SnowflakeDialect;
@@ -62,6 +65,9 @@ fn test_snowflake_dialect_generates_joins() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = SnowflakeDialect;
@@ -165,6 +171,9 @@ fn test_snowflake_dialect_ctes_are_uppercased() {
             r#where: None,
             group_by: None,
             having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
         }),
     };
 
@@ -180,6 +189,9 @@ fn test_snowflake_dialect_ctes_are_uppercased() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = SnowflakeDialect;
@@ -206,6 +218,9 @@ fn test_snowflake_date_trunc_expr_variant() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = SnowflakeDialect;
@@ -231,6 +246,9 @@ fn test_snowflake_date_trunc_invalid_target_rejected() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = SnowflakeDialect;
     let err = dialect.generate_sql(&ast).unwrap_err();
@@ -252,6 +270,9 @@ fn test_snowflake_date_trunc_invalid_granularity_rejected() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = SnowflakeDialect;
     let err = dialect.generate_sql(&ast).unwrap_err();
@@ -300,6 +321,9 @@ fn test_snowflake_schema_qualified_table() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = SnowflakeDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -320,6 +344,9 @@ fn test_snowflake_qualified_column() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = SnowflakeDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -348,6 +375,9 @@ fn test_snowflake_join_on_qualified_columns() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = SnowflakeDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
