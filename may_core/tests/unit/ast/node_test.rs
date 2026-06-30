@@ -76,6 +76,9 @@ fn test_ast_recursion_model() {
         r#where: where_node,
         group_by: group_by_node,
         having: having_node,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     match ast {
@@ -86,6 +89,7 @@ fn test_ast_recursion_model() {
             r#where,
             group_by,
             having,
+            ..
         } => {
             assert!(ctes.is_none());
 
@@ -197,6 +201,9 @@ fn test_ast_cte_model() {
         r#where: None,
         group_by: inner_group_by,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     // Construct the CTE node, binding the inner query to the "agg_orders" alias.
@@ -222,6 +229,9 @@ fn test_ast_cte_model() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     match outer_query {
@@ -310,6 +320,9 @@ fn test_ast_semantic_model() {
         r#where: None,
         group_by: group_by_node,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     match ast {
