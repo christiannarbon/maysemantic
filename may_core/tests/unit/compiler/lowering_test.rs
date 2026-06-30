@@ -247,6 +247,9 @@ mod lowering_tests {
                 dimension: "region".to_string(),
             }]))),
             having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
         };
 
         let lowered_query = lowering.lower_node(query).expect("lowering failed");
