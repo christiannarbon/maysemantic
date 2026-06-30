@@ -22,6 +22,9 @@ fn test_postgres_dialect_generates_basic_select() {
         }))),
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = PostgresDialect;
@@ -55,6 +58,9 @@ fn test_postgres_dialect_generates_joins() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = PostgresDialect;
@@ -181,6 +187,9 @@ fn test_postgres_date_trunc_expr_variant() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = PostgresDialect;
@@ -206,6 +215,9 @@ fn test_postgres_cast_expr_variant() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = PostgresDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -228,6 +240,9 @@ fn test_postgres_date_trunc_invalid_target_rejected() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = PostgresDialect;
     let err = dialect.generate_sql(&ast).unwrap_err();
@@ -249,6 +264,9 @@ fn test_postgres_date_trunc_invalid_granularity_rejected() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = PostgresDialect;
     let err = dialect.generate_sql(&ast).unwrap_err();
@@ -269,6 +287,9 @@ fn test_postgres_schema_qualified_table() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = PostgresDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -289,6 +310,9 @@ fn test_postgres_qualified_column() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = PostgresDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -310,6 +334,9 @@ fn test_postgres_json_access_unsupported() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = PostgresDialect;
     let err = dialect.generate_sql(&ast).unwrap_err();
@@ -330,6 +357,9 @@ fn test_postgres_unnest_unsupported() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = PostgresDialect;
     let err = dialect.generate_sql(&ast).unwrap_err();
@@ -358,6 +388,9 @@ fn test_postgres_join_on_qualified_columns() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = PostgresDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
