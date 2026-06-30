@@ -402,7 +402,9 @@ fn test_postgres_order_by() {
     use may_core::ast::{OrderByExpr, SortDirection};
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "name".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
