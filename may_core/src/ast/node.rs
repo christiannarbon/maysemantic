@@ -142,6 +142,24 @@ pub enum Expr {
     },
 }
 
+/// Sort direction for an ORDER BY expression.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortDirection {
+    /// Ascending (`ASC`).
+    Asc,
+    /// Descending (`DESC`).
+    Desc,
+}
+
+/// A single ORDER BY sort specification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrderByExpr {
+    /// The expression to sort by.
+    pub expr: Expr,
+    /// The sort direction.
+    pub direction: SortDirection,
+}
+
 /// A highly recursive Abstract Syntax Tree node used to model both physical
 /// relational algebra and semantic metric queries.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,6 +179,12 @@ pub enum SqlNode {
         group_by: Option<Box<SqlNode>>,
         /// The optional HAVING clause node.
         having: Option<Box<SqlNode>>,
+        /// Zero or more ORDER BY sort specifications.
+        order_by: Vec<OrderByExpr>,
+        /// Optional `LIMIT` row cap.
+        limit: Option<u64>,
+        /// Optional `OFFSET` row skip.
+        offset: Option<u64>,
     },
 
     /// Represents a Common Table Expression (CTE), typically found in a WITH clause.
