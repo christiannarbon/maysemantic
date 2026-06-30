@@ -180,6 +180,9 @@ impl RlsInjector {
                 r#where,
                 group_by,
                 having,
+                order_by,
+                limit,
+                offset,
             } => {
                 // 0. Recurse into nested queries first so every Query level is
                 //    independently protected (CTE bodies and FROM subqueries).
@@ -222,6 +225,9 @@ impl RlsInjector {
                         r#where,
                         group_by,
                         having,
+                        order_by,
+                        limit,
+                        offset,
                     });
                 }
 
@@ -258,6 +264,9 @@ impl RlsInjector {
                     r#where: new_where,
                     group_by,
                     having,
+                    order_by,
+                    limit,
+                    offset,
                 })
             }
             // Non-Query roots are returned unchanged — RLS only applies to queries.
