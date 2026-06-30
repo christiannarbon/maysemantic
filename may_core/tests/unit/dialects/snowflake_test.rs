@@ -383,3 +383,37 @@ fn test_snowflake_join_on_qualified_columns() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert!(sql.contains("ON \"USERS\".\"ID\" = \"ORDERS\".\"USER_ID\""));
 }
+
+#[test]
+fn test_snowflake_order_by() {
+    use may_core::ast::{OrderByExpr, SortDirection};
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![
+            OrderByExpr {
+                expr: Expr::Column(ColumnIdent("created_at".to_string())),
+                direction: SortDirection::Desc,
+            },
+            OrderByExpr {
+                expr: Expr::Column(ColumnIdent("id".to_string())),
+                direction: SortDirection::Asc,
+            },
+        ],
+        limit: None,
+        offset: None,
+    };
+    let dialect = SnowflakeDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(
+        sql,
+        "SELECT \"NAME\" FROM \"USERS\" ORDER BY \"CREATED_AT\" DESC, \"ID\" ASC"
+    );
+}
