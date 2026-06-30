@@ -396,3 +396,37 @@ fn test_postgres_join_on_qualified_columns() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert!(sql.contains("ON \"users\".\"id\" = \"orders\".\"user_id\""));
 }
+
+#[test]
+fn test_postgres_order_by() {
+    use may_core::ast::{OrderByExpr, SortDirection};
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![
+            OrderByExpr {
+                expr: Expr::Column(ColumnIdent("created_at".to_string())),
+                direction: SortDirection::Desc,
+            },
+            OrderByExpr {
+                expr: Expr::Column(ColumnIdent("id".to_string())),
+                direction: SortDirection::Asc,
+            },
+        ],
+        limit: None,
+        offset: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(
+        sql,
+        "SELECT \"name\" FROM \"users\" ORDER BY \"created_at\" DESC, \"id\" ASC"
+    );
+}
