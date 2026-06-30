@@ -86,6 +86,7 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 r#where,
                 group_by,
                 having,
+                ..
             } => {
                 if let Some(ctes) = ctes {
                     if !ctes.is_empty() {
