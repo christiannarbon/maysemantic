@@ -148,6 +148,9 @@ impl<'a> SemanticLowering<'a> {
                 r#where,
                 group_by,
                 having,
+                order_by,
+                limit,
+                offset,
             } => {
                 let ctes = ctes
                     .map(|c| {
@@ -170,6 +173,15 @@ impl<'a> SemanticLowering<'a> {
                     .map(|n| self.lower_node(*n))
                     .transpose()?
                     .map(Box::new);
+                let order_by = order_by
+                    .into_iter()
+                    .map(|o| {
+                        Ok(crate::ast::OrderByExpr {
+                            expr: self.lower_expr(o.expr)?,
+                            direction: o.direction,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
                 Ok(SqlNode::Query {
                     ctes,
                     select,
@@ -177,6 +189,9 @@ impl<'a> SemanticLowering<'a> {
                     r#where,
                     group_by,
                     having,
+                    order_by,
+                    limit,
+                    offset,
                 })
             }
             SqlNode::CTE { alias, query } => {
