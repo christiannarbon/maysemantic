@@ -29,6 +29,9 @@ fn test_dummy_dialect_generates_group_by_and_having() {
             op: ">".to_string(),
             right: Box::new(Expr::Literal("1000".to_string())),
         }))),
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = DummyDialect;
@@ -54,6 +57,9 @@ fn test_dummy_dialect_rejects_unresolved_dimension_ref() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = DummyDialect;
@@ -83,6 +89,9 @@ fn test_dummy_dialect_generates_basic_sql() {
         }))),
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = DummyDialect;
@@ -115,6 +124,9 @@ fn test_dummy_dialect_generates_joins() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = DummyDialect;
@@ -141,6 +153,9 @@ fn test_dummy_dialect_generates_ctes() {
             r#where: None,
             group_by: None,
             having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
         }),
     };
 
@@ -156,6 +171,9 @@ fn test_dummy_dialect_generates_ctes() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = DummyDialect;
