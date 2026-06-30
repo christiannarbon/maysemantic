@@ -160,9 +160,9 @@ fn test_bigquery_dialect_ctes_use_backticks() {
             r#where: None,
             group_by: None,
             having: None,
-        order_by: vec![],
-        limit: None,
-        offset: None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         }),
     };
 

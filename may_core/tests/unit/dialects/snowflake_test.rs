@@ -171,9 +171,9 @@ fn test_snowflake_dialect_ctes_are_uppercased() {
             r#where: None,
             group_by: None,
             having: None,
-        order_by: vec![],
-        limit: None,
-        offset: None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         }),
     };
 

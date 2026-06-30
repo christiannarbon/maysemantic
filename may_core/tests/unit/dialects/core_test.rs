@@ -153,9 +153,9 @@ fn test_dummy_dialect_generates_ctes() {
             r#where: None,
             group_by: None,
             having: None,
-        order_by: vec![],
-        limit: None,
-        offset: None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         }),
     };
 
