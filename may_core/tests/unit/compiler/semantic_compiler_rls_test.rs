@@ -274,6 +274,9 @@ fn test_inject_recurses_into_cte_subqueries() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     // Outer query selects FROM the CTE alias (which maps to no entity).
     let outer = SqlNode::Query {
@@ -291,6 +294,9 @@ fn test_inject_recurses_into_cte_subqueries() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let injected = RlsInjector::inject(outer, &user, &state).expect("inject should succeed");
