@@ -325,3 +325,29 @@ fn test_snowflake_qualified_column() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(sql, "SELECT \"USERS\".\"ID\" FROM \"USERS\"");
 }
+
+#[test]
+fn test_snowflake_join_on_qualified_columns() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("users.id".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![SqlNode::Join {
+                join_type: JoinType::Inner,
+                relation: Box::new(SqlNode::Table(TableIdent("orders".to_string()))),
+                on: Expr::BinaryOp {
+                    left: Box::new(Expr::Column(ColumnIdent("users.id".into()))),
+                    op: "=".to_string(),
+                    right: Box::new(Expr::Column(ColumnIdent("orders.user_id".into()))),
+                },
+            }],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+    };
+    let dialect = SnowflakeDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert!(sql.contains("ON \"USERS\".\"ID\" = \"ORDERS\".\"USER_ID\""));
+}
