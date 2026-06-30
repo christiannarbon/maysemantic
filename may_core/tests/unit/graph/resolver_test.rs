@@ -264,6 +264,9 @@ fn test_find_join_path_resolved_orders_to_teams() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let sql = PostgresDialect
