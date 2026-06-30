@@ -22,6 +22,9 @@ fn test_bigquery_dialect_generates_basic_select() {
         }))),
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = BigQueryDialect;
@@ -57,6 +60,9 @@ fn test_bigquery_dialect_generates_joins() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = BigQueryDialect;
@@ -154,6 +160,9 @@ fn test_bigquery_dialect_ctes_use_backticks() {
             r#where: None,
             group_by: None,
             having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
         }),
     };
 
@@ -169,6 +178,9 @@ fn test_bigquery_dialect_ctes_use_backticks() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = BigQueryDialect;
@@ -195,6 +207,9 @@ fn test_bigquery_date_trunc_expr_variant() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let dialect = BigQueryDialect;
@@ -220,6 +235,9 @@ fn test_bigquery_date_trunc_invalid_target_rejected() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = BigQueryDialect;
     let err = dialect.generate_sql(&ast).unwrap_err();
@@ -241,6 +259,9 @@ fn test_bigquery_date_trunc_invalid_granularity_rejected() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = BigQueryDialect;
     let err = dialect.generate_sql(&ast).unwrap_err();
@@ -289,6 +310,9 @@ fn test_bigquery_schema_qualified_table() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -309,6 +333,9 @@ fn test_bigquery_qualified_column() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -330,6 +357,9 @@ fn test_bigquery_json_access_generate_sql() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -353,6 +383,9 @@ fn test_bigquery_unnest_generate_sql() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
@@ -381,6 +414,9 @@ fn test_bigquery_join_on_qualified_columns() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let dialect = BigQueryDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
