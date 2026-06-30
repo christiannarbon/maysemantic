@@ -34,6 +34,9 @@ fn create_helper_query() -> SqlNode {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     }
 }
 
@@ -224,6 +227,9 @@ fn test_inject_ctes_multi_fact_join_success() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let classification = PathClassification::MultiFactJoin {
@@ -355,6 +361,9 @@ fn test_inject_ctes_preserves_existing_ctes() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let existing_cte = SqlNode::CTE {
         alias: TableIdent("existing_cte".to_string()),
@@ -368,6 +377,9 @@ fn test_inject_ctes_preserves_existing_ctes() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let classification = PathClassification::MultiFactJoin {
@@ -430,6 +442,9 @@ fn test_inject_ctes_deduplicates_aliases() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let existing_cte = SqlNode::CTE {
         alias: TableIdent("orders_agg".to_string()),
@@ -443,6 +458,9 @@ fn test_inject_ctes_deduplicates_aliases() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     // We pass "orders" twice (duplicate in fact_tables), and it matches the existing CTE "orders_agg".
@@ -523,6 +541,9 @@ fn test_inject_ctes_rewrites_outer_query() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let classification = PathClassification::MultiFactJoin {
@@ -658,6 +679,9 @@ fn test_reaggregate_measure_wrapping_by_type() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string()],
@@ -922,6 +946,9 @@ fn test_average_decomposition_outer_query_rewrite() {
         r#where: None,
         group_by: None,
         having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string()],
