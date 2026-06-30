@@ -1,4 +1,4 @@
-use crate::ast::{Expr, JoinType, SqlNode};
+use crate::ast::{Expr, JoinType, SortDirection, SqlNode};
 use std::fmt::Write;
 
 /// Errors that occur during AST-to-SQL generation.
@@ -86,6 +86,7 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 r#where,
                 group_by,
                 having,
+                order_by,
                 ..
             } => {
                 if let Some(ctes) = ctes {
@@ -117,6 +118,20 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 if let Some(h) = having {
                     buf.push(' ');
                     self.write_node(buf, h)?;
+                }
+
+                if !order_by.is_empty() {
+                    buf.push_str(" ORDER BY ");
+                    for (i, ob) in order_by.iter().enumerate() {
+                        if i > 0 {
+                            buf.push_str(", ");
+                        }
+                        self.write_expr(buf, &ob.expr)?;
+                        match ob.direction {
+                            SortDirection::Asc => buf.push_str(" ASC"),
+                            SortDirection::Desc => buf.push_str(" DESC"),
+                        }
+                    }
                 }
                 Ok(())
             }
