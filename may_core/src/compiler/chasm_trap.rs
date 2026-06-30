@@ -95,6 +95,9 @@ impl ChasmTrapHandler {
             r#where,
             group_by,
             having,
+            order_by,
+            limit,
+            offset,
         } = query
         {
             let mut ctes_vec = ctes.unwrap_or_default();
@@ -151,6 +154,9 @@ impl ChasmTrapHandler {
                         fact.group_key.clone(),
                     ))]))),
                     having: None,
+                    order_by: vec![],
+                    limit: None,
+                    offset: None,
                 };
                 ctes_vec.push(SqlNode::CTE {
                     alias,
@@ -165,6 +171,9 @@ impl ChasmTrapHandler {
                 r#where,
                 group_by,
                 having,
+                order_by,
+                limit,
+                offset,
             })
         } else {
             Err(ChasmTrapError::NotAQueryNode)
@@ -182,6 +191,9 @@ impl ChasmTrapHandler {
             r#where,
             group_by,
             having,
+            order_by,
+            limit,
+            offset,
         } = query
         {
             // 1. Swap table name in FROM / JOIN and rewrite JOIN ON
@@ -242,6 +254,9 @@ impl ChasmTrapHandler {
                 r#where: rewritten_where,
                 group_by: rewritten_group_by,
                 having: rewritten_having,
+                order_by,
+                limit,
+                offset,
             })
         } else {
             Err(ChasmTrapError::NotAQueryNode)
