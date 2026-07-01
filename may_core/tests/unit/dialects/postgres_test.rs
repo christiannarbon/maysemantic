@@ -437,7 +437,9 @@ fn test_postgres_order_by() {
 fn test_postgres_limit_offset() {
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "name".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
@@ -451,8 +453,5 @@ fn test_postgres_limit_offset() {
     };
     let dialect = PostgresDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
-    assert_eq!(
-        sql,
-        "SELECT \"name\" FROM \"users\" LIMIT 10 OFFSET 5"
-    );
+    assert_eq!(sql, "SELECT \"name\" FROM \"users\" LIMIT 10 OFFSET 5");
 }
