@@ -419,3 +419,27 @@ fn test_snowflake_order_by() {
         "SELECT \"NAME\" FROM \"USERS\" ORDER BY \"CREATED_AT\" DESC, \"ID\" ASC"
     );
 }
+
+#[test]
+fn test_snowflake_limit_offset() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![],
+        limit: Some(10),
+        offset: Some(5),
+    };
+    let dialect = SnowflakeDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(
+        sql,
+        "SELECT \"NAME\" FROM \"USERS\" LIMIT 10 OFFSET 5"
+    );
+}
