@@ -1,5 +1,6 @@
 use may_core::ast::{
-    build_semantic_group_by, build_semantic_select, build_semantic_timespine_query, with_pagination, Expr, SqlNode,
+    build_semantic_group_by, build_semantic_select, build_semantic_timespine_query,
+    with_pagination, Expr, SqlNode,
 };
 
 /// Tests the builder utility functions to ensure they produce an accurate semantic AST.
@@ -64,26 +65,31 @@ fn test_builder_constructs_valid_semantic_ast() {
 #[test]
 fn test_with_pagination_applies_fields() {
     use may_core::ast::{ColumnIdent, OrderByExpr, SortDirection, TableIdent};
-    
+
     // Test SqlNode::Query
     let select = build_semantic_select(&[], &[]);
     let query = build_semantic_timespine_query("day", select, None);
-    
+
     let order_by = vec![OrderByExpr {
         expr: Expr::Column(ColumnIdent("name".to_string())),
         direction: SortDirection::Desc,
     }];
     let paginated = with_pagination(query, order_by.clone(), Some(10), Some(5));
-    
+
     match paginated {
-        SqlNode::Query { order_by: ob, limit, offset, .. } => {
+        SqlNode::Query {
+            order_by: ob,
+            limit,
+            offset,
+            ..
+        } => {
             assert_eq!(ob, order_by);
             assert_eq!(limit, Some(10));
             assert_eq!(offset, Some(5));
         }
         _ => panic!("Expected Query node"),
     }
-    
+
     // Test non-Query returns unchanged
     let table = SqlNode::Table(TableIdent("users".to_string()));
     let returned = with_pagination(table.clone(), vec![], None, None);
