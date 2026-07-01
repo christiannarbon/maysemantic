@@ -3,7 +3,7 @@
 //! Provides ergonomic builder functions to abstract away memory allocations (e.g., `Box::new()`)
 //! and raw variant instantiation when constructing semantic queries.
 
-use crate::ast::{ColumnIdent, Expr, SqlNode, TableIdent};
+use crate::ast::{ColumnIdent, Expr, OrderByExpr, SqlNode, TableIdent};
 use crate::compiler::ResolvedJoin;
 use crate::graph::GraphNode;
 
@@ -121,5 +121,41 @@ pub fn build_from_join_path(base_entity: &GraphNode, joins: &[ResolvedJoin]) -> 
     SqlNode::From {
         source: Box::new(SqlNode::Table(TableIdent(base_entity.table_name.clone()))),
         joins: joins_nodes,
+    }
+}
+
+/// Attaches ORDER BY / LIMIT / OFFSET to an existing root `Query` node.
+///
+/// Returns the node unchanged if it is not a `SqlNode::Query` (callers should
+/// only pass root query nodes here).
+pub fn with_pagination(
+    query: SqlNode,
+    order_by: Vec<OrderByExpr>,
+    limit: Option<u64>,
+    offset: Option<u64>,
+) -> SqlNode {
+    if let SqlNode::Query {
+        ctes,
+        select,
+        from,
+        r#where,
+        group_by,
+        having,
+        ..
+    } = query
+    {
+        SqlNode::Query {
+            ctes,
+            select,
+            from,
+            r#where,
+            group_by,
+            having,
+            order_by,
+            limit,
+            offset,
+        }
+    } else {
+        query
     }
 }
