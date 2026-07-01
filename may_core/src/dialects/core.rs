@@ -87,7 +87,8 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 group_by,
                 having,
                 order_by,
-                ..
+                limit,
+                offset,
             } => {
                 if let Some(ctes) = ctes {
                     if !ctes.is_empty() {
@@ -132,6 +133,12 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                             SortDirection::Desc => buf.push_str(" DESC"),
                         }
                     }
+                }
+                if let Some(limit) = limit {
+                    write!(buf, " LIMIT {limit}")?;
+                }
+                if let Some(offset) = offset {
+                    write!(buf, " OFFSET {offset}")?;
                 }
                 Ok(())
             }
