@@ -424,7 +424,9 @@ fn test_snowflake_order_by() {
 fn test_snowflake_limit_offset() {
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "name".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
@@ -438,8 +440,5 @@ fn test_snowflake_limit_offset() {
     };
     let dialect = SnowflakeDialect;
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
-    assert_eq!(
-        sql,
-        "SELECT \"NAME\" FROM \"USERS\" LIMIT 10 OFFSET 5"
-    );
+    assert_eq!(sql, "SELECT \"NAME\" FROM \"USERS\" LIMIT 10 OFFSET 5");
 }
