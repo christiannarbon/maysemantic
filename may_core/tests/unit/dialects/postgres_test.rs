@@ -461,7 +461,9 @@ fn test_order_by_desc() {
     use may_core::ast::{OrderByExpr, SortDirection};
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "name".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
@@ -469,12 +471,10 @@ fn test_order_by_desc() {
         r#where: None,
         group_by: None,
         having: None,
-        order_by: vec![
-            OrderByExpr {
-                expr: Expr::Column(ColumnIdent("revenue".into())),
-                direction: SortDirection::Desc,
-            },
-        ],
+        order_by: vec![OrderByExpr {
+            expr: Expr::Column(ColumnIdent("revenue".into())),
+            direction: SortDirection::Desc,
+        }],
         limit: None,
         offset: None,
     };
@@ -488,7 +488,9 @@ fn test_order_by_multi() {
     use may_core::ast::{OrderByExpr, SortDirection};
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "name".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
@@ -518,7 +520,9 @@ fn test_order_by_multi() {
 fn test_limit_only() {
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "name".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
@@ -539,7 +543,9 @@ fn test_limit_only() {
 fn test_offset_only() {
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "name".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
@@ -561,7 +567,9 @@ fn test_order_limit_offset_combined() {
     use may_core::ast::{OrderByExpr, SortDirection};
     let ast = SqlNode::Query {
         ctes: None,
-        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent(
+            "name".to_string(),
+        ))])),
         from: Box::new(SqlNode::From {
             source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
             joins: vec![],
@@ -569,12 +577,10 @@ fn test_order_limit_offset_combined() {
         r#where: None,
         group_by: None,
         having: None,
-        order_by: vec![
-            OrderByExpr {
-                expr: Expr::Column(ColumnIdent("revenue".into())),
-                direction: SortDirection::Desc,
-            },
-        ],
+        order_by: vec![OrderByExpr {
+            expr: Expr::Column(ColumnIdent("revenue".into())),
+            direction: SortDirection::Desc,
+        }],
         limit: Some(100),
         offset: Some(50),
     };
