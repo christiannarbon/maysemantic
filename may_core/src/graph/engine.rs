@@ -73,7 +73,17 @@ pub fn build_semantic_graph(
             };
 
             // Add directed edge from Left to Right
-            graph.add_edge(*left_idx, *right_idx, edge);
+            graph.add_edge(*left_idx, *right_idx, edge.clone());
+
+            // Reverse edge so A* can traverse the same relationship in either direction.
+            // The ON columns swap because the driving (left) side is now the other table.
+            // This preserves the declared join type; a proper LEFT<->RIGHT flip is deferred.
+            let reverse_edge = GraphEdge {
+                left_column: edge.right_column.clone(),
+                right_column: edge.left_column.clone(),
+                join_type: edge.join_type,
+            };
+            graph.add_edge(*right_idx, *left_idx, reverse_edge);
         }
     }
 
