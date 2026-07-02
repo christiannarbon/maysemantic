@@ -277,3 +277,25 @@ fn test_find_join_path_resolved_orders_to_teams() {
     assert!(sql.contains("LEFT JOIN \"public\".\"users\" ON \"public\".\"orders\".\"order_user_id\" = \"public\".\"users\".\"id\""));
     assert!(sql.contains("INNER JOIN \"public\".\"teams\" ON \"public\".\"users\".\"user_team_id\" = \"public\".\"teams\".\"id\""));
 }
+
+#[test]
+fn test_resolver_bidirectional_join_path() {
+    let state = build_three_node_state();
+    let resolver = build_resolver(&state);
+
+    // Forward path: orders -> users (should still pass)
+    let forward_path = resolver
+        .find_join_path("orders", "users")
+        .expect("Expected a valid forward join path");
+    assert_eq!(forward_path.len(), 1);
+    assert_eq!(forward_path[0].left_column, "order_user_id");
+    assert_eq!(forward_path[0].right_column, "id");
+
+    // Reverse path: users -> orders (previously unreachable, now should succeed)
+    let reverse_path = resolver
+        .find_join_path("users", "orders")
+        .expect("Expected a valid reverse join path");
+    assert_eq!(reverse_path.len(), 1);
+    assert_eq!(reverse_path[0].left_column, "id");
+    assert_eq!(reverse_path[0].right_column, "order_user_id");
+}
