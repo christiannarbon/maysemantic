@@ -67,7 +67,7 @@ fn test_build_semantic_graph() {
     assert!(indices.contains_key("orders"));
 
     // Validate Edges
-    assert_eq!(graph.edge_count(), 1);
+    assert_eq!(graph.edge_count(), 2);
 
     let left_idx = indices["users"];
     let right_idx = indices["orders"];
@@ -81,4 +81,14 @@ fn test_build_semantic_graph() {
     assert_eq!(edge_weight.left_column, "id");
     assert_eq!(edge_weight.right_column, "user_id");
     assert_eq!(edge_weight.join_type, JoinType::Left);
+
+    // The reverse edge should connect right to left with swapped columns
+    let rev_edge_idx = graph
+        .find_edge(right_idx, left_idx)
+        .expect("Edge not found between orders and users");
+
+    let rev_edge_weight = graph.edge_weight(rev_edge_idx).unwrap();
+    assert_eq!(rev_edge_weight.left_column, "user_id");
+    assert_eq!(rev_edge_weight.right_column, "id");
+    assert_eq!(rev_edge_weight.join_type, JoinType::Left);
 }
