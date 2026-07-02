@@ -455,3 +455,130 @@ fn test_postgres_limit_offset() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert_eq!(sql, "SELECT \"name\" FROM \"users\" LIMIT 10 OFFSET 5");
 }
+
+#[test]
+fn test_order_by_desc() {
+    use may_core::ast::{OrderByExpr, SortDirection};
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![
+            OrderByExpr {
+                expr: Expr::Column(ColumnIdent("revenue".into())),
+                direction: SortDirection::Desc,
+            },
+        ],
+        limit: None,
+        offset: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert!(sql.ends_with(" ORDER BY \"revenue\" DESC"));
+}
+
+#[test]
+fn test_order_by_multi() {
+    use may_core::ast::{OrderByExpr, SortDirection};
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![
+            OrderByExpr {
+                expr: Expr::Column(ColumnIdent("region".into())),
+                direction: SortDirection::Asc,
+            },
+            OrderByExpr {
+                expr: Expr::Column(ColumnIdent("revenue".into())),
+                direction: SortDirection::Desc,
+            },
+        ],
+        limit: None,
+        offset: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert!(sql.ends_with(" ORDER BY \"region\" ASC, \"revenue\" DESC"));
+}
+
+#[test]
+fn test_limit_only() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![],
+        limit: Some(100),
+        offset: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert!(sql.ends_with(" LIMIT 100"));
+}
+
+#[test]
+fn test_offset_only() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![],
+        limit: None,
+        offset: Some(50),
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert!(sql.ends_with(" OFFSET 50"));
+}
+
+#[test]
+fn test_order_limit_offset_combined() {
+    use may_core::ast::{OrderByExpr, SortDirection};
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::Column(ColumnIdent("name".to_string()))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![
+            OrderByExpr {
+                expr: Expr::Column(ColumnIdent("revenue".into())),
+                direction: SortDirection::Desc,
+            },
+        ],
+        limit: Some(100),
+        offset: Some(50),
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert!(sql.ends_with(" ORDER BY \"revenue\" DESC LIMIT 100 OFFSET 50"));
+}
