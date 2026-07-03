@@ -235,7 +235,7 @@ impl<'a> SemanticLowering<'a> {
                 Ok(SqlNode::GroupBy(lowered))
             }
             SqlNode::Having(expr) => Ok(SqlNode::Having(self.lower_expr(expr)?)),
-            SqlNode::Table(_) | SqlNode::TimeSpine { .. } => Ok(node),
+            SqlNode::Table(_) | SqlNode::AliasedTable { .. } | SqlNode::TimeSpine { .. } => Ok(node),
         }
     }
 }
