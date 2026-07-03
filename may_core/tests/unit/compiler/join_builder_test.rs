@@ -183,4 +183,64 @@ mod join_builder_tests {
             _ => panic!("Expected SqlNode::From"),
         }
     }
+
+    #[test]
+    fn test_build_from_self_join() {
+        let base = GraphNode {
+            entity_name: "users_primary".to_string(),
+            table_name: "users".to_string(),
+            primary_key: "id".to_string(),
+        };
+        let second = GraphNode {
+            entity_name: "users_secondary".to_string(),
+            table_name: "users".to_string(),
+            primary_key: "id".to_string(),
+        };
+        let hop = ResolvedJoin {
+            left_table: base.clone(),
+            right_table: second.clone(),
+            edge: left_join("manager_id", "id"),
+        };
+        let result = build_from_join_path(&base, &[hop]);
+
+        match &result {
+            SqlNode::From { source, joins } => {
+                assert_eq!(**source, SqlNode::Table(TableIdent("users".to_string())));
+                assert_eq!(joins.len(), 1);
+
+                match &joins[0] {
+                    SqlNode::Join { relation, on, .. } => {
+                        assert_eq!(
+                            **relation,
+                            SqlNode::AliasedTable {
+                                table: TableIdent("users".to_string()),
+                                alias: TableIdent("users_1".to_string()),
+                            }
+                        );
+                        match on {
+                            Expr::BinaryOp { left, right, .. } => {
+                                assert_eq!(
+                                    **left,
+                                    Expr::Column(ColumnIdent("users.manager_id".to_string()))
+                                );
+                                assert_eq!(
+                                    **right,
+                                    Expr::Column(ColumnIdent("users_1.id".to_string()))
+                                );
+                            }
+                            _ => panic!("Expected BinaryOp in ON clause"),
+                        }
+                    }
+                    _ => panic!("Expected Join node"),
+                }
+            }
+            _ => panic!("Expected From node"),
+        }
+
+        let sql = render(&result);
+        assert_eq!(
+            sql,
+            "FROM \"users\" LEFT JOIN \"users\" AS \"users_1\" ON \"users\".\"manager_id\" = \"users_1\".\"id\""
+        );
+    }
 }
