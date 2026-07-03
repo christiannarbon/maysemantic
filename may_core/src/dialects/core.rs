@@ -178,6 +178,12 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 buf.push_str(&self.quote_schema_qualified(&ident.0));
                 Ok(())
             }
+            SqlNode::AliasedTable { table, alias } => {
+                buf.push_str(&self.quote_schema_qualified(&table.0));
+                buf.push_str(" AS ");
+                buf.push_str(&self.quote_identifier(&alias.0));
+                Ok(())
+            }
             SqlNode::TimeSpine { granularity } => Err(DialectError::UnsupportedASTNode(format!(
                 "TimeSpine({granularity})"
             ))),
