@@ -228,6 +228,14 @@ pub enum SqlNode {
     /// Represents a base table or view reference (e.g., `users`).
     Table(TableIdent),
 
+    /// An aliased base table or view reference (e.g., `users AS users_1`).
+    AliasedTable {
+        /// The table to be aliased.
+        table: TableIdent,
+        /// The alias name.
+        alias: TableIdent,
+    },
+
     /// Represents a synthetic date/time dimension table used as a temporal scaffold.
     TimeSpine {
         /// The temporal granularity (e.g., "day", "month", "year").
