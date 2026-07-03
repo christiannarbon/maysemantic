@@ -4,9 +4,9 @@
 //! and raw variant instantiation when constructing semantic queries.
 
 use crate::ast::{ColumnIdent, Expr, OrderByExpr, SqlNode, TableIdent};
-use std::collections::HashMap;
 use crate::compiler::ResolvedJoin;
 use crate::graph::GraphNode;
+use std::collections::HashMap;
 
 /// Builds a SELECT node containing dimension and measure references.
 ///
