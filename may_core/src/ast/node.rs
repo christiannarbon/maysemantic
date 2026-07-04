@@ -110,6 +110,8 @@ pub enum Expr {
 
     /// Represents a reference to a semantic dimension defined in the configuration.
     DimensionRef {
+        /// The optional model name containing the dimension.
+        model: Option<String>,
         /// The entity containing the dimension.
         entity: String,
         /// The name of the dimension.
@@ -118,6 +120,8 @@ pub enum Expr {
 
     /// Represents a reference to a semantic measure defined in the configuration.
     MeasureRef {
+        /// The optional model name containing the measure.
+        model: Option<String>,
         /// The entity containing the measure.
         entity: String,
         /// The name of the measure.
