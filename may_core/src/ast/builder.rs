@@ -11,18 +11,26 @@ use std::collections::HashMap;
 /// Builds a SELECT node containing dimension and measure references.
 ///
 /// # Arguments
+/// * `model` - Optional model name to qualify references.
 /// * `dimensions` - A list of (entity_name, dimension_name) tuples.
 /// * `measures` - A list of (entity_name, measure_name) tuples.
-pub fn build_semantic_select(dimensions: &[(&str, &str)], measures: &[(&str, &str)]) -> SqlNode {
+pub fn build_semantic_select(
+    model: Option<&str>,
+    dimensions: &[(&str, &str)],
+    measures: &[(&str, &str)],
+) -> SqlNode {
+    let model_str = model.map(|m| m.to_string());
     // Iterator chains eliminate manual Vec::with_capacity bookkeeping and
     // express the pure transformation intent more clearly.
     let projection: Vec<Expr> = dimensions
         .iter()
         .map(|(entity, dim)| Expr::DimensionRef {
+            model: model_str.clone(),
             entity: entity.to_string(),
             dimension: dim.to_string(),
         })
         .chain(measures.iter().map(|(entity, measure)| Expr::MeasureRef {
+            model: model_str.clone(),
             entity: entity.to_string(),
             measure: measure.to_string(),
         }))
@@ -34,11 +42,14 @@ pub fn build_semantic_select(dimensions: &[(&str, &str)], measures: &[(&str, &st
 /// Builds a GROUP BY node from dimension references.
 ///
 /// # Arguments
+/// * `model` - Optional model name to qualify references.
 /// * `dimensions` - A list of (entity_name, dimension_name) tuples.
-pub fn build_semantic_group_by(dimensions: &[(&str, &str)]) -> SqlNode {
+pub fn build_semantic_group_by(model: Option<&str>, dimensions: &[(&str, &str)]) -> SqlNode {
+    let model_str = model.map(|m| m.to_string());
     let cols: Vec<Expr> = dimensions
         .iter()
         .map(|(entity, dim)| Expr::DimensionRef {
+            model: model_str.clone(),
             entity: entity.to_string(),
             dimension: dim.to_string(),
         })
