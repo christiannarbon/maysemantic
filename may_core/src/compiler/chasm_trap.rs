@@ -319,7 +319,11 @@ impl ChasmTrapHandler {
                     Expr::Column(ColumnIdent(col_name))
                 }
             }
-            Expr::DimensionRef { model, entity, dimension } => {
+            Expr::DimensionRef {
+                model,
+                entity,
+                dimension,
+            } => {
                 if entity == fact.entity {
                     Expr::Column(ColumnIdent(format!(
                         "{}.{}",
@@ -327,7 +331,11 @@ impl ChasmTrapHandler {
                         fact.group_key
                     )))
                 } else {
-                    Expr::DimensionRef { model, entity, dimension }
+                    Expr::DimensionRef {
+                        model,
+                        entity,
+                        dimension,
+                    }
                 }
             }
             Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
@@ -362,7 +370,11 @@ impl ChasmTrapHandler {
 
     fn rewrite_outer_expr(expr: &mut Expr, facts: &[FactPreAgg]) {
         match expr {
-            Expr::MeasureRef { model: _, entity, measure } => {
+            Expr::MeasureRef {
+                model: _,
+                entity,
+                measure,
+            } => {
                 for fact in facts {
                     if &fact.entity == entity {
                         if let Some(m) = fact.measures.iter().find(|m| &m.name == measure) {
