@@ -512,6 +512,7 @@ fn test_inject_ctes_rewrites_outer_query() {
     // Select measure ref: Expr::MeasureRef { entity: "orders", measure: "amount" }
     let select_node = SqlNode::Select(vec![
         Expr::MeasureRef {
+            model: None,
             entity: "orders".to_string(),
             measure: "amount".to_string(),
         },
@@ -653,18 +654,22 @@ fn test_rewrite_expr_preserves_column_suffix_sql_engine_rev_1_1_0() {
 fn test_reaggregate_measure_wrapping_by_type() {
     let select_node = SqlNode::Select(vec![
         Expr::MeasureRef {
+            model: None,
             entity: "orders".to_string(),
             measure: "count_measure".to_string(),
         },
         Expr::MeasureRef {
+            model: None,
             entity: "orders".to_string(),
             measure: "sum_measure".to_string(),
         },
         Expr::MeasureRef {
+            model: None,
             entity: "orders".to_string(),
             measure: "min_measure".to_string(),
         },
         Expr::MeasureRef {
+            model: None,
             entity: "orders".to_string(),
             measure: "max_measure".to_string(),
         },
@@ -766,6 +771,7 @@ fn test_rewrite_dimension_ref_repoints_to_group_key() {
         measures: vec![],
     };
     let input = Expr::DimensionRef {
+        model: None,
         entity: "orders".to_string(),
         dimension: "customer_id".to_string(),
     };
@@ -933,6 +939,7 @@ fn test_average_decomposition_cte_projection() {
 #[test]
 fn test_average_decomposition_outer_query_rewrite() {
     let select_node = SqlNode::Select(vec![Expr::MeasureRef {
+        model: None,
         entity: "orders".to_string(),
         measure: "amount".to_string(),
     }]);
