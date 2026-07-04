@@ -289,10 +289,12 @@ fn test_ast_semantic_model() {
     // Build a semantic SELECT clause containing abstract Dimension and Measure references.
     let select_node = SqlNode::Select(vec![
         Expr::DimensionRef {
+            model: None,
             entity: "locations".to_string(),
             dimension: "region".to_string(),
         },
         Expr::MeasureRef {
+            model: None,
             entity: "orders".to_string(),
             measure: "revenue".to_string(),
         },
@@ -308,6 +310,7 @@ fn test_ast_semantic_model() {
 
     // Group by the semantic Dimension explicitly.
     let group_by_node = Some(Box::new(SqlNode::GroupBy(vec![Expr::DimensionRef {
+        model: None,
         entity: "locations".to_string(),
         dimension: "region".to_string(),
     }])));
@@ -335,14 +338,14 @@ fn test_ast_semantic_model() {
             if let SqlNode::Select(projection) = *select {
                 assert_eq!(projection.len(), 2);
 
-                if let Expr::DimensionRef { entity, dimension } = &projection[0] {
+                if let Expr::DimensionRef { model: _, entity, dimension } = &projection[0] {
                     assert_eq!(entity, "locations");
                     assert_eq!(dimension, "region");
                 } else {
                     panic!("Expected DimensionRef node in projection");
                 }
 
-                if let Expr::MeasureRef { entity, measure } = &projection[1] {
+                if let Expr::MeasureRef { model: _, entity, measure } = &projection[1] {
                     assert_eq!(entity, "orders");
                     assert_eq!(measure, "revenue");
                 } else {
@@ -365,7 +368,7 @@ fn test_ast_semantic_model() {
             let group_outer = *group_by.expect("Expected GROUP BY clause");
             if let SqlNode::GroupBy(cols) = group_outer {
                 assert_eq!(cols.len(), 1);
-                if let Expr::DimensionRef { entity, dimension } = &cols[0] {
+                if let Expr::DimensionRef { model: _, entity, dimension } = &cols[0] {
                     assert_eq!(entity, "locations");
                     assert_eq!(dimension, "region");
                 } else {
