@@ -254,10 +254,10 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
             Expr::Cast { expr, target_type } => self.write_cast_expr(buf, expr, target_type),
             Expr::JsonAccess { column, path } => self.write_json_access(buf, column, path),
             Expr::Unnest { expr } => self.write_unnest_expr(buf, expr),
-            Expr::DimensionRef { entity, dimension } => Err(DialectError::UnsupportedExpr(
+            Expr::DimensionRef { model: _, entity, dimension } => Err(DialectError::UnsupportedExpr(
                 format!("DimensionRef({entity}.{dimension})"),
             )),
-            Expr::MeasureRef { entity, measure } => Err(DialectError::UnsupportedExpr(format!(
+            Expr::MeasureRef { model: _, entity, measure } => Err(DialectError::UnsupportedExpr(format!(
                 "MeasureRef({entity}.{measure})"
             ))),
             Expr::Raw(sql) => {
