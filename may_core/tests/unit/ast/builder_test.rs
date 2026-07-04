@@ -31,7 +31,12 @@ fn test_builder_constructs_valid_semantic_ast() {
         } => {
             if let SqlNode::Select(projection) = *select {
                 assert_eq!(projection.len(), 2);
-                if let Expr::DimensionRef { model: _, entity, dimension } = &projection[0] {
+                if let Expr::DimensionRef {
+                    model: _,
+                    entity,
+                    dimension,
+                } = &projection[0]
+                {
                     assert_eq!(entity, "locations");
                     assert_eq!(dimension, "region");
                 } else {
