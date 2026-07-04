@@ -93,7 +93,7 @@ impl SemanticCompiler {
             }
         }
 
-        let model = match matched_models.len() {
+        let (model_name, model) = match matched_models.len() {
             0 => {
                 return Err(CompilerError::RequestParsing(
                     RequestParseError::MetricNotFound(request.metric_name.clone()),
@@ -102,7 +102,7 @@ impl SemanticCompiler {
             1 => {
                 let mut matched_iter = matched_models.into_iter();
                 match matched_iter.next() {
-                    Some((_, m)) => m,
+                    Some((name, m)) => (name.clone(), m),
                     None => {
                         return Err(CompilerError::RequestParsing(
                             RequestParseError::MetricNotFound(request.metric_name.clone()),
@@ -194,12 +194,16 @@ impl SemanticCompiler {
             resolved_metric.measure_entity.name.as_str(),
             resolved_metric.measure.name.as_str(),
         )];
-        let select_node =
-            crate::ast::builder::build_semantic_select(&dims_for_select, &measures_for_select);
+        let select_node = crate::ast::builder::build_semantic_select(
+            Some(&model_name),
+            &dims_for_select,
+            &measures_for_select,
+        );
 
         // STEP 9: Build GROUP BY from dimensions
         let group_by_node = if !dims_for_select.is_empty() {
             Some(crate::ast::builder::build_semantic_group_by(
+                Some(&model_name),
                 &dims_for_select,
             ))
         } else {
