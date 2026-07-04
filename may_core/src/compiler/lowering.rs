@@ -37,12 +37,19 @@ impl<'a> SemanticLowering<'a> {
         Self { state }
     }
 
-    /// Returns every (model_name, &Entity) across all models whose entity name matches `entity`.
+    /// Returns every (model_name, &Entity) across all models whose entity name matches `entity`,
+    /// optionally filtered to a specific model.
     fn entities_named<'b>(
         &'b self,
         entity: &'b str,
+        model_filter: Option<&'b str>,
     ) -> impl Iterator<Item = (&'b str, &'b Entity)> {
         self.state.models.iter().filter_map(move |(name, model)| {
+            if let Some(mf) = model_filter {
+                if name != mf {
+                    return None;
+                }
+            }
             model
                 .entities
                 .iter()
@@ -53,10 +60,14 @@ impl<'a> SemanticLowering<'a> {
 
     pub fn lower_expr(&self, expr: Expr) -> Result<Expr, LoweringError> {
         match expr {
-            Expr::DimensionRef { entity, dimension } => {
+            Expr::DimensionRef {
+                model,
+                entity,
+                dimension,
+            } => {
                 let mut entity_seen = false;
                 let mut hits: Vec<(String, String)> = Vec::new();
-                for (model_name, e) in self.entities_named(&entity) {
+                for (model_name, e) in self.entities_named(&entity, model.as_deref()) {
                     entity_seen = true;
                     if let Some(d) = e.dimensions.iter().find(|d| d.name == dimension) {
                         hits.push((model_name.to_string(), d.sql.clone()));
@@ -75,10 +86,14 @@ impl<'a> SemanticLowering<'a> {
                     }),
                 }
             }
-            Expr::MeasureRef { entity, measure } => {
+            Expr::MeasureRef {
+                model,
+                entity,
+                measure,
+            } => {
                 let mut entity_seen = false;
                 let mut hits: Vec<(String, Expr)> = Vec::new();
-                for (model_name, e) in self.entities_named(&entity) {
+                for (model_name, e) in self.entities_named(&entity, model.as_deref()) {
                     entity_seen = true;
                     if let Some(m) = e.measures.iter().find(|m| m.name == measure) {
                         hits.push((
