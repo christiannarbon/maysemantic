@@ -71,6 +71,7 @@ mod lowering_tests {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
         let expr = Expr::DimensionRef {
+            model: None,
             entity: "orders".to_string(),
             dimension: "region".to_string(),
         };
@@ -85,6 +86,7 @@ mod lowering_tests {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
         let expr = Expr::MeasureRef {
+            model: None,
             entity: "orders".to_string(),
             measure: "revenue".to_string(),
         };
@@ -102,6 +104,7 @@ mod lowering_tests {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
         let expr = Expr::DimensionRef {
+            model: None,
             entity: "nonexistent".to_string(),
             dimension: "region".to_string(),
         };
@@ -118,6 +121,7 @@ mod lowering_tests {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
         let expr = Expr::DimensionRef {
+            model: None,
             entity: "orders".to_string(),
             dimension: "bad_dim".to_string(),
         };
@@ -135,6 +139,7 @@ mod lowering_tests {
         let state = make_test_state();
         let lowering = SemanticLowering::new(&state);
         let expr = Expr::MeasureRef {
+            model: None,
             entity: "orders".to_string(),
             measure: "does_not_exist".to_string(),
         };
@@ -153,6 +158,7 @@ mod lowering_tests {
         let lowering = SemanticLowering::new(&state);
         let input = SqlNode::Where(Expr::BinaryOp {
             left: Box::new(Expr::DimensionRef {
+                model: None,
                 entity: "orders".to_string(),
                 dimension: "region".to_string(),
             }),
@@ -199,6 +205,7 @@ mod lowering_tests {
 
         let lowering = SemanticLowering::new(&state);
         let expr = Expr::DimensionRef {
+            model: None,
             entity: "orders".to_string(),
             dimension: "region".to_string(),
         };
@@ -229,10 +236,12 @@ mod lowering_tests {
             ctes: None,
             select: Box::new(SqlNode::Select(vec![
                 Expr::DimensionRef {
+                    model: None,
                     entity: "orders".to_string(),
                     dimension: "region".to_string(),
                 },
                 Expr::MeasureRef {
+                    model: None,
                     entity: "orders".to_string(),
                     measure: "revenue".to_string(),
                 },
@@ -243,6 +252,7 @@ mod lowering_tests {
             }),
             r#where: None,
             group_by: Some(Box::new(SqlNode::GroupBy(vec![Expr::DimensionRef {
+                model: None,
                 entity: "orders".to_string(),
                 dimension: "region".to_string(),
             }]))),
@@ -261,5 +271,57 @@ mod lowering_tests {
             "SELECT \"orders\".\"country\", SUM(\"amount\") FROM \"orders\" GROUP BY \"orders\".\"country\""
         );
         assert!(!sql.contains("DimensionRef") && !sql.contains("MeasureRef"));
+    }
+
+    #[test]
+    fn test_lower_dimension_ref_with_model_qualifier_bypasses_ambiguity() {
+        let mut state = make_test_state();
+        let analytics_model = SemanticModel {
+            name: "analytics".to_string(),
+            entities: vec![Entity {
+                name: "orders".to_string(),
+                description: None,
+                table: "analytics_orders".to_string(),
+                primary_key: "id".to_string(),
+                dimensions: vec![Dimension {
+                    name: "region".to_string(),
+                    description: None,
+                    sql: "region_code".to_string(),
+                    dimension_type: DimensionType::String,
+                }],
+                measures: vec![],
+                entity_type: EntityType::Fact,
+                rls_policies: vec![],
+            }],
+            metrics: vec![],
+            joins: vec![],
+        };
+        state
+            .models
+            .insert("analytics".to_string(), analytics_model);
+
+        let lowering = SemanticLowering::new(&state);
+        
+        // Query specifying model "ecommerce"
+        let expr_ecom = Expr::DimensionRef {
+            model: Some("ecommerce".to_string()),
+            entity: "orders".to_string(),
+            dimension: "region".to_string(),
+        };
+        assert_eq!(
+            lowering.lower_expr(expr_ecom),
+            Ok(Expr::Column(ColumnIdent("orders.country".to_string())))
+        );
+
+        // Query specifying model "analytics"
+        let expr_analytics = Expr::DimensionRef {
+            model: Some("analytics".to_string()),
+            entity: "orders".to_string(),
+            dimension: "region".to_string(),
+        };
+        assert_eq!(
+            lowering.lower_expr(expr_analytics),
+            Ok(Expr::Column(ColumnIdent("region_code".to_string())))
+        );
     }
 }
