@@ -13,10 +13,10 @@ use may_core::ast::{
 fn test_builder_constructs_valid_semantic_ast() {
     // Construct the SELECT clause using the builder, which automatically wraps
     // our tuple dimensions and measures into Expr::DimensionRef and Expr::MeasureRef.
-    let select = build_semantic_select(&[("locations", "region")], &[("orders", "revenue")]);
+    let select = build_semantic_select(None, &[("locations", "region")], &[("orders", "revenue")]);
 
     // Construct the GROUP BY clause using the builder to wrap the dimension tuple.
-    let group_by = build_semantic_group_by(&[("locations", "region")]);
+    let group_by = build_semantic_group_by(None, &[("locations", "region")]);
 
     // Assemble the complete Query, injecting the select and group_by nodes,
     // and setting the FROM source to a TimeSpine with a "day" granularity.
@@ -31,7 +31,7 @@ fn test_builder_constructs_valid_semantic_ast() {
         } => {
             if let SqlNode::Select(projection) = *select {
                 assert_eq!(projection.len(), 2);
-                if let Expr::DimensionRef { entity, dimension } = &projection[0] {
+                if let Expr::DimensionRef { model: _, entity, dimension } = &projection[0] {
                     assert_eq!(entity, "locations");
                     assert_eq!(dimension, "region");
                 } else {
@@ -67,7 +67,7 @@ fn test_with_pagination_applies_fields() {
     use may_core::ast::{ColumnIdent, OrderByExpr, SortDirection, TableIdent};
 
     // Test SqlNode::Query
-    let select = build_semantic_select(&[], &[]);
+    let select = build_semantic_select(None, &[], &[]);
     let query = build_semantic_timespine_query("day", select, None);
 
     let order_by = vec![OrderByExpr {
