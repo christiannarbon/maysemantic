@@ -47,6 +47,7 @@ fn test_dummy_dialect_rejects_unresolved_dimension_ref() {
     let ast = SqlNode::Query {
         ctes: None,
         select: Box::new(SqlNode::Select(vec![Expr::DimensionRef {
+            model: None,
             entity: "users".to_string(),
             dimension: "region".to_string(),
         }])),
