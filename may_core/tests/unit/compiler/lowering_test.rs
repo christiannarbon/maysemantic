@@ -301,7 +301,7 @@ mod lowering_tests {
             .insert("analytics".to_string(), analytics_model);
 
         let lowering = SemanticLowering::new(&state);
-        
+
         // Query specifying model "ecommerce"
         let expr_ecom = Expr::DimensionRef {
             model: Some("ecommerce".to_string()),
