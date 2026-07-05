@@ -114,6 +114,33 @@ impl SemanticCompiler {
                 .resolve_custom_dimensions(&request.dimensions, &request.metric_name)?;
         }
 
+        let trunc_expr = if let Some(ref granularity) = request.time_granularity {
+            let time_dims: Vec<&crate::models::Dimension> = resolved_metric
+                .measure_entity
+                .dimensions
+                .iter()
+                .filter(|d| matches!(d.dimension_type, crate::models::DimensionType::Time))
+                .collect();
+
+            if time_dims.len() != 1 {
+                return Err(CompilerError::UnsupportedRequestFeature(format!(
+                    "time_granularity requires exactly one time-typed dimension on entity '{}', found {}",
+                    resolved_metric.measure_entity.name,
+                    time_dims.len()
+                )));
+            }
+            Some(crate::ast::Expr::DateTrunc {
+                granularity: granularity.clone(),
+                column: Box::new(crate::ast::Expr::DimensionRef {
+                    model: Some(model_name.clone()),
+                    entity: resolved_metric.measure_entity.name.clone(),
+                    dimension: time_dims[0].name.clone(),
+                }),
+            })
+        } else {
+            None
+        };
+
         // STEP 4: Build semantic graph from the model
         let (graph, node_indices) = crate::graph::build_semantic_graph(state_ref)?;
 
@@ -182,14 +209,14 @@ impl SemanticCompiler {
             resolved_metric.measure_entity.name.as_str(),
             resolved_metric.measure.name.as_str(),
         )];
-        let select_node = crate::ast::builder::build_semantic_select(
+        let mut select_node = crate::ast::builder::build_semantic_select(
             Some(&model_name),
             &dims_for_select,
             &measures_for_select,
         );
 
         // STEP 9: Build GROUP BY from dimensions
-        let group_by_node = if !dims_for_select.is_empty() {
+        let mut group_by_node = if !dims_for_select.is_empty() {
             Some(crate::ast::builder::build_semantic_group_by(
                 Some(&model_name),
                 &dims_for_select,
@@ -198,35 +225,30 @@ impl SemanticCompiler {
             None
         };
 
+        // Inject trunc_expr into SELECT and GROUP BY if present
+        if let Some(ref trunc_expr) = trunc_expr {
+            if let crate::ast::SqlNode::Select(ref mut exprs) = select_node {
+                exprs.insert(0, crate::ast::Expr::Aliased {
+                    expr: Box::new(trunc_expr.clone()),
+                    alias: request.time_granularity.clone().unwrap(),
+                });
+            }
+            let mut gb_cols = match group_by_node {
+                Some(crate::ast::SqlNode::GroupBy(c)) => c,
+                _ => Vec::new(),
+            };
+            gb_cols.insert(0, trunc_expr.clone());
+            group_by_node = Some(crate::ast::SqlNode::GroupBy(gb_cols));
+        }
+
         // STEP 9.5: Build WHERE clause from filters
         let mut filter_exprs = Vec::new();
         for f in &request.filters {
-            let mut matches = Vec::new();
-            for entity in &model.entities {
-                if let Some(d) = entity.dimensions.iter().find(|d| d.name == f.dimension) {
-                    matches.push((entity.name.clone(), d.name.clone()));
-                }
-            }
-            let (entity_name, dim_name) = match matches.len() {
-                0 => {
-                    return Err(CompilerError::MetricResolution(
-                        MetricResolutionError::DimensionNotFound(
-                            f.dimension.clone(),
-                            request.metric_name.clone(),
-                        ),
-                    ));
-                }
-                1 => matches.into_iter().next().unwrap(),
-                _ => {
-                    return Err(CompilerError::MetricResolution(
-                        MetricResolutionError::AmbiguousDimension {
-                            dimension: f.dimension.clone(),
-                            metric: request.metric_name.clone(),
-                            entities: matches.into_iter().map(|(e, _)| e).collect(),
-                        },
-                    ));
-                }
-            };
+            let resolved_dims = crate::compiler::MetricResolver::new(model)
+                .resolve_custom_dimensions(std::slice::from_ref(&f.dimension), &request.metric_name)?;
+            let (entity, dim) = &resolved_dims[0];
+            let entity_name = entity.name.clone();
+            let dim_name = dim.name.clone();
 
             let op_str = match f.operator {
                 crate::compiler::request::FilterOperator::Eq => "=",
@@ -245,7 +267,7 @@ impl SemanticCompiler {
             {
                 f.value.clone()
             } else {
-                format!("'{}'", f.value)
+                format!("'{}'", f.value.replace('\'', "''"))
             };
 
             let left = crate::ast::Expr::DimensionRef {
@@ -277,36 +299,17 @@ impl SemanticCompiler {
         };
 
         // STEP 10: Assemble SqlNode::Query
-        let query_node = if let Some(ref granularity) = request.time_granularity {
-            // TODO(SQL-ENGINE-REV-1.0.5/PART_D): Implement advanced spine<->fact joining semantics.
-            crate::ast::SqlNode::Query {
-                ctes: None,
-                select: Box::new(select_node),
-                from: Box::new(crate::ast::SqlNode::From {
-                    source: Box::new(crate::ast::SqlNode::TimeSpine {
-                        granularity: granularity.clone(),
-                    }),
-                    joins: vec![],
-                }),
-                r#where: where_node.map(Box::new),
-                group_by: group_by_node.map(Box::new),
-                having: None,
-                order_by: vec![],
-                limit: request.limit.map(u64::from),
-                offset: None,
-            }
-        } else {
-            crate::ast::SqlNode::Query {
-                ctes: None,
-                select: Box::new(select_node),
-                from: Box::new(from_node),
-                r#where: where_node.map(Box::new),
-                group_by: group_by_node.map(Box::new),
-                having: None,
-                order_by: vec![],
-                limit: request.limit.map(u64::from),
-                offset: None,
-            }
+        // TODO(SQL-ENGINE-REV-1.0.5/PART_D): Implement advanced spine<->fact joining semantics for TimeSpine.
+        let query_node = crate::ast::SqlNode::Query {
+            ctes: None,
+            select: Box::new(select_node),
+            from: Box::new(from_node),
+            r#where: where_node.map(Box::new),
+            group_by: group_by_node.map(Box::new),
+            having: None,
+            order_by: vec![],
+            limit: request.limit.map(u64::from),
+            offset: None,
         };
 
         let query_node = match &classification {
