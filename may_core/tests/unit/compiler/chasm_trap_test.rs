@@ -57,6 +57,33 @@ fn test_pure_dimension_returns_query_unchanged() {
 }
 
 #[test]
+fn test_inject_ctes_rejects_count_distinct() {
+    let query = create_helper_query();
+    let classification = PathClassification::MultiFactJoin {
+        fact_tables: vec!["orders".to_string(), "returns".to_string()],
+    };
+    let facts = vec![
+        FactPreAgg {
+            entity: "orders".to_string(),
+            table: "orders".to_string(),
+            group_key: "user_id".to_string(),
+            measures: vec![MeasureProjection {
+                name: "distinct_users".to_string(),
+                agg: AggregationType::CountDistinct,
+                sql: "user_id".to_string(),
+            }],
+        },
+    ];
+    let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts);
+    assert_eq!(
+        result,
+        Err(ChasmTrapError::UnsupportedCountDistinctReaggregation {
+            measure: "distinct_users".to_string(),
+        })
+    );
+}
+
+#[test]
 fn test_multi_fact_injects_two_ctes() {
     let query = create_helper_query();
     let classification = PathClassification::MultiFactJoin {
