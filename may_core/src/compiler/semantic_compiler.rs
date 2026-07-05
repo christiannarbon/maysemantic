@@ -213,7 +213,7 @@ impl SemanticCompiler {
                         MetricResolutionError::DimensionNotFound(
                             f.dimension.clone(),
                             request.metric_name.clone(),
-                        )
+                        ),
                     ));
                 }
                 1 => matches.into_iter().next().unwrap(),
@@ -223,7 +223,7 @@ impl SemanticCompiler {
                             dimension: f.dimension.clone(),
                             metric: request.metric_name.clone(),
                             entities: matches.into_iter().map(|(e, _)| e).collect(),
-                        }
+                        },
                     ));
                 }
             };
