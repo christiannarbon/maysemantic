@@ -97,8 +97,16 @@ fn test_compile_filters_supported() {
 
     let result = compiler.compile(request, None);
     let sql = result.expect("compile should succeed with filters");
-    assert!(sql.contains("WHERE"), "SQL must contain WHERE clause: {}", sql);
-    assert!(sql.contains("\"status\" = 'completed'"), "SQL must contain status filter: {}", sql);
+    assert!(
+        sql.contains("WHERE"),
+        "SQL must contain WHERE clause: {}",
+        sql
+    );
+    assert!(
+        sql.contains("\"status\" = 'completed'"),
+        "SQL must contain status filter: {}",
+        sql
+    );
 }
 
 #[test]
@@ -462,8 +470,16 @@ fn test_compile_custom_dimensions_supported() {
     let sql = result.expect("compile should succeed with custom dimensions");
 
     // SQL should contain physical column "id" (from order_id mapping) instead of status
-    assert!(sql.contains("id"), "SQL must contain physical column id: {}", sql);
-    assert!(!sql.contains("status"), "SQL must NOT contain default dimension status: {}", sql);
+    assert!(
+        sql.contains("id"),
+        "SQL must contain physical column id: {}",
+        sql
+    );
+    assert!(
+        !sql.contains("status"),
+        "SQL must NOT contain default dimension status: {}",
+        sql
+    );
 }
 
 #[test]
@@ -482,7 +498,7 @@ fn test_compile_time_granularity_supported() {
 
     let result = compiler.compile(request, None);
     let sql = result.expect("compile should succeed with time granularity");
-    
+
     // SQL should contain FROM "time_spine_day"
     assert!(
         sql.contains("FROM \"time_spine_day\"") || sql.contains("FROM time_spine_day"),
