@@ -57,20 +57,28 @@ pub enum AggregationType {
     Average,
     Min,
     Max,
+    #[serde(rename = "count_distinct")]
+    CountDistinct,
 }
 
 impl AggregationType {
     pub fn to_expr(&self, column: Expr) -> Expr {
-        let name = match self {
-            AggregationType::Sum => "SUM",
-            AggregationType::Count => "COUNT",
-            AggregationType::Average => "AVG",
-            AggregationType::Min => "MIN",
-            AggregationType::Max => "MAX",
-        };
-        Expr::Function {
-            name: name.to_string(),
-            args: vec![column],
+        match self {
+            AggregationType::CountDistinct => Expr::CountDistinct(Box::new(column)),
+            _ => {
+                let name = match self {
+                    AggregationType::Sum => "SUM",
+                    AggregationType::Count => "COUNT",
+                    AggregationType::Average => "AVG",
+                    AggregationType::Min => "MIN",
+                    AggregationType::Max => "MAX",
+                    AggregationType::CountDistinct => unreachable!(),
+                };
+                Expr::Function {
+                    name: name.to_string(),
+                    args: vec![column],
+                }
+            }
         }
     }
 }
