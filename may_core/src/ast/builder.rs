@@ -86,7 +86,6 @@ pub fn build_semantic_timespine_query(
     }
 }
 
-
 /// Builds a From node including all resolved join paths.
 pub fn build_from_join_path(base_entity: &GraphNode, joins: &[ResolvedJoin]) -> SqlNode {
     // Invariant: the first hop must start at the base entity, and each hop must continue
