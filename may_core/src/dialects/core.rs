@@ -274,6 +274,16 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 buf.push_str(sql);
                 Ok(())
             }
+            Expr::CountDistinct(inner) => {
+                buf.push_str("COUNT(DISTINCT ");
+                self.write_expr(buf, inner)?;
+                buf.push(')');
+                Ok(())
+            }
+            Expr::CountStar => {
+                buf.push_str("COUNT(*)");
+                Ok(())
+            }
             Expr::Aliased { expr, alias } => {
                 self.write_expr(buf, expr)?;
                 buf.push_str(" AS ");
