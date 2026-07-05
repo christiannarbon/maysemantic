@@ -110,6 +110,39 @@ fn test_compile_filters_supported() {
 }
 
 #[test]
+fn test_compile_filter_escaping_supported() {
+    let state = load_demo_state("../demos/valid_demo").expect("demo model must load successfully");
+    let state = Arc::new(state);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+
+    let request = SemanticRequest {
+        metric_name: "revenue_by_status".to_string(),
+        dimensions: vec![],
+        filters: vec![may_core::compiler::SemanticFilter {
+            dimension: "status".to_string(),
+            operator: may_core::compiler::FilterOperator::Eq,
+            value: "O'Brien".to_string(),
+        }],
+        time_granularity: None,
+        limit: None,
+    };
+
+    let result = compiler.compile(request, None);
+    let sql = result.expect("compile should succeed with escaping");
+    assert!(sql.contains("WHERE"), "SQL must contain WHERE clause: {}", sql);
+    assert!(
+        sql.contains("\"status\" = 'O''Brien'"),
+        "SQL must contain escaped status filter: {}",
+        sql
+    );
+    assert!(
+        !sql.contains("'O'Brien'"),
+        "SQL must NOT contain unescaped single quote: {}",
+        sql
+    );
+}
+
+#[test]
 fn test_compile_ambiguous_metric_returns_error() {
     let mut state = SemanticState::new();
 
@@ -471,8 +504,8 @@ fn test_compile_custom_dimensions_supported() {
 
     // SQL should contain physical column "id" (from order_id mapping) instead of status
     assert!(
-        sql.contains("id"),
-        "SQL must contain physical column id: {}",
+        sql.contains("\"id\""),
+        "SQL must contain physical column \"id\": {}",
         sql
     );
     assert!(
@@ -489,7 +522,7 @@ fn test_compile_time_granularity_supported() {
     let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
 
     let request = SemanticRequest {
-        metric_name: "revenue_by_status".to_string(),
+        metric_name: "daily_active_users".to_string(),
         dimensions: vec![],
         filters: vec![],
         time_granularity: Some("day".to_string()),
@@ -499,10 +532,46 @@ fn test_compile_time_granularity_supported() {
     let result = compiler.compile(request, None);
     let sql = result.expect("compile should succeed with time granularity");
 
-    // SQL should contain FROM "time_spine_day"
+    // SQL should contain DATE_TRUNC('day', ...)
     assert!(
-        sql.contains("FROM \"time_spine_day\"") || sql.contains("FROM time_spine_day"),
-        "SQL must source from time-spine table: {}",
+        sql.to_lowercase().contains("date_trunc('day',"),
+        "SQL must contain DATE_TRUNC with 'day' granularity: {}",
         sql
+    );
+    // SQL should source from the fact table public.users
+    assert!(
+        sql.contains("\"public\".\"users\"") || sql.contains("users"),
+        "SQL must source from the fact table: {}",
+        sql
+    );
+    // SQL should NOT contain time_spine
+    assert!(
+        !sql.contains("time_spine"),
+        "SQL must NOT contain time_spine: {}",
+        sql
+    );
+}
+
+#[test]
+fn test_compile_time_granularity_missing_time_dim_errors() {
+    let state = load_demo_state("../demos/valid_demo").expect("demo model must load successfully");
+    let state = Arc::new(state);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+
+    let request = SemanticRequest {
+        metric_name: "revenue_by_status".to_string(),
+        dimensions: vec![],
+        filters: vec![],
+        time_granularity: Some("day".to_string()),
+        limit: None,
+    };
+
+    let result = compiler.compile(request, None);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, CompilerError::UnsupportedRequestFeature(_)),
+        "Expected UnsupportedRequestFeature error, got: {:?}",
+        err
     );
 }
