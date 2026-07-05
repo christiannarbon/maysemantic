@@ -44,8 +44,6 @@ mod join_builder_tests {
         }
     }
 
-
-
     #[test]
     fn test_build_from_single_hop() {
         let resolved_join_orders_to_users = ResolvedJoin {
@@ -69,7 +67,6 @@ mod join_builder_tests {
             "FROM \"orders\" LEFT JOIN \"users\" ON \"orders\".\"user_id\" = \"users\".\"id\""
         );
     }
-
 
     #[test]
     fn test_build_from_two_hops() {

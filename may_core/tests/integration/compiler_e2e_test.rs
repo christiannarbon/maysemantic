@@ -129,7 +129,11 @@ fn test_compile_filter_escaping_supported() {
 
     let result = compiler.compile(request, None);
     let sql = result.expect("compile should succeed with escaping");
-    assert!(sql.contains("WHERE"), "SQL must contain WHERE clause: {}", sql);
+    assert!(
+        sql.contains("WHERE"),
+        "SQL must contain WHERE clause: {}",
+        sql
+    );
     assert!(
         sql.contains("\"status\" = 'O''Brien'"),
         "SQL must contain escaped status filter: {}",

@@ -62,18 +62,16 @@ fn test_inject_ctes_rejects_count_distinct() {
     let classification = PathClassification::MultiFactJoin {
         fact_tables: vec!["orders".to_string(), "returns".to_string()],
     };
-    let facts = vec![
-        FactPreAgg {
-            entity: "orders".to_string(),
-            table: "orders".to_string(),
-            group_key: "user_id".to_string(),
-            measures: vec![MeasureProjection {
-                name: "distinct_users".to_string(),
-                agg: AggregationType::CountDistinct,
-                sql: "user_id".to_string(),
-            }],
-        },
-    ];
+    let facts = vec![FactPreAgg {
+        entity: "orders".to_string(),
+        table: "orders".to_string(),
+        group_key: "user_id".to_string(),
+        measures: vec![MeasureProjection {
+            name: "distinct_users".to_string(),
+            agg: AggregationType::CountDistinct,
+            sql: "user_id".to_string(),
+        }],
+    }];
     let result = ChasmTrapHandler::inject_ctes(query, &classification, &facts);
     assert_eq!(
         result,
