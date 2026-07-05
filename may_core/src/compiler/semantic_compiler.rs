@@ -228,10 +228,13 @@ impl SemanticCompiler {
         // Inject trunc_expr into SELECT and GROUP BY if present
         if let Some(ref trunc_expr) = trunc_expr {
             if let crate::ast::SqlNode::Select(ref mut exprs) = select_node {
-                exprs.insert(0, crate::ast::Expr::Aliased {
-                    expr: Box::new(trunc_expr.clone()),
-                    alias: request.time_granularity.clone().unwrap(),
-                });
+                exprs.insert(
+                    0,
+                    crate::ast::Expr::Aliased {
+                        expr: Box::new(trunc_expr.clone()),
+                        alias: request.time_granularity.clone().unwrap(),
+                    },
+                );
             }
             let mut gb_cols = match group_by_node {
                 Some(crate::ast::SqlNode::GroupBy(c)) => c,
@@ -245,7 +248,10 @@ impl SemanticCompiler {
         let mut filter_exprs = Vec::new();
         for f in &request.filters {
             let resolved_dims = crate::compiler::MetricResolver::new(model)
-                .resolve_custom_dimensions(std::slice::from_ref(&f.dimension), &request.metric_name)?;
+                .resolve_custom_dimensions(
+                    std::slice::from_ref(&f.dimension),
+                    &request.metric_name,
+                )?;
             let (entity, dim) = &resolved_dims[0];
             let entity_name = entity.name.clone();
             let dim_name = dim.name.clone();
