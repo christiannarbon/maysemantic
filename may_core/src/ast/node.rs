@@ -128,6 +128,11 @@ pub enum Expr {
         measure: String,
     },
 
+    /// COUNT(DISTINCT <expr>)
+    CountDistinct(Box<Expr>),
+    /// COUNT(*)
+    CountStar,
+
     /// Represents raw, unescaped SQL text injected directly into an expression.
     ///
     /// # Safety
