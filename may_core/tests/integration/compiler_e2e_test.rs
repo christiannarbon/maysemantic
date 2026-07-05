@@ -59,7 +59,7 @@ fn test_compile_demo_metric_produces_valid_sql() {
 }
 
 #[test]
-fn test_compile_rejects_unsupported_limit() {
+fn test_compile_limit_supported() {
     let state = load_demo_state("../demos/valid_demo").expect("demo model must load successfully");
     let state = Arc::new(state);
     let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
@@ -73,19 +73,12 @@ fn test_compile_rejects_unsupported_limit() {
     };
 
     let result = compiler.compile(request, None);
-    match result {
-        Err(CompilerError::UnsupportedRequestFeature(field)) => {
-            assert_eq!(field, "limit");
-        }
-        other => panic!(
-            "Expected CompilerError::UnsupportedRequestFeature(\"limit\"), got {:?}",
-            other
-        ),
-    }
+    let sql = result.expect("compile should succeed with limit");
+    assert!(sql.contains("LIMIT 10"), "SQL must contain LIMIT 10");
 }
 
 #[test]
-fn test_compile_rejects_unsupported_filters() {
+fn test_compile_filters_supported() {
     let state = load_demo_state("../demos/valid_demo").expect("demo model must load successfully");
     let state = Arc::new(state);
     let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
@@ -103,15 +96,9 @@ fn test_compile_rejects_unsupported_filters() {
     };
 
     let result = compiler.compile(request, None);
-    match result {
-        Err(CompilerError::UnsupportedRequestFeature(field)) => {
-            assert_eq!(field, "filters");
-        }
-        other => panic!(
-            "Expected CompilerError::UnsupportedRequestFeature(\"filters\"), got {:?}",
-            other
-        ),
-    }
+    let sql = result.expect("compile should succeed with filters");
+    assert!(sql.contains("WHERE"), "SQL must contain WHERE clause: {}", sql);
+    assert!(sql.contains("\"status\" = 'completed'"), "SQL must contain status filter: {}", sql);
 }
 
 #[test]
@@ -453,5 +440,53 @@ metrics:
         rls_sql.contains("\"tenant\" = 'tenant_123'"),
         "RLS predicate must be injected: {}",
         rls_sql
+    );
+}
+
+#[test]
+fn test_compile_custom_dimensions_supported() {
+    let state = load_demo_state("../demos/valid_demo").expect("demo model must load successfully");
+    let state = Arc::new(state);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+
+    // Request metric with custom dimension "order_id" instead of the default "status"
+    let request = SemanticRequest {
+        metric_name: "revenue_by_status".to_string(),
+        dimensions: vec!["order_id".to_string()],
+        filters: vec![],
+        time_granularity: None,
+        limit: None,
+    };
+
+    let result = compiler.compile(request, None);
+    let sql = result.expect("compile should succeed with custom dimensions");
+
+    // SQL should contain physical column "id" (from order_id mapping) instead of status
+    assert!(sql.contains("id"), "SQL must contain physical column id: {}", sql);
+    assert!(!sql.contains("status"), "SQL must NOT contain default dimension status: {}", sql);
+}
+
+#[test]
+fn test_compile_time_granularity_supported() {
+    let state = load_demo_state("../demos/valid_demo").expect("demo model must load successfully");
+    let state = Arc::new(state);
+    let compiler = SemanticCompiler::new(state, Box::new(PostgresDialect));
+
+    let request = SemanticRequest {
+        metric_name: "revenue_by_status".to_string(),
+        dimensions: vec![],
+        filters: vec![],
+        time_granularity: Some("day".to_string()),
+        limit: None,
+    };
+
+    let result = compiler.compile(request, None);
+    let sql = result.expect("compile should succeed with time granularity");
+    
+    // SQL should contain FROM "time_spine_day"
+    assert!(
+        sql.contains("FROM \"time_spine_day\"") || sql.contains("FROM time_spine_day"),
+        "SQL must source from time-spine table: {}",
+        sql
     );
 }
