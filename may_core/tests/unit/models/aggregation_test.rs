@@ -71,4 +71,15 @@ mod aggregation_tests {
             _ => panic!("Expected Expr::Function"),
         }
     }
+
+    #[test]
+    fn test_count_distinct_to_expr() {
+        let expr = AggregationType::CountDistinct.to_expr(col());
+        match expr {
+            Expr::CountDistinct(inner) => {
+                assert_eq!(*inner, col());
+            }
+            _ => panic!("Expected Expr::CountDistinct"),
+        }
+    }
 }
