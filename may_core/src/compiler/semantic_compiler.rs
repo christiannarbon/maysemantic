@@ -60,23 +60,6 @@ impl SemanticCompiler {
         request: SemanticRequest,
         user_context: Option<&UserContext>,
     ) -> Result<String, CompilerError> {
-        if !request.filters.is_empty() {
-            return Err(CompilerError::UnsupportedRequestFeature("filters".into()));
-        }
-        if request.limit.is_some() {
-            return Err(CompilerError::UnsupportedRequestFeature("limit".into()));
-        }
-        if request.time_granularity.is_some() {
-            return Err(CompilerError::UnsupportedRequestFeature(
-                "time_granularity".into(),
-            ));
-        }
-        if !request.dimensions.is_empty() {
-            return Err(CompilerError::UnsupportedRequestFeature(
-                "dimensions".into(),
-            ));
-        }
-
         let state_ref = self.state.as_ref();
 
         // STEP 1: Validate request
@@ -123,8 +106,13 @@ impl SemanticCompiler {
         };
 
         // STEP 3: Resolve metric to typed structs
-        let resolved_metric =
+        let mut resolved_metric =
             crate::compiler::MetricResolver::new(model).resolve(&request.metric_name)?;
+
+        if !request.dimensions.is_empty() {
+            resolved_metric.dimensions = crate::compiler::MetricResolver::new(model)
+                .resolve_custom_dimensions(&request.dimensions, &request.metric_name)?;
+        }
 
         // STEP 4: Build semantic graph from the model
         let (graph, node_indices) = crate::graph::build_semantic_graph(state_ref)?;
@@ -210,17 +198,115 @@ impl SemanticCompiler {
             None
         };
 
+        // STEP 9.5: Build WHERE clause from filters
+        let mut filter_exprs = Vec::new();
+        for f in &request.filters {
+            let mut matches = Vec::new();
+            for entity in &model.entities {
+                if let Some(d) = entity.dimensions.iter().find(|d| d.name == f.dimension) {
+                    matches.push((entity.name.clone(), d.name.clone()));
+                }
+            }
+            let (entity_name, dim_name) = match matches.len() {
+                0 => {
+                    return Err(CompilerError::MetricResolution(
+                        MetricResolutionError::DimensionNotFound(
+                            f.dimension.clone(),
+                            request.metric_name.clone(),
+                        )
+                    ));
+                }
+                1 => matches.into_iter().next().unwrap(),
+                _ => {
+                    return Err(CompilerError::MetricResolution(
+                        MetricResolutionError::AmbiguousDimension {
+                            dimension: f.dimension.clone(),
+                            metric: request.metric_name.clone(),
+                            entities: matches.into_iter().map(|(e, _)| e).collect(),
+                        }
+                    ));
+                }
+            };
+
+            let op_str = match f.operator {
+                crate::compiler::request::FilterOperator::Eq => "=",
+                crate::compiler::request::FilterOperator::NotEq => "<>",
+                crate::compiler::request::FilterOperator::Gt => ">",
+                crate::compiler::request::FilterOperator::Lt => "<",
+                crate::compiler::request::FilterOperator::Gte => ">=",
+                crate::compiler::request::FilterOperator::Lte => "<=",
+                crate::compiler::request::FilterOperator::In => "IN",
+            };
+
+            let quoted_value = if (f.value.starts_with('\'') && f.value.ends_with('\''))
+                || (f.value.starts_with('(') && f.value.ends_with(')'))
+                || f.value.parse::<f64>().is_ok()
+                || f.value.parse::<bool>().is_ok()
+            {
+                f.value.clone()
+            } else {
+                format!("'{}'", f.value)
+            };
+
+            let left = crate::ast::Expr::DimensionRef {
+                model: Some(model_name.clone()),
+                entity: entity_name,
+                dimension: dim_name,
+            };
+            let right = crate::ast::Expr::Literal(quoted_value);
+            filter_exprs.push(crate::ast::Expr::BinaryOp {
+                left: Box::new(left),
+                op: op_str.to_string(),
+                right: Box::new(right),
+            });
+        }
+
+        let where_node = if !filter_exprs.is_empty() {
+            let mut iter = filter_exprs.into_iter();
+            let mut combined = iter.next().unwrap();
+            for next_expr in iter {
+                combined = crate::ast::Expr::BinaryOp {
+                    left: Box::new(combined),
+                    op: "AND".to_string(),
+                    right: Box::new(next_expr),
+                };
+            }
+            Some(crate::ast::SqlNode::Where(combined))
+        } else {
+            None
+        };
+
         // STEP 10: Assemble SqlNode::Query
-        let query_node = crate::ast::SqlNode::Query {
-            ctes: None,
-            select: Box::new(select_node),
-            from: Box::new(from_node),
-            r#where: None,
-            group_by: group_by_node.map(Box::new),
-            having: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+        let query_node = if let Some(ref granularity) = request.time_granularity {
+            // TODO(SQL-ENGINE-REV-1.0.5/PART_D): Implement advanced spine<->fact joining semantics.
+            crate::ast::SqlNode::Query {
+                ctes: None,
+                select: Box::new(select_node),
+                from: Box::new(crate::ast::SqlNode::From {
+                    source: Box::new(crate::ast::SqlNode::TimeSpine {
+                        granularity: granularity.clone(),
+                    }),
+                    joins: vec![],
+                }),
+                r#where: where_node.map(Box::new),
+                group_by: group_by_node.map(Box::new),
+                having: None,
+                order_by: vec![],
+                limit: request.limit.map(u64::from),
+                offset: None,
+            }
+        } else {
+            crate::ast::SqlNode::Query {
+                ctes: None,
+                select: Box::new(select_node),
+                from: Box::new(from_node),
+                r#where: where_node.map(Box::new),
+                group_by: group_by_node.map(Box::new),
+                having: None,
+                order_by: vec![],
+                limit: request.limit.map(u64::from),
+                offset: None,
+            }
         };
 
         let query_node = match &classification {
