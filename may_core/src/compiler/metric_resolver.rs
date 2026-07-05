@@ -111,4 +111,41 @@ impl<'a> MetricResolver<'a> {
             dimensions: resolved_dimensions,
         })
     }
+
+    pub fn resolve_custom_dimensions(
+        &self,
+        dim_names: &[String],
+        metric_name: &str,
+    ) -> Result<Vec<(Entity, Dimension)>, MetricResolutionError> {
+        let mut resolved_dimensions = Vec::new();
+
+        for dim_name in dim_names {
+            let mut matches: Vec<(Entity, Dimension)> = Vec::new();
+            for entity in &self.model.entities {
+                if let Some(d) = entity.dimensions.iter().find(|d| d.name == *dim_name) {
+                    matches.push((entity.clone(), d.clone()));
+                }
+            }
+
+            let (dim_entity, dimension) = match matches.len() {
+                0 => {
+                    return Err(MetricResolutionError::DimensionNotFound(
+                        dim_name.clone(),
+                        metric_name.to_string(),
+                    ))
+                }
+                1 => matches.into_iter().next().expect("len checked == 1"),
+                _ => {
+                    return Err(MetricResolutionError::AmbiguousDimension {
+                        dimension: dim_name.clone(),
+                        metric: metric_name.to_string(),
+                        entities: matches.into_iter().map(|(e, _)| e.name).collect(),
+                    })
+                }
+            };
+
+            resolved_dimensions.push((dim_entity, dimension));
+        }
+        Ok(resolved_dimensions)
+    }
 }
