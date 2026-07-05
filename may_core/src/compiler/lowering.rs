@@ -151,6 +151,8 @@ impl<'a> SemanticLowering<'a> {
             Expr::Unnest { expr } => Ok(Expr::Unnest {
                 expr: Box::new(self.lower_expr(*expr)?),
             }),
+            Expr::CountDistinct(inner) => Ok(Expr::CountDistinct(Box::new(self.lower_expr(*inner)?))),
+            Expr::CountStar => Ok(Expr::CountStar),
         }
     }
 
