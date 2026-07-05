@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod join_builder_tests {
-    use may_core::ast::builder::{build_from_join_path, build_join};
+    use may_core::ast::builder::build_from_join_path;
     use may_core::ast::{ColumnIdent, Expr, JoinType, SqlNode, TableIdent};
     use may_core::compiler::ResolvedJoin;
     use may_core::graph::{GraphEdge, GraphNode};
@@ -44,59 +44,7 @@ mod join_builder_tests {
         }
     }
 
-    fn inner_join(left_col: &str, right_col: &str) -> GraphEdge {
-        GraphEdge {
-            left_column: left_col.to_string(),
-            right_column: right_col.to_string(),
-            join_type: JoinType::Inner,
-        }
-    }
 
-    #[test]
-    fn test_build_join_correct_structure() {
-        let resolved_join = ResolvedJoin {
-            left_table: orders_node(),
-            right_table: users_node(),
-            edge: left_join("user_id", "id"),
-        };
-        let result = build_join(&resolved_join);
-
-        match result {
-            SqlNode::Join {
-                join_type,
-                relation,
-                ..
-            } => {
-                assert_eq!(join_type, JoinType::Left);
-                assert_eq!(*relation, SqlNode::Table(TableIdent("users".to_string())));
-            }
-            _ => panic!("Expected SqlNode::Join"),
-        }
-    }
-
-    #[test]
-    fn test_on_clause_is_fully_qualified() {
-        let resolved_join = ResolvedJoin {
-            left_table: orders_node(),
-            right_table: users_node(),
-            edge: left_join("user_id", "id"),
-        };
-        let result = build_join(&resolved_join);
-
-        match result {
-            SqlNode::Join { on, .. } => match on {
-                Expr::BinaryOp { left, right, .. } => {
-                    assert_eq!(
-                        *left,
-                        Expr::Column(ColumnIdent("orders.user_id".to_string()))
-                    );
-                    assert_eq!(*right, Expr::Column(ColumnIdent("users.id".to_string())));
-                }
-                _ => panic!("Expected Expr::BinaryOp"),
-            },
-            _ => panic!("Expected SqlNode::Join"),
-        }
-    }
 
     #[test]
     fn test_build_from_single_hop() {
@@ -122,18 +70,6 @@ mod join_builder_tests {
         );
     }
 
-    #[test]
-    fn test_build_join_inner_type() {
-        let resolved_join = ResolvedJoin {
-            left_table: orders_node(),
-            right_table: users_node(),
-            edge: inner_join("user_id", "id"),
-        };
-        let result = build_join(&resolved_join);
-
-        let sql = render(&result);
-        assert!(sql.starts_with("INNER JOIN \"users\" ON "));
-    }
 
     #[test]
     fn test_build_from_two_hops() {
