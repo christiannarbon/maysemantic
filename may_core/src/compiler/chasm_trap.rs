@@ -14,8 +14,8 @@ pub enum ChasmTrapError {
     #[error("No conformed dimension table found in the join path for a MultiFactJoin")]
     LinkDimensionNotFound,
 
-    #[error("Average aggregation in chasm-trap joins is not yet supported")]
-    UnsupportedAverageAggregation,
+    #[error("measure '{measure}' uses COUNT(DISTINCT), which cannot be correctly re-aggregated through a chasm-trap pre-aggregation and is not supported")]
+    UnsupportedCountDistinctReaggregation { measure: String },
 
     #[error("dimension '{dimension}' (entity '{entity}') is finer than the conformed chasm-trap grain '{conformed_grain}' and cannot be selected through a pre-aggregated join")]
     FinerThanConformedGrain {
@@ -74,6 +74,15 @@ impl ChasmTrapHandler {
             PathClassification::MultiFactJoin { .. } => {
                 if facts.is_empty() {
                     return Err(ChasmTrapError::EmptyFactTableList);
+                }
+                for fact in facts {
+                    for m in &fact.measures {
+                        if m.agg == crate::models::AggregationType::CountDistinct {
+                            return Err(ChasmTrapError::UnsupportedCountDistinctReaggregation {
+                                measure: m.name.clone(),
+                            });
+                        }
+                    }
                 }
                 let cte_query = Self::build_cte_query(query, facts)?;
                 Self::rewrite_outer_query(cte_query, facts)
