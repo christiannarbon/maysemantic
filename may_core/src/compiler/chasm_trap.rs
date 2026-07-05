@@ -365,6 +365,7 @@ impl ChasmTrapHandler {
             crate::models::AggregationType::Min => crate::models::AggregationType::Min,
             crate::models::AggregationType::Max => crate::models::AggregationType::Max,
             crate::models::AggregationType::Average => crate::models::AggregationType::Average,
+            crate::models::AggregationType::CountDistinct => crate::models::AggregationType::Sum,
         }
     }
 
