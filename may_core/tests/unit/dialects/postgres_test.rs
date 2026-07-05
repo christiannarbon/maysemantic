@@ -588,3 +588,47 @@ fn test_order_limit_offset_combined() {
     let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
     assert!(sql.ends_with(" ORDER BY \"revenue\" DESC LIMIT 100 OFFSET 50"));
 }
+
+#[test]
+fn test_postgres_count_distinct() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::CountDistinct(Box::new(
+            Expr::Column(ColumnIdent("user_id".to_string())),
+        ))])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(sql, "SELECT COUNT(DISTINCT \"user_id\") FROM \"users\"");
+}
+
+#[test]
+fn test_postgres_count_star() {
+    let ast = SqlNode::Query {
+        ctes: None,
+        select: Box::new(SqlNode::Select(vec![Expr::CountStar])),
+        from: Box::new(SqlNode::From {
+            source: Box::new(SqlNode::Table(TableIdent("users".to_string()))),
+            joins: vec![],
+        }),
+        r#where: None,
+        group_by: None,
+        having: None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
+    };
+    let dialect = PostgresDialect;
+    let sql = dialect.generate_sql(&ast).expect("SQL generation failed");
+    assert_eq!(sql, "SELECT COUNT(*) FROM \"users\"");
+}
