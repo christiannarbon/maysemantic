@@ -184,9 +184,12 @@ pub trait SqlDialect: std::fmt::Debug + Send + Sync {
                 buf.push_str(&self.quote_identifier(&alias.0));
                 Ok(())
             }
-            SqlNode::TimeSpine { granularity } => Err(DialectError::UnsupportedASTNode(format!(
-                "TimeSpine({granularity})"
-            ))),
+            SqlNode::TimeSpine { granularity } => {
+                // TODO(SQL-ENGINE-REV-1.0.5/PART_D): Implement advanced spine<->fact joining semantics.
+                // Currently, we render the time spine as a table reference.
+                buf.push_str(&self.quote_identifier(&format!("time_spine_{granularity}")));
+                Ok(())
+            }
         }
     }
 
