@@ -1,11 +1,11 @@
 use crate::models::{Dimension, Entity, Measure, Metric, SemanticModel};
 
 #[derive(Debug, Clone)]
-pub struct ResolvedMetric {
-    pub metric: Metric,
-    pub measure_entity: Entity,
-    pub measure: Measure,
-    pub dimensions: Vec<(Entity, Dimension)>,
+pub struct ResolvedMetric<'a> {
+    pub metric: &'a Metric,
+    pub measure_entity: &'a Entity,
+    pub measure: &'a Measure,
+    pub dimensions: Vec<(&'a Entity, &'a Dimension)>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -41,7 +41,7 @@ impl<'a> MetricResolver<'a> {
         Self { model }
     }
 
-    pub fn resolve(&self, metric_name: &str) -> Result<ResolvedMetric, MetricResolutionError> {
+    pub fn resolve(&self, metric_name: &str) -> Result<ResolvedMetric<'a>, MetricResolutionError> {
         let metric = self
             .model
             .metrics
@@ -50,10 +50,10 @@ impl<'a> MetricResolver<'a> {
             .ok_or_else(|| MetricResolutionError::MetricNotFound(metric_name.to_string()))?;
 
         let (measure_entity, measure) = {
-            let mut matches: Vec<(Entity, Measure)> = Vec::new();
+            let mut matches: Vec<(&'a Entity, &'a Measure)> = Vec::new();
             for entity in &self.model.entities {
                 if let Some(m) = entity.measures.iter().find(|m| m.name == metric.measure) {
-                    matches.push((entity.clone(), m.clone()));
+                    matches.push((entity, m));
                 }
             }
             match matches.len() {
@@ -68,7 +68,7 @@ impl<'a> MetricResolver<'a> {
                     return Err(MetricResolutionError::AmbiguousMeasure {
                         measure: metric.measure.clone(),
                         metric: metric.name.clone(),
-                        entities: matches.into_iter().map(|(e, _)| e.name).collect(),
+                        entities: matches.into_iter().map(|(e, _)| e.name.clone()).collect(),
                     })
                 }
             }
@@ -77,10 +77,10 @@ impl<'a> MetricResolver<'a> {
         let mut resolved_dimensions = Vec::new();
 
         for dim_name in &metric.dimensions {
-            let mut matches: Vec<(Entity, Dimension)> = Vec::new();
+            let mut matches: Vec<(&'a Entity, &'a Dimension)> = Vec::new();
             for entity in &self.model.entities {
                 if let Some(d) = entity.dimensions.iter().find(|d| d.name == *dim_name) {
-                    matches.push((entity.clone(), d.clone()));
+                    matches.push((entity, d));
                 }
             }
 
@@ -96,7 +96,7 @@ impl<'a> MetricResolver<'a> {
                     return Err(MetricResolutionError::AmbiguousDimension {
                         dimension: dim_name.clone(),
                         metric: metric.name.clone(),
-                        entities: matches.into_iter().map(|(e, _)| e.name).collect(),
+                        entities: matches.into_iter().map(|(e, _)| e.name.clone()).collect(),
                     })
                 }
             };
@@ -105,7 +105,7 @@ impl<'a> MetricResolver<'a> {
         }
 
         Ok(ResolvedMetric {
-            metric: metric.clone(),
+            metric,
             measure_entity,
             measure,
             dimensions: resolved_dimensions,
@@ -116,14 +116,14 @@ impl<'a> MetricResolver<'a> {
         &self,
         dim_names: &[String],
         metric_name: &str,
-    ) -> Result<Vec<(Entity, Dimension)>, MetricResolutionError> {
+    ) -> Result<Vec<(&'a Entity, &'a Dimension)>, MetricResolutionError> {
         let mut resolved_dimensions = Vec::new();
 
         for dim_name in dim_names {
-            let mut matches: Vec<(Entity, Dimension)> = Vec::new();
+            let mut matches: Vec<(&'a Entity, &'a Dimension)> = Vec::new();
             for entity in &self.model.entities {
                 if let Some(d) = entity.dimensions.iter().find(|d| d.name == *dim_name) {
-                    matches.push((entity.clone(), d.clone()));
+                    matches.push((entity, d));
                 }
             }
 
@@ -139,7 +139,7 @@ impl<'a> MetricResolver<'a> {
                     return Err(MetricResolutionError::AmbiguousDimension {
                         dimension: dim_name.clone(),
                         metric: metric_name.to_string(),
-                        entities: matches.into_iter().map(|(e, _)| e.name).collect(),
+                        entities: matches.into_iter().map(|(e, _)| e.name.clone()).collect(),
                     })
                 }
             };
