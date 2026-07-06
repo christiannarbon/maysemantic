@@ -3,7 +3,7 @@ use futures::{Sink, SinkExt, stream};
 use may_auth::repository::UserRepository;
 use may_core::StateMgr;
 use may_core::compiler::{SemanticCompiler, SemanticRequest};
-use may_core::dialects::PostgresDialect;
+
 use pgwire::api::PgWireConnectionState;
 use pgwire::api::auth::{ServerParameterProvider, StartupHandler};
 use pgwire::api::copy::NoopCopyHandler;
@@ -25,6 +25,7 @@ use tracing::{debug, info, warn};
 pub struct QueryProcessor {
     state_mgr: Arc<StateMgr>,
     connectors: Arc<may_connectors::ConnectorRegistry>,
+    dialect_kind: String,
 }
 
 impl QueryProcessor {
@@ -35,7 +36,21 @@ impl QueryProcessor {
         Self {
             state_mgr,
             connectors,
+            dialect_kind: "postgres".to_string(),
         }
+    }
+
+    #[must_use]
+    #[allow(dead_code)]
+    pub fn with_dialect(mut self, dialect: &str) -> Self {
+        self.dialect_kind = dialect.to_string();
+        self
+    }
+
+    #[must_use]
+    #[allow(dead_code)]
+    pub fn dialect_kind(&self) -> &str {
+        &self.dialect_kind
     }
 }
 
@@ -236,7 +251,8 @@ impl SimpleQueryHandler for QueryProcessor {
                 info!("Semantic request validated: metric={}", request.metric_name);
 
                 let state_arc = Arc::new(state_guard.clone());
-                let compiler = SemanticCompiler::new(state_arc, Box::new(PostgresDialect));
+                // The dialect is dynamically resolved based on QueryProcessor configuration.
+                let compiler = SemanticCompiler::new(state_arc, may_core::dialect_for(&self.dialect_kind));
 
                 // RLS context wiring is deferred; pass None until per-connection JWT
                 // extraction is implemented (tracked separately, out of scope for SQL-ENGINE-4).
