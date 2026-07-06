@@ -33,13 +33,13 @@ impl SemanticState {
 }
 
 pub struct StateMgr {
-    state: Arc<RwLock<SemanticState>>,
+    state: Arc<RwLock<Arc<SemanticState>>>,
 }
 
 impl Default for StateMgr {
     fn default() -> Self {
         Self {
-            state: Arc::new(RwLock::new(SemanticState::new())),
+            state: Arc::new(RwLock::new(Arc::new(SemanticState::new()))),
         }
     }
 }
@@ -58,16 +58,24 @@ impl StateMgr {
         Self::default()
     }
 
-    pub fn get_state(&self) -> Arc<RwLock<SemanticState>> {
+    pub fn get_state(&self) -> Arc<RwLock<Arc<SemanticState>>> {
         self.state.clone()
+    }
+
+    /// Cheap O(1) snapshot of the current state — clones the inner Arc, not the data.
+    pub fn snapshot(&self) -> Result<Arc<SemanticState>, StateError> {
+        let guard = self.state.read().map_err(|_| StateError::LockError)?;
+        Ok(guard.clone())
     }
 
     pub fn load_from_yaml(&self, yaml_content: &str) -> Result<(), StateError> {
         let model: SemanticModel = serde_norway::from_str(yaml_content)?;
         model.validate()?;
 
-        let mut state = self.state.write().map_err(|_| StateError::LockError)?;
-        state.models.insert(model.name.clone(), model);
+        let mut guard = self.state.write().map_err(|_| StateError::LockError)?;
+        let mut next = (**guard).clone();
+        next.models.insert(model.name.clone(), model);
+        *guard = Arc::new(next);
 
         Ok(())
     }
@@ -100,36 +108,38 @@ impl StateMgr {
             models.push(model);
         }
 
-        let mut state = self.state.write().map_err(|_| StateError::LockError)?;
+        let mut guard = self.state.write().map_err(|_| StateError::LockError)?;
+        let mut next = (**guard).clone();
         for model in models {
-            state.models.insert(model.name.clone(), model);
+            next.models.insert(model.name.clone(), model);
         }
+        *guard = Arc::new(next);
 
         Ok(())
     }
 
     pub fn get_model(&self, name: &str) -> Result<Option<SemanticModel>, StateError> {
-        let state = self.state.read().map_err(|_| StateError::LockError)?;
-        Ok(state.models.get(name).cloned())
+        let guard = self.state.read().map_err(|_| StateError::LockError)?;
+        Ok(guard.models.get(name).cloned())
     }
 
     pub fn get_all_models(&self) -> Result<Vec<SemanticModel>, StateError> {
-        let state = self.state.read().map_err(|_| StateError::LockError)?;
-        Ok(state.models.values().cloned().collect())
+        let guard = self.state.read().map_err(|_| StateError::LockError)?;
+        Ok(guard.models.values().cloned().collect())
     }
 
     pub fn get_default_model(&self) -> Result<Option<SemanticModel>, StateError> {
-        let state = self.state.read().map_err(|_| StateError::LockError)?;
-        Ok(state.models.values().next().cloned())
+        let guard = self.state.read().map_err(|_| StateError::LockError)?;
+        Ok(guard.models.values().next().cloned())
     }
 
     /// Returns aggregate counts of models, entities, and metrics in the current state.
     pub fn get_stats(&self) -> Result<StateStats, StateError> {
-        let state = self.state.read().map_err(|_| StateError::LockError)?;
+        let guard = self.state.read().map_err(|_| StateError::LockError)?;
         Ok(StateStats {
-            model_count: state.models.len(),
-            entity_count: state.models.values().map(|m| m.entities.len()).sum(),
-            metric_count: state.models.values().map(|m| m.metrics.len()).sum(),
+            model_count: guard.models.len(),
+            entity_count: guard.models.values().map(|m| m.entities.len()).sum(),
+            metric_count: guard.models.values().map(|m| m.metrics.len()).sum(),
         })
     }
 }
