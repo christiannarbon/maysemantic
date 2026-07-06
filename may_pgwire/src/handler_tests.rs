@@ -156,3 +156,18 @@ async fn test_invalid_semantic_metric_returns_pgwire_error() {
         "Error message should mention the metric name, got: {err_msg}"
     );
 }
+
+#[test]
+fn test_query_processor_dialect_config() {
+    use may_core::StateMgr;
+    let state_mgr = Arc::new(StateMgr::new());
+    let connectors = Arc::new(may_connectors::ConnectorRegistry::new());
+    let processor = QueryProcessor::new(state_mgr, connectors);
+
+    // Verify default dialect is postgres
+    assert_eq!(processor.dialect_kind(), "postgres");
+
+    // Verify builder config changes dialect
+    let processor_snowflake = processor.with_dialect("snowflake");
+    assert_eq!(processor_snowflake.dialect_kind(), "snowflake");
+}
