@@ -252,7 +252,8 @@ impl SimpleQueryHandler for QueryProcessor {
 
                 let state_arc = Arc::new(state_guard.clone());
                 // The dialect is dynamically resolved based on QueryProcessor configuration.
-                let compiler = SemanticCompiler::new(state_arc, may_core::dialect_for(&self.dialect_kind));
+                let compiler =
+                    SemanticCompiler::new(state_arc, may_core::dialect_for(&self.dialect_kind));
 
                 // RLS context wiring is deferred; pass None until per-connection JWT
                 // extraction is implemented (tracked separately, out of scope for SQL-ENGINE-4).
