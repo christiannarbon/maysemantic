@@ -60,7 +60,9 @@ impl<'a> SemanticLowering<'a> {
                 }
 
                 for measure in &entity.measures {
-                    let expr = measure.agg.to_expr(Expr::Column(ColumnIdent(measure.sql.clone())));
+                    let expr = measure
+                        .agg
+                        .to_expr(Expr::Column(ColumnIdent(measure.sql.clone())));
                     measure_index
                         .entry((entity.name.clone(), measure.name.clone()))
                         .or_default()
