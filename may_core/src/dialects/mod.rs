@@ -10,3 +10,11 @@ pub use core::{DialectError, SqlDialect};
 pub use dummy::test_support::DummyDialect;
 pub use postgres::PostgresDialect;
 pub use snowflake::SnowflakeDialect;
+
+pub fn dialect_for(kind: &str) -> Box<dyn SqlDialect + Send + Sync> {
+    match kind.to_ascii_lowercase().as_str() {
+        "snowflake" => Box::new(SnowflakeDialect),
+        "bigquery" => Box::new(BigQueryDialect),
+        _ => Box::new(PostgresDialect), // default
+    }
+}
