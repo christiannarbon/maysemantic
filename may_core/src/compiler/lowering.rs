@@ -1,5 +1,6 @@
 use crate::ast::{ColumnIdent, Expr, SqlNode};
-use crate::models::{Entity, SemanticState};
+use crate::models::SemanticState;
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq)]
@@ -30,32 +31,50 @@ pub enum LoweringError {
 
 pub struct SemanticLowering<'a> {
     pub state: &'a SemanticState,
+    // (entity_name, dimension_name) -> Vec<(model_name, dimension_sql)>
+    dim_index: HashMap<(String, String), Vec<(String, String)>>,
+    // (entity_name, measure_name) -> Vec<(model_name, lowered_measure_expr)>
+    measure_index: HashMap<(String, String), Vec<(String, Expr)>>,
+    // entity_name -> Set of model_names that define it
+    entity_models: HashMap<String, HashSet<String>>,
 }
 
 impl<'a> SemanticLowering<'a> {
     pub fn new(state: &'a SemanticState) -> Self {
-        Self { state }
-    }
+        let mut dim_index: HashMap<(String, String), Vec<(String, String)>> = HashMap::new();
+        let mut measure_index: HashMap<(String, String), Vec<(String, Expr)>> = HashMap::new();
+        let mut entity_models: HashMap<String, HashSet<String>> = HashMap::new();
 
-    /// Returns every (model_name, &Entity) across all models whose entity name matches `entity`,
-    /// optionally filtered to a specific model.
-    fn entities_named<'b>(
-        &'b self,
-        entity: &'b str,
-        model_filter: Option<&'b str>,
-    ) -> impl Iterator<Item = (&'b str, &'b Entity)> {
-        self.state.models.iter().filter_map(move |(name, model)| {
-            if let Some(mf) = model_filter {
-                if name != mf {
-                    return None;
+        for (model_name, model) in &state.models {
+            for entity in &model.entities {
+                entity_models
+                    .entry(entity.name.clone())
+                    .or_default()
+                    .insert(model_name.clone());
+
+                for dim in &entity.dimensions {
+                    dim_index
+                        .entry((entity.name.clone(), dim.name.clone()))
+                        .or_default()
+                        .push((model_name.clone(), dim.sql.clone()));
+                }
+
+                for measure in &entity.measures {
+                    let expr = measure.agg.to_expr(Expr::Column(ColumnIdent(measure.sql.clone())));
+                    measure_index
+                        .entry((entity.name.clone(), measure.name.clone()))
+                        .or_default()
+                        .push((model_name.clone(), expr));
                 }
             }
-            model
-                .entities
-                .iter()
-                .find(|e| e.name == entity)
-                .map(|e| (name.as_str(), e))
-        })
+        }
+
+        Self {
+            state,
+            dim_index,
+            measure_index,
+            entity_models,
+        }
     }
 
     pub fn lower_expr(&self, expr: Expr) -> Result<Expr, LoweringError> {
@@ -65,14 +84,28 @@ impl<'a> SemanticLowering<'a> {
                 entity,
                 dimension,
             } => {
-                let mut entity_seen = false;
-                let mut hits: Vec<(String, String)> = Vec::new();
-                for (model_name, e) in self.entities_named(&entity, model.as_deref()) {
-                    entity_seen = true;
-                    if let Some(d) = e.dimensions.iter().find(|d| d.name == dimension) {
-                        hits.push((model_name.to_string(), d.sql.clone()));
+                let entity_seen = if let Some(ref m_name) = model {
+                    self.entity_models
+                        .get(&entity)
+                        .map(|models| models.contains(m_name))
+                        .unwrap_or(false)
+                } else {
+                    self.entity_models.contains_key(&entity)
+                };
+
+                let mut hits = Vec::new();
+                if let Some(all_hits) = self.dim_index.get(&(entity.clone(), dimension.clone())) {
+                    for (m_name, sql) in all_hits {
+                        if let Some(ref filter_m) = model {
+                            if m_name == filter_m {
+                                hits.push((m_name.clone(), sql.clone()));
+                            }
+                        } else {
+                            hits.push((m_name.clone(), sql.clone()));
+                        }
                     }
                 }
+
                 match hits.len() {
                     0 if !entity_seen => Err(LoweringError::EntityNotFound { entity }),
                     0 => Err(LoweringError::DimensionNotFound { entity, dimension }),
@@ -91,17 +124,28 @@ impl<'a> SemanticLowering<'a> {
                 entity,
                 measure,
             } => {
-                let mut entity_seen = false;
-                let mut hits: Vec<(String, Expr)> = Vec::new();
-                for (model_name, e) in self.entities_named(&entity, model.as_deref()) {
-                    entity_seen = true;
-                    if let Some(m) = e.measures.iter().find(|m| m.name == measure) {
-                        hits.push((
-                            model_name.to_string(),
-                            m.agg.to_expr(Expr::Column(ColumnIdent(m.sql.clone()))),
-                        ));
+                let entity_seen = if let Some(ref m_name) = model {
+                    self.entity_models
+                        .get(&entity)
+                        .map(|models| models.contains(m_name))
+                        .unwrap_or(false)
+                } else {
+                    self.entity_models.contains_key(&entity)
+                };
+
+                let mut hits = Vec::new();
+                if let Some(all_hits) = self.measure_index.get(&(entity.clone(), measure.clone())) {
+                    for (m_name, expr) in all_hits {
+                        if let Some(ref filter_m) = model {
+                            if m_name == filter_m {
+                                hits.push((m_name.clone(), expr.clone()));
+                            }
+                        } else {
+                            hits.push((m_name.clone(), expr.clone()));
+                        }
                     }
                 }
+
                 match hits.len() {
                     0 if !entity_seen => Err(LoweringError::EntityNotFound { entity }),
                     0 => Err(LoweringError::MeasureNotFound { entity, measure }),
