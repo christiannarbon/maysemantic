@@ -240,8 +240,7 @@ impl SimpleQueryHandler for QueryProcessor {
             };
 
             let compiled_sql = {
-                let state_lock = self.state_mgr.get_state();
-                let state_guard = state_lock.read().map_err(|_| {
+                let state_arc = self.state_mgr.snapshot().map_err(|_| {
                     PgWireError::UserError(Box::new(ErrorInfo::new(
                         "ERROR".to_string(),
                         "XX000".to_string(),
@@ -250,7 +249,6 @@ impl SimpleQueryHandler for QueryProcessor {
                 })?;
                 info!("Semantic request validated: metric={}", request.metric_name);
 
-                let state_arc = Arc::new(state_guard.clone());
                 // The dialect is dynamically resolved based on QueryProcessor configuration.
                 let compiler =
                     SemanticCompiler::new(state_arc, may_core::dialect_for(&self.dialect_kind));
