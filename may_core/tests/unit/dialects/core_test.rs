@@ -184,3 +184,21 @@ fn test_dummy_dialect_generates_ctes() {
         "WITH \"active_users\" AS (SELECT \"id\" FROM \"users\") SELECT \"*\" FROM \"active_users\""
     );
 }
+
+#[test]
+fn test_dialect_for_mapping() {
+    let pg = may_core::dialect_for("postgres");
+    let pg_upper = may_core::dialect_for("POSTGRES");
+    let snowflake = may_core::dialect_for("snowflake");
+    let bigquery = may_core::dialect_for("bigquery");
+    let unknown = may_core::dialect_for("unknown");
+
+    // postgres, postgres_upper, unknown should all default to PostgresDialect
+    // We can verify this by checking formatting behavior or querying dialect details
+    // Here we check their debug representation / type identification
+    assert_eq!(format!("{:?}", pg), "PostgresDialect");
+    assert_eq!(format!("{:?}", pg_upper), "PostgresDialect");
+    assert_eq!(format!("{:?}", snowflake), "SnowflakeDialect");
+    assert_eq!(format!("{:?}", bigquery), "BigQueryDialect");
+    assert_eq!(format!("{:?}", unknown), "PostgresDialect");
+}
