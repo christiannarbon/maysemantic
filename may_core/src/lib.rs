@@ -12,7 +12,9 @@ pub use compiler::{
 };
 #[doc(hidden)]
 pub use dialects::DummyDialect;
-pub use dialects::{BigQueryDialect, DialectError, PostgresDialect, SnowflakeDialect, SqlDialect, dialect_for};
+pub use dialects::{
+    dialect_for, BigQueryDialect, DialectError, PostgresDialect, SnowflakeDialect, SqlDialect,
+};
 pub use graph::{
     build_semantic_graph, GraphEdge, GraphError, GraphNode, JoinResolutionError, JoinResolver,
     SemanticGraph,
