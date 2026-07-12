@@ -21,7 +21,10 @@ pub enum StateError {
     IoError(#[from] std::io::Error),
 }
 
-pub type CachedGraph = Arc<(crate::graph::engine::SemanticGraph, HashMap<String, petgraph::graph::NodeIndex>)>;
+pub type CachedGraph = Arc<(
+    crate::graph::engine::SemanticGraph,
+    HashMap<String, petgraph::graph::NodeIndex>,
+)>;
 
 pub struct SemanticState {
     pub models: HashMap<String, SemanticModel>,
