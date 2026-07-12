@@ -23,6 +23,8 @@ pub mod graph {
     pub mod engine_test;
     #[path = "resolver_test.rs"]
     pub mod resolver_test;
+    #[path = "graph_cache_test.rs"]
+    pub mod graph_cache_test;
 }
 
 pub mod models {
