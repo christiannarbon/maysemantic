@@ -21,14 +21,47 @@ pub enum StateError {
     IoError(#[from] std::io::Error),
 }
 
-#[derive(Default, Clone)]
+pub type CachedGraph = Arc<(crate::graph::engine::SemanticGraph, HashMap<String, petgraph::graph::NodeIndex>)>;
+
 pub struct SemanticState {
     pub models: HashMap<String, SemanticModel>,
+    graph_cache: std::sync::OnceLock<CachedGraph>,
+}
+
+impl Default for SemanticState {
+    fn default() -> Self {
+        Self {
+            models: HashMap::new(),
+            graph_cache: std::sync::OnceLock::new(),
+        }
+    }
+}
+
+impl Clone for SemanticState {
+    fn clone(&self) -> Self {
+        Self {
+            models: self.models.clone(),
+            // When cloning state, start with a fresh uninitialized OnceLock cache cell
+            // so that graph is rebuilt for the new state revision on first access.
+            graph_cache: std::sync::OnceLock::new(),
+        }
+    }
 }
 
 impl SemanticState {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Cheaply retrieves the cached graph, lazily building it once on first access.
+    pub fn get_graph(&self) -> Result<CachedGraph, crate::graph::GraphError> {
+        if let Some(cached) = self.graph_cache.get() {
+            return Ok(cached.clone());
+        }
+        let (graph, node_indices) = crate::graph::build_semantic_graph(self)?;
+        let val = Arc::new((graph, node_indices));
+        let _ = self.graph_cache.set(val.clone());
+        Ok(val)
     }
 }
 
