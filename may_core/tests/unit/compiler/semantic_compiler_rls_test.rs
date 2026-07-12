@@ -46,7 +46,9 @@ fn state_with_policy() -> SemanticState {
     };
     let mut models = HashMap::new();
     models.insert(model.name.clone(), model);
-    SemanticState { models }
+    let mut state = SemanticState::new();
+    state.models = models;
+    state
 }
 
 #[test]
@@ -218,7 +220,9 @@ fn state_with_two_entities_same_table() -> SemanticState {
     };
     let mut models = HashMap::new();
     models.insert(model.name.clone(), model);
-    SemanticState { models }
+    let mut state = SemanticState::new();
+    state.models = models;
+    state
 }
 
 #[test]
