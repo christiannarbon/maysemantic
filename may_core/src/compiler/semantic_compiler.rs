@@ -141,8 +141,10 @@ impl SemanticCompiler {
             None
         };
 
-        // STEP 4: Build semantic graph from the model
-        let (graph, node_indices) = crate::graph::build_semantic_graph(state_ref)?;
+        // STEP 4: Build or fetch cached semantic graph from the model
+        let cached_graph = state_ref.get_graph()?;
+        let graph = cached_graph.0.clone();
+        let node_indices = cached_graph.1.clone();
 
         // STEP 5 & 6: Resolve join path with A* (JoinResolver) and zip edges
         let join_resolver = crate::graph::JoinResolver::new(graph, node_indices);
