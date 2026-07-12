@@ -48,7 +48,9 @@ fn make_test_state() -> SemanticState {
     let mut models = HashMap::new();
     models.insert("ecommerce".to_string(), model);
 
-    SemanticState { models }
+    let mut state = SemanticState::new();
+    state.models = models;
+    state
 }
 
 #[test]
