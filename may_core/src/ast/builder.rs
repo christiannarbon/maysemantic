@@ -87,6 +87,12 @@ pub fn build_semantic_timespine_query(
 }
 
 /// Builds a From node including all resolved join paths.
+///
+/// ### Design Rationale
+/// `base_entity` is the driving table of the FROM clause. It is REQUIRED because a path may
+/// have zero joins (a single-table query), in which case there is no `joins[0]` to derive it
+/// from. When `joins` is non-empty, `base_entity` MUST equal `joins[0].left_table` — this is
+/// enforced by the debug assertion below.
 pub fn build_from_join_path(base_entity: &GraphNode, joins: &[ResolvedJoin]) -> SqlNode {
     // Invariant: the first hop must start at the base entity, and each hop must continue
     // from where the previous one ended. These are debug-only guards; the function stays
