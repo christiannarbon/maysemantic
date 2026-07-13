@@ -123,6 +123,25 @@ mod metric_resolver_tests {
                     measure: "revenue".to_string(),
                     dimensions: vec!["duplicate_dimension".to_string()],
                 },
+                Metric {
+                    name: "duplicate_dimensions_metric".to_string(),
+                    description: None,
+                    measure: "revenue".to_string(),
+                    dimensions: vec![
+                        "user_country".to_string(),
+                        "order_status".to_string(),
+                        "user_country".to_string(),
+                    ],
+                },
+                Metric {
+                    name: "distinct_dimensions_metric".to_string(),
+                    description: None,
+                    measure: "revenue".to_string(),
+                    dimensions: vec![
+                        "order_status".to_string(),
+                        "user_country".to_string(),
+                    ],
+                },
             ],
             joins: vec![],
         }
@@ -237,5 +256,36 @@ mod metric_resolver_tests {
             }
             _ => panic!("Expected AmbiguousDimension"),
         }
+    }
+
+    #[test]
+    fn test_resolve_de_duplicates_metric_dimensions_preserving_order() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let result = resolver
+            .resolve("duplicate_dimensions_metric")
+            .expect("Should resolve successfully");
+
+        // The input has ["user_country", "order_status", "user_country"]
+        // The output must de-duplicate user_country, leaving exactly two resolved dimensions
+        // in first-seen order: ["user_country", "order_status"]
+        assert_eq!(result.dimensions.len(), 2);
+        assert_eq!(result.dimensions[0].1.name, "user_country");
+        assert_eq!(result.dimensions[1].1.name, "order_status");
+    }
+
+    #[test]
+    fn test_resolve_distinct_metric_dimensions_preserves_order() {
+        let model = make_test_model();
+        let resolver = MetricResolver::new(&model);
+        let result = resolver
+            .resolve("distinct_dimensions_metric")
+            .expect("Should resolve successfully");
+
+        // The input has ["order_status", "user_country"]
+        // The output must retain both dimensions in original order
+        assert_eq!(result.dimensions.len(), 2);
+        assert_eq!(result.dimensions[0].1.name, "order_status");
+        assert_eq!(result.dimensions[1].1.name, "user_country");
     }
 }
