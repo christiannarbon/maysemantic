@@ -133,7 +133,10 @@ struct CapturingConnector {
 
 #[async_trait]
 impl may_connectors::WarehouseConnector for CapturingConnector {
-    async fn execute(&self, sql: &str) -> Result<may_connectors::models::QueryResult, may_connectors::error::ConnectorError> {
+    async fn execute(
+        &self,
+        sql: &str,
+    ) -> Result<may_connectors::models::QueryResult, may_connectors::error::ConnectorError> {
         *self.captured_sql.lock().unwrap() = Some(sql.to_string());
         let row: may_connectors::models::Row = vec![may_connectors::models::ColumnValue::Int64(42)];
         Ok(Box::pin(futures::stream::iter(vec![Ok(row)])))
@@ -223,7 +226,9 @@ metrics:
     dimensions: [status]
 "#;
 
-    state_mgr.load_from_yaml(yaml).expect("Failed to load fixture model");
+    state_mgr
+        .load_from_yaml(yaml)
+        .expect("Failed to load fixture model");
 
     let captured_sql = Arc::new(std::sync::Mutex::new(None));
     let capturing_connector = CapturingConnector {
@@ -245,12 +250,24 @@ metrics:
 
     assert!(result.is_ok(), "Query execution failed: {:?}", result.err());
 
-    let sql = captured_sql.lock().unwrap().clone().expect("connector.execute was not called");
+    let sql = captured_sql
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("connector.execute was not called");
     assert!(!sql.trim().is_empty(), "Captured SQL should not be empty");
 
     // Guard REV-1.0.4 FN-1: Compiled SQL must preserve case and NOT be globally uppercased
-    assert_ne!(sql, sql.to_uppercase(), "SQL should preserve case (not be globally uppercased)");
-    assert!(sql.contains("status"), "SQL should contain lowercase 'status' identifier, found: {}", sql);
+    assert_ne!(
+        sql,
+        sql.to_uppercase(),
+        "SQL should preserve case (not be globally uppercased)"
+    );
+    assert!(
+        sql.contains("status"),
+        "SQL should contain lowercase 'status' identifier, found: {}",
+        sql
+    );
     assert!(
         sql.contains("SUM(") || sql.contains("sum("),
         "SQL must contain aggregation SUM/sum, found: {}",
