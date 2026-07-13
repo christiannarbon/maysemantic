@@ -75,8 +75,12 @@ impl<'a> MetricResolver<'a> {
         };
 
         let mut resolved_dimensions = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
         for dim_name in &metric.dimensions {
+            if !seen.insert(dim_name.as_str()) {
+                continue;
+            }
             let mut matches: Vec<(&'a Entity, &'a Dimension)> = Vec::new();
             for entity in &self.model.entities {
                 if let Some(d) = entity.dimensions.iter().find(|d| d.name == *dim_name) {
