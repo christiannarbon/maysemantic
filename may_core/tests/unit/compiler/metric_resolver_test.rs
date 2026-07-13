@@ -137,10 +137,7 @@ mod metric_resolver_tests {
                     name: "distinct_dimensions_metric".to_string(),
                     description: None,
                     measure: "revenue".to_string(),
-                    dimensions: vec![
-                        "order_status".to_string(),
-                        "user_country".to_string(),
-                    ],
+                    dimensions: vec!["order_status".to_string(), "user_country".to_string()],
                 },
             ],
             joins: vec![],
