@@ -18,7 +18,7 @@ mod lowering_tests {
             dimensions: vec![Dimension {
                 name: "region".to_string(),
                 description: None,
-                sql: "orders.country".to_string(),
+                sql: "country".to_string(),
                 dimension_type: DimensionType::String,
             }],
             measures: vec![Measure {
@@ -39,7 +39,7 @@ mod lowering_tests {
             dimensions: vec![Dimension {
                 name: "user_region".to_string(),
                 description: None,
-                sql: "users.region".to_string(),
+                sql: "region".to_string(),
                 dimension_type: DimensionType::String,
             }],
             measures: vec![],
@@ -77,7 +77,7 @@ mod lowering_tests {
         };
         assert_eq!(
             lowering.lower_expr(expr),
-            Ok(Expr::Column(ColumnIdent("orders.country".to_string())))
+            Ok(Expr::Column(ColumnIdent("country".to_string())))
         );
     }
 
@@ -169,7 +169,7 @@ mod lowering_tests {
         assert_eq!(
             result,
             SqlNode::Where(Expr::BinaryOp {
-                left: Box::new(Expr::Column(ColumnIdent("orders.country".to_string()))),
+                left: Box::new(Expr::Column(ColumnIdent("country".to_string()))),
                 op: "=".to_string(),
                 right: Box::new(Expr::Literal("'US'".to_string())),
             })
@@ -268,7 +268,7 @@ mod lowering_tests {
             .expect("sql generation failed");
         assert_eq!(
             sql,
-            "SELECT \"orders\".\"country\", SUM(\"amount\") FROM \"orders\" GROUP BY \"orders\".\"country\""
+            "SELECT \"country\", SUM(\"amount\") FROM \"orders\" GROUP BY \"country\""
         );
         assert!(!sql.contains("DimensionRef") && !sql.contains("MeasureRef"));
     }
@@ -310,7 +310,7 @@ mod lowering_tests {
         };
         assert_eq!(
             lowering.lower_expr(expr_ecom),
-            Ok(Expr::Column(ColumnIdent("orders.country".to_string())))
+            Ok(Expr::Column(ColumnIdent("country".to_string())))
         );
 
         // Query specifying model "analytics"
