@@ -10,7 +10,7 @@ fn make_test_state() -> SemanticState {
         name: "region".to_string(),
         description: None,
         dimension_type: DimensionType::String,
-        sql: "orders.region".to_string(),
+        sql: "region".to_string(),
     };
 
     let measure = Measure {
