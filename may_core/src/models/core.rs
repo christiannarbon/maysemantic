@@ -25,13 +25,14 @@ pub(crate) fn validate_bare_sql(sql: &str) -> Result<(), ValidationError> {
     let parts: Vec<&str> = sql.split('.').collect();
     if parts.len() == 2 {
         let is_ident = |s: &str| {
-            !s.is_empty() && s.chars().enumerate().all(|(i, c)| {
-                if i == 0 {
-                    c.is_ascii_alphabetic() || c == '_'
-                } else {
-                    c.is_ascii_alphanumeric() || c == '_'
-                }
-            })
+            !s.is_empty()
+                && s.chars().enumerate().all(|(i, c)| {
+                    if i == 0 {
+                        c.is_ascii_alphabetic() || c == '_'
+                    } else {
+                        c.is_ascii_alphanumeric() || c == '_'
+                    }
+                })
         };
         if is_ident(parts[0].trim()) && is_ident(parts[1].trim()) {
             return Err(ValidationError::new(
