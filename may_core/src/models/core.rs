@@ -21,6 +21,27 @@ pub(crate) fn validate_name(name: &str) -> Result<(), ValidationError> {
     }
 }
 
+pub(crate) fn validate_bare_sql(sql: &str) -> Result<(), ValidationError> {
+    let parts: Vec<&str> = sql.split('.').collect();
+    if parts.len() == 2 {
+        let is_ident = |s: &str| {
+            !s.is_empty() && s.chars().enumerate().all(|(i, c)| {
+                if i == 0 {
+                    c.is_ascii_alphabetic() || c == '_'
+                } else {
+                    c.is_ascii_alphanumeric() || c == '_'
+                }
+            })
+        };
+        if is_ident(parts[0].trim()) && is_ident(parts[1].trim()) {
+            return Err(ValidationError::new(
+                "qualified_sql_forbidden: Do NOT table-qualify columns (e.g. 'table.column') in the 'sql' field. Use bare column names instead. The compiler/aliaser handles qualification dynamically.",
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Validate)]
 pub struct Dimension {
     #[validate(custom(function = "validate_name"))]
@@ -28,6 +49,9 @@ pub struct Dimension {
     pub description: Option<String>,
     #[serde(rename = "type")]
     pub dimension_type: DimensionType,
+    /// The bare physical column name. Do NOT table-qualify here — the compiler adds the correct
+    /// table/alias prefix during join construction (see aliasing).
+    #[validate(custom(function = "validate_bare_sql"))]
     pub sql: String,
 }
 
@@ -46,6 +70,9 @@ pub struct Measure {
     pub name: String,
     pub description: Option<String>,
     pub agg: AggregationType,
+    /// The bare physical column name. Do NOT table-qualify here — the compiler adds the correct
+    /// table/alias prefix during join construction (see aliasing).
+    #[validate(custom(function = "validate_bare_sql"))]
     pub sql: String,
 }
 
