@@ -53,7 +53,8 @@
           "type": "string"
         },
         "sql": {
-          "type": "string"
+          "type": "string",
+          "description": "The bare physical column name. Do NOT table-qualify here — the compiler adds the correct table/alias prefix during join construction (see aliasing)."
         },
         "type": {
           "$ref": "#/definitions/DimensionType"
@@ -125,7 +126,8 @@
           "type": "string"
         },
         "sql": {
-          "type": "string"
+          "type": "string",
+          "description": "The bare physical column name. Do NOT table-qualify here — the compiler adds the correct table/alias prefix during join construction (see aliasing)."
         }
       }
     },
