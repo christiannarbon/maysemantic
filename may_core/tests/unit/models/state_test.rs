@@ -157,3 +157,59 @@ metrics: []
     let entity = &model.entities[0];
     assert_eq!(entity.entity_type, may_core::EntityType::Dimension);
 }
+
+/// Tests that qualified column names (e.g. `table.column`) in dimension/measure `sql` fields
+/// fail validation, while valid complex SQL expressions containing dots (e.g. `amount * 1.05`) pass.
+#[test]
+fn test_invalid_sql_field_validation() {
+    let qualified_sql_yaml = r#"
+name: test_qualified_sql_model
+entities:
+  - name: orders
+    table: public.orders
+    primary_key: id
+    dimensions:
+      - name: region
+        type: string
+        sql: orders.region
+    measures: []
+metrics: []
+"#;
+    let mgr = StateMgr::new();
+    let result = mgr.load_from_yaml(qualified_sql_yaml);
+    assert!(
+        result.is_err(),
+        "Expected error for qualified SQL field, got Ok"
+    );
+    match result.unwrap_err() {
+        StateError::ValidationError(e) => {
+            let errors_str = format!("{:?}", e);
+            assert!(
+                errors_str.contains("qualified_sql_forbidden"),
+                "Expected qualified_sql_forbidden error, got: {}",
+                errors_str
+            );
+        }
+        err => panic!("Expected ValidationError, got: {:?}", err),
+    }
+
+    let expression_sql_yaml = r#"
+name: test_expression_sql_model
+entities:
+  - name: orders
+    table: public.orders
+    primary_key: id
+    dimensions:
+      - name: adjusted_amount
+        type: number
+        sql: amount * 1.05
+    measures: []
+metrics: []
+"#;
+    let result2 = mgr.load_from_yaml(expression_sql_yaml);
+    assert!(
+        result2.is_ok(),
+        "Expected valid SQL expression with float literal to pass validation, got Err: {:?}",
+        result2.err()
+    );
+}
