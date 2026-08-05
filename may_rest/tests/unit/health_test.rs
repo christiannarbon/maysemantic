@@ -56,5 +56,9 @@ async fn health_cors_preflight_has_allow_origin() {
         .expect("router responds");
 
     assert!(response.status().is_success());
-    assert!(response.headers().contains_key("access-control-allow-origin"));
+    assert!(
+        response
+            .headers()
+            .contains_key("access-control-allow-origin")
+    );
 }
