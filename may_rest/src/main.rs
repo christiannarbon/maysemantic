@@ -7,6 +7,7 @@ use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tower_http::cors::CorsLayer;
 #[cfg(feature = "swagger")]
 use utoipa::OpenApi;
 #[cfg(feature = "swagger")]
@@ -43,6 +44,8 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(feature = "swagger")]
     let app =
         app.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()));
+
+    let app = app.layer(CorsLayer::permissive());
 
     let port: u16 = env::var("MAY_REST_PORT")
         .as_deref()
