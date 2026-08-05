@@ -38,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let app = Router::new()
+        .route("/health", axum::routing::get(routes::health::health))
         .nest("/api", routes::router())
         .with_state(state);
 
