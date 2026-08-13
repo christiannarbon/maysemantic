@@ -3,6 +3,7 @@ use axum::routing::{delete, get, post};
 
 pub mod auth;
 pub mod health;
+pub mod query;
 pub mod users;
 
 pub fn router() -> Router<crate::AppState> {
