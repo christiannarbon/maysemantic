@@ -1919,6 +1919,7 @@ dependencies = [
  "chrono",
  "http-body-util",
  "may_auth",
+ "may_core",
  "serde",
  "serde_json",
  "serial_test",
