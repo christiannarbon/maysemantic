@@ -1,8 +1,9 @@
 use axum::{
-    Json,
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
+    routing::{delete, get, post},
 };
 use may_auth::models::{Role, User};
 use serde::{Deserialize, Serialize};
@@ -310,4 +311,11 @@ pub async fn update_user(
             Json(json!({"error": "failed to update user"})),
         )),
     }
+}
+
+pub fn router() -> Router<crate::AppState> {
+    Router::new()
+        .route("/", post(create_user))
+        .route("/", get(list_users))
+        .route("/:id", delete(deactivate_user).put(update_user))
 }
