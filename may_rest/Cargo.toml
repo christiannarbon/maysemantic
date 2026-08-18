@@ -20,15 +20,13 @@ uuid = { version = "1.7.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
 tower-http = { version = "0.6", features = ["cors"] }
-thiserror = "1"
+thiserror = "2"
 
 [dev-dependencies]
-uuid = { version = "1.7.0", features = ["v4", "serde"] }
 serial_test = "3"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-async-trait = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
+
 [lints]
 workspace = true
 
