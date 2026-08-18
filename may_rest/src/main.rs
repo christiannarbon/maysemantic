@@ -1,13 +1,11 @@
-use axum::Router;
 use may_auth::{repository::PgUserRepository, token::TokenService};
 #[cfg(feature = "swagger")]
 use may_rest::ApiDoc;
-use may_rest::{AppState, routes};
+use may_rest::AppState;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tower_http::cors::CorsLayer;
 #[cfg(feature = "swagger")]
 use utoipa::OpenApi;
 #[cfg(feature = "swagger")]
@@ -37,16 +35,11 @@ async fn main() -> anyhow::Result<()> {
         token_service,
     };
 
-    let app = Router::new()
-        .route("/health", axum::routing::get(routes::health::health))
-        .nest("/api", routes::router())
-        .with_state(state);
+    let app = may_rest::build_router(state);
 
     #[cfg(feature = "swagger")]
     let app =
         app.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()));
-
-    let app = app.layer(CorsLayer::permissive());
 
     let port: u16 = env::var("MAY_REST_PORT")
         .as_deref()
@@ -56,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = format!("0.0.0.0:{port}");
     tracing::info!("May REST API listening on {}", addr);
+    #[cfg(feature = "swagger")]
     tracing::info!("Swagger UI available at http://{}/swagger-ui", addr);
 
     let listener = TcpListener::bind(&addr).await?;
