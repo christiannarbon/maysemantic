@@ -59,8 +59,7 @@ fn two_metrics_maps_to_error() {
 
 #[test]
 fn minimal_json_deserializes_with_defaults() {
-    let req: QueryRequest =
-        serde_json::from_str(r#"{"metrics":["revenue"]}"#).expect("valid json");
+    let req: QueryRequest = serde_json::from_str(r#"{"metrics":["revenue"]}"#).expect("valid json");
     assert_eq!(req.metrics, vec!["revenue".to_string()]);
     assert!(req.dimensions.is_empty());
     assert!(req.filters.is_empty());
