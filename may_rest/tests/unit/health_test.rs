@@ -2,16 +2,12 @@ use axum::{
     Router,
     body::Body,
     http::{Method, Request, StatusCode},
-    routing::get,
 };
 use http_body_util::BodyExt;
 use tower::ServiceExt; // for `oneshot`
-use tower_http::cors::CorsLayer;
 
 fn health_app() -> Router {
-    Router::new()
-        .route("/health", get(may_rest::routes::health::health))
-        .layer(CorsLayer::permissive())
+    may_rest::build_router(crate::support::test_state())
 }
 
 #[tokio::test]
@@ -61,4 +57,20 @@ async fn health_cors_preflight_has_allow_origin() {
             .headers()
             .contains_key("access-control-allow-origin")
     );
+}
+
+#[tokio::test]
+async fn health_is_not_mounted_under_api() {
+    let app = health_app();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/health")
+                .body(Body::empty())
+                .expect("request builds"),
+        )
+        .await
+        .expect("router responds");
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
