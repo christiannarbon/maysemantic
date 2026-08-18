@@ -3,6 +3,9 @@
 use std::sync::Arc;
 use utoipa::OpenApi;
 
+use axum::Router;
+use tower_http::cors::CorsLayer;
+
 pub mod middleware;
 pub mod routes;
 
@@ -10,6 +13,20 @@ pub mod routes;
 pub struct AppState {
     pub user_repository: Arc<dyn may_auth::repository::UserRepository + Send + Sync>,
     pub token_service: Arc<may_auth::token::TokenService>,
+}
+
+/// Build the complete application router.
+///
+/// This is the single definition of the service the binary serves: the unauthenticated
+/// `/health` liveness route at the root, the `/api` tree, shared state, and the CORS
+/// layer wrapping everything. Tests exercise this function so that route mounting and
+/// layer ordering are covered by the same code path `main` runs.
+pub fn build_router(state: AppState) -> Router {
+    Router::new()
+        .route("/health", axum::routing::get(routes::health::health))
+        .nest("/api", routes::router())
+        .with_state(state)
+        .layer(CorsLayer::permissive())
 }
 
 #[derive(OpenApi)]
