@@ -30,9 +30,27 @@ async fn main() -> anyhow::Result<()> {
     let token_service = Arc::new(TokenService::new()?);
     let user_repository = Arc::new(PgUserRepository::new(pool));
 
+    let state_mgr = Arc::new(may_core::StateMgr::new());
+    if let Ok(model_path) = env::var("MAY_MODEL_PATH") {
+        match std::fs::read_to_string(&model_path) {
+            Ok(yaml) => {
+                if let Err(e) = state_mgr.load_from_yaml(&yaml) {
+                    tracing::warn!("Failed to load semantic model from {model_path}: {e}");
+                } else {
+                    tracing::info!("Loaded semantic model from {model_path}");
+                }
+            }
+            Err(e) => tracing::warn!("Could not read MAY_MODEL_PATH {model_path}: {e}"),
+        }
+    }
+
+    let dialect_kind = env::var("MAY_DIALECT").unwrap_or_else(|_| "postgres".to_string());
+
     let state = AppState {
         user_repository,
         token_service,
+        state_mgr,
+        dialect_kind,
     };
 
     let app = may_rest::build_router(state);
