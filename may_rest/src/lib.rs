@@ -13,6 +13,10 @@ pub mod routes;
 pub struct AppState {
     pub user_repository: Arc<dyn may_auth::repository::UserRepository + Send + Sync>,
     pub token_service: Arc<may_auth::token::TokenService>,
+    // NEW: shared, reloadable semantic model state (mirrors may_pgwire::QueryProcessor).
+    pub state_mgr: Arc<may_core::StateMgr>,
+    // NEW: active SQL dialect ("postgres" | "snowflake" | "bigquery"); resolved via may_core::dialect_for.
+    pub dialect_kind: String,
 }
 
 /// Build the complete application router.
