@@ -1,6 +1,43 @@
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
 use may_core::{SemanticFilter, SemanticRequest};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use thiserror::Error;
+
+use crate::{AppState, middleware::json::ValidatedJson};
+
+/// Routes for the semantic query API. Nested under `/api/v1` by the caller.
+pub fn router() -> Router<AppState> {
+    Router::new().route("/query", post(query_handler))
+}
+
+/// PLACEHOLDER (Story 3): maps the request and echoes it back. The real compile
+/// path is added in SQL-REST-SERV-4.T2.
+pub async fn query_handler(
+    State(_state): State<AppState>,
+    ValidatedJson(payload): ValidatedJson<QueryRequest>,
+) -> impl IntoResponse {
+    let request = match SemanticRequest::try_from(payload) {
+        Ok(r) => r,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+
+    let response = QueryResponse {
+        metric: request.metric_name,
+        sql: String::new(),
+        columns: Vec::new(),
+        rows: Vec::new(),
+        row_count: 0,
+    };
+
+    (StatusCode::OK, Json(response)).into_response()
+}
 
 /// Upper bound on `QueryRequest.limit`, mirroring the input-validation style of
 /// `routes::auth` (`MAX_USERNAME_LEN`). Guards the warehouse from an unbounded scan.
