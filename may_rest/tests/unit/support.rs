@@ -112,5 +112,7 @@ pub fn test_state_with_repo(mock_repo: MockUserRepository) -> AppState {
     AppState {
         user_repository,
         token_service,
+        state_mgr: Arc::new(may_core::StateMgr::new()),
+        dialect_kind: "postgres".to_string(),
     }
 }
