@@ -29,6 +29,7 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", axum::routing::get(routes::health::health))
         .nest("/api", routes::router())
+        .nest("/api/v1", routes::query::router())
         .with_state(state)
         .layer(CorsLayer::permissive())
 }
