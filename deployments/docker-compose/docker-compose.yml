@@ -2,7 +2,7 @@ name: maysemantic
 
 services:
   may-identity-db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: ${IDENTITY_DB_USER}
       POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD}
