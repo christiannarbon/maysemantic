@@ -45,7 +45,7 @@ services:
 
   may-vault:
     # HashiCorp Vault (alternative: quay.io/openbao/openbao:2.0)
-    image: hashicorp/vault:1.17
+    image: hashicorp/vault:2.0
     environment:
       VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
       VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
@@ -58,7 +58,7 @@ services:
       retries: 5
 
   may-vault-seed:
-    image: hashicorp/vault:1.17
+    image: hashicorp/vault:2.0
     depends_on:
       may-vault:
         condition: service_healthy
