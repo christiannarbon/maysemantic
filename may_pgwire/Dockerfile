@@ -1,5 +1,5 @@
 # Stage 1: Cargo Chef Planner
-FROM lukemathwalker/cargo-chef:latest-rust-1.95-slim-bookworm AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.98-slim-bookworm AS chef
 WORKDIR /app
 
 FROM chef AS planner
