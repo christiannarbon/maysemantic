@@ -23,7 +23,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 thiserror = "2"
 
 [dev-dependencies]
-serial_test = "3"
+serial_test = "4"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 
