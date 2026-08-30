@@ -9,7 +9,7 @@ tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 utoipa = { version = "4.2", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "7.1", features = ["axum"], optional = true }
+utoipa-swagger-ui = { version = "9.0", features = ["axum"], optional = true }
 may_auth = { path = "../may_auth" }
 may_core = { path = "../may_core" }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid"] }
