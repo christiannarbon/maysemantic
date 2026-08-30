@@ -12,7 +12,7 @@ futures = "0.3"
 gcp_auth = "0.12.6"
 jsonwebtoken = "9.3"
 may_secrets = { version = "0.1.0", path = "../may_secrets" }
-pkcs8 = { version = "0.10", features = ["encryption", "pem"] }
+pkcs8 = { version = "0.11", features = ["encryption", "pem"] }
 reqwest = { version = "0.13.4", features = ["json"] }
 rsa = { version = "0.9", features = ["pem"] }
 rustls = { version = "0.23.40", features = ["ring"] }
