@@ -1,0 +1,55 @@
+version: 2
+
+updates:
+  # Rust workspace dependencies (Cargo.toml / Cargo.lock)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      cargo-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used by the CI workflow
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Base images for the service and migration Dockerfiles
+  - package-ecosystem: "docker"
+    directories:
+      - "/may_pgwire"
+      - "/deployments/helm/may"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(docker)"
+
+  # Images pinned in the Compose stacks (local dev and integration tests)
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/deployments/docker-compose"
+      - "/may_core/tests/integration/env"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(docker)"
