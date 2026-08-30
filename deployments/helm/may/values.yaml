@@ -10,7 +10,7 @@ identityDb:
 vault:
   enabled: true
   storage: 1Gi
-  image: hashicorp/vault:1.17
+  image: hashicorp/vault:2.0
   # The root token must be set via a pre-existing Kubernetes Secret in production.
   rootTokenSecret: "vault-root-token"
   # To unseal Vault in production, you must manually execute:
