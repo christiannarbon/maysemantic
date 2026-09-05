@@ -42,3 +42,14 @@ Alternatively, you can provide the password via a custom `values.yaml` overlay.
 
 ### Migrations
 The Helm deployment runs an initialization Job that applies the latest database migrations. It uses a standalone `may-migrate` Docker image built from `deployments/helm/may/migrate.Dockerfile`.
+
+## Environment Variables
+
+| Variable | Description | Default | Supported Values |
+| --- | --- | --- | --- |
+| `MAY_DIALECT` | Target SQL dialect for semantic compilation | `postgres` | `postgres`, `snowflake`, `bigquery` |
+| `MAY_MODEL_PATH` | Path to directory containing semantic model YAML files | *(unset)* | File system directory path |
+| `MAY_JWT_SECRET` | Secret key used to sign and verify JWT tokens | *(required)* | Any secure string |
+| `IDENTITY_DB_PASSWORD` | Password for the identity PostgreSQL database | *(required)* | Any secure password |
+| `MAY_ADMIN_PASSWORD` | Initial password for the seeded admin user | `changeme` | Any secure password |
+

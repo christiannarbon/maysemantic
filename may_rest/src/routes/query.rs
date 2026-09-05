@@ -1,10 +1,13 @@
-use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
+use axum::{Json, Router, extract::State, routing::post};
 use may_core::{SemanticFilter, SemanticRequest};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use thiserror::Error;
 
-use crate::{AppState, middleware::json::ValidatedJson};
+use crate::{
+    AppState,
+    error::ApiError,
+    middleware::{auth::AuthClaims, json::ValidatedJson},
+};
 
 /// Routes for the semantic query API. Nested under `/api/v1` by the caller.
 pub fn router() -> Router<AppState> {
@@ -13,30 +16,25 @@ pub fn router() -> Router<AppState> {
 
 /// PLACEHOLDER (Story 3): maps the request and echoes it back. The real compile
 /// path is added in SQL-REST-SERV-4.T2.
+///
+/// # Errors
+///
+/// Returns `ApiError` with HTTP 400 if the query request mapping fails.
 pub async fn query_handler(
     State(_state): State<AppState>,
+    // Authenticated like every other non-health route. RLS scoping (JWT -> UserContext)
+    // stays deferred per the epic; this only establishes *who* is asking.
+    _claims: AuthClaims,
     ValidatedJson(payload): ValidatedJson<QueryRequest>,
-) -> impl IntoResponse {
-    let request = match SemanticRequest::try_from(payload) {
-        Ok(r) => r,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": e.to_string() })),
-            )
-                .into_response();
-        }
-    };
+) -> Result<Json<QueryResponse>, ApiError> {
+    let request = SemanticRequest::try_from(payload)?;
 
-    let response = QueryResponse {
-        metric: request.metric_name,
-        sql: String::new(),
-        columns: Vec::new(),
-        rows: Vec::new(),
-        row_count: 0,
-    };
-
-    (StatusCode::OK, Json(response)).into_response()
+    Ok(Json(QueryResponse::new(
+        request.metric_name,
+        String::new(),
+        Vec::new(),
+        Vec::new(),
+    )))
 }
 
 /// Upper bound on `QueryRequest.limit`, mirroring the input-validation style of
@@ -91,6 +89,26 @@ pub struct QueryResponse {
     pub row_count: usize,
 }
 
+impl QueryResponse {
+    /// Builds a response with `row_count` derived from `rows`, so the two cannot drift.
+    /// This is the only supported way to construct one.
+    #[must_use]
+    pub fn new(
+        metric: String,
+        sql: String,
+        columns: Vec<String>,
+        rows: Vec<Vec<serde_json::Value>>,
+    ) -> Self {
+        Self {
+            row_count: rows.len(),
+            metric,
+            sql,
+            columns,
+            rows,
+        }
+    }
+}
+
 /// Error raised while translating a REST `QueryRequest` into a `SemanticRequest`.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum QueryMappingError {
@@ -104,6 +122,14 @@ pub enum QueryMappingError {
     TimeRangeBoundsUnsupported,
     #[error("`limit` must be between 1 and {max}; got {limit}")]
     LimitOutOfRange { limit: u32, max: u32 },
+}
+
+impl From<QueryMappingError> for ApiError {
+    fn from(err: QueryMappingError) -> Self {
+        // Every variant is a client-side contract violation, so they all map to 400.
+        // Story 4 adds `From<CompilerError>` here with its own status mapping.
+        crate::error::api_error(axum::http::StatusCode::BAD_REQUEST, err.to_string())
+    }
 }
 
 impl TryFrom<QueryRequest> for SemanticRequest {

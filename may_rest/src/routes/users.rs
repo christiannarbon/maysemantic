@@ -7,10 +7,13 @@ use axum::{
 };
 use may_auth::models::{Role, User};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use utoipa::{IntoParams, ToSchema};
 
-use crate::{AppState, middleware::auth::AuthClaims};
+use crate::{
+    AppState,
+    error::{ApiError, api_error},
+    middleware::{auth::AuthClaims, json::ValidatedJson},
+};
 
 const MAX_USERNAME_LEN: usize = 64;
 const MAX_PASSWORD_LEN: usize = 128;
@@ -94,12 +97,12 @@ fn default_per_page() -> u32 {
 pub async fn create_user(
     State(state): State<AppState>,
     claims: AuthClaims,
-    Json(payload): Json<CreateUserRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    ValidatedJson(payload): ValidatedJson<CreateUserRequest>,
+) -> Result<impl IntoResponse, ApiError> {
     if claims.0.role != Role::Admin {
-        return Err((
+        return Err(api_error(
             StatusCode::FORBIDDEN,
-            Json(json!({"error": "forbidden: requires admin role"})),
+            "forbidden: requires admin role",
         ));
     }
 
@@ -108,9 +111,9 @@ pub async fn create_user(
         || payload.username.len() > MAX_USERNAME_LEN
         || payload.password.len() > MAX_PASSWORD_LEN
     {
-        return Err((
+        return Err(api_error(
             StatusCode::BAD_REQUEST,
-            Json(json!({"error": "username/password must be non-empty and within length limits"})),
+            "username/password must be non-empty and within length limits",
         ));
     }
 
@@ -118,29 +121,14 @@ pub async fn create_user(
     let password_hash =
         tokio::task::spawn_blocking(move || may_auth::password::hash_password(&password))
             .await
-            .map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": "internal error"})),
-                )
-            })?
-            .map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": "failed to hash password"})),
-                )
-            })?;
+            .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "internal error"))?
+            .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "failed to hash password"))?;
 
     let user = state
         .user_repository
         .create(&payload.username, &password_hash, payload.role)
         .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": "failed to create user"})),
-            )
-        })?;
+        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "failed to create user"))?;
 
     Ok((StatusCode::CREATED, Json(UserResponse::from(user))))
 }
@@ -169,11 +157,11 @@ pub async fn list_users(
     State(state): State<AppState>,
     claims: AuthClaims,
     Query(pagination): Query<PaginationQuery>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<impl IntoResponse, ApiError> {
     if claims.0.role != Role::Admin {
-        return Err((
+        return Err(api_error(
             StatusCode::FORBIDDEN,
-            Json(json!({"error": "forbidden: requires admin role"})),
+            "forbidden: requires admin role",
         ));
     }
 
@@ -181,12 +169,7 @@ pub async fn list_users(
         .user_repository
         .list(pagination.page, pagination.per_page)
         .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": "failed to list users"})),
-            )
-        })?;
+        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "failed to list users"))?;
 
     let response: Vec<UserResponse> = users.into_iter().map(UserResponse::from).collect();
 
@@ -221,23 +204,22 @@ pub async fn deactivate_user(
     State(state): State<AppState>,
     claims: AuthClaims,
     Path(id): Path<uuid::Uuid>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<impl IntoResponse, ApiError> {
     if claims.0.role != Role::Admin {
-        return Err((
+        return Err(api_error(
             StatusCode::FORBIDDEN,
-            Json(json!({"error": "forbidden: requires admin role"})),
+            "forbidden: requires admin role",
         ));
     }
 
     match state.user_repository.deactivate(id).await {
         Ok(()) => Ok(StatusCode::NO_CONTENT.into_response()),
-        Err(may_auth::error::AuthError::UserNotFound) => Err((
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": "user not found"})),
-        )),
-        Err(_) => Err((
+        Err(may_auth::error::AuthError::UserNotFound) => {
+            Err(api_error(StatusCode::NOT_FOUND, "user not found"))
+        }
+        Err(_) => Err(api_error(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": "failed to deactivate user"})),
+            "failed to deactivate user",
         )),
     }
 }
@@ -271,12 +253,12 @@ pub async fn update_user(
     State(state): State<AppState>,
     claims: AuthClaims,
     Path(id): Path<uuid::Uuid>,
-    Json(payload): Json<UpdateUserRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    ValidatedJson(payload): ValidatedJson<UpdateUserRequest>,
+) -> Result<impl IntoResponse, ApiError> {
     if claims.0.role != Role::Admin {
-        return Err((
+        return Err(api_error(
             StatusCode::FORBIDDEN,
-            Json(json!({"error": "forbidden: requires admin role"})),
+            "forbidden: requires admin role",
         ));
     }
 
@@ -286,9 +268,9 @@ pub async fn update_user(
             {
                 Ok(Ok(h)) => Some(h),
                 _ => {
-                    return Err((
+                    return Err(api_error(
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({"error": "failed to hash password"})),
+                        "failed to hash password",
                     ));
                 }
             }
@@ -301,14 +283,13 @@ pub async fn update_user(
         .update(id, payload.role, password_hash)
         .await
     {
-        Ok(user) => Ok((StatusCode::OK, Json(UserResponse::from(user)))),
-        Err(may_auth::error::AuthError::UserNotFound) => Err((
-            StatusCode::NOT_FOUND,
-            Json(json!({"error": "user not found"})),
-        )),
-        Err(_) => Err((
+        Ok(user) => Ok((StatusCode::OK, Json(UserResponse::from(user))).into_response()),
+        Err(may_auth::error::AuthError::UserNotFound) => {
+            Err(api_error(StatusCode::NOT_FOUND, "user not found"))
+        }
+        Err(_) => Err(api_error(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": "failed to update user"})),
+            "failed to update user",
         )),
     }
 }
