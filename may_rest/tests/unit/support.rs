@@ -119,16 +119,22 @@ pub fn test_state() -> AppState {
     test_state_with_repo(MockUserRepository::success(None))
 }
 
+const DEMO_MODEL_YAML: &str = include_str!("../../../demos/valid_demo/ecommerce_model.yml");
+
 #[allow(dead_code, reason = "shared fixture used by a subset of test modules")]
 pub fn test_state_with_repo(mock_repo: MockUserRepository) -> AppState {
     init_jwt_secret();
     let token_service = Arc::new(TokenService::new().expect("token service initialises"));
     let user_repository = Arc::new(mock_repo);
+    let state_mgr = Arc::new(may_core::StateMgr::new());
+    state_mgr
+        .load_from_yaml(DEMO_MODEL_YAML)
+        .expect("demo model loads");
 
     AppState {
         user_repository,
         token_service,
-        state_mgr: Arc::new(may_core::StateMgr::new()),
+        state_mgr,
         dialect_kind: "postgres".into(),
     }
 }
