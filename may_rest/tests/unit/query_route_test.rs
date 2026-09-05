@@ -36,10 +36,11 @@ async fn valid_body_routes_and_returns_200() {
         .to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
     assert_eq!(json["metric"], "revenue_by_status");
-    assert_eq!(json["sql"], "");
-    assert_eq!(json["columns"], serde_json::json!([]));
-    assert_eq!(json["rows"], serde_json::json!([]));
-    assert_eq!(json["row_count"], 0);
+    let sql = json["sql"].as_str().expect("sql is a string");
+    assert!(!sql.is_empty(), "compiled SQL should be non-empty");
+    assert_eq!(json["columns"], serde_json::json!(["revenue_by_status"]));
+    assert_eq!(json["rows"], serde_json::json!([[serde_json::Value::Null]]));
+    assert_eq!(json["row_count"], 1);
 }
 
 #[tokio::test]

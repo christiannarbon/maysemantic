@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     Json, Router,
     extract::State,
@@ -5,7 +7,10 @@ use axum::{
     response::{IntoResponse, Response},
     routing::post,
 };
-use may_core::{SemanticFilter, SemanticRequest, compiler::CompilerError};
+use may_core::{
+    SemanticFilter, SemanticRequest,
+    compiler::{CompilerError, SemanticCompiler},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -21,27 +26,55 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/query", post(query_handler))
 }
 
-/// PLACEHOLDER (Story 3): maps the request and echoes it back. The real compile
-/// path is added in SQL-REST-SERV-4.T2.
+/// Compiles the incoming semantic query request into dialect SQL and returns
+/// the standardized response envelope.
 ///
 /// # Errors
 ///
-/// Returns `ApiError` with HTTP 400 if the query request mapping fails.
+/// Returns `QueryApiError` with HTTP 400 if mapping or metric resolution fails,
+/// or HTTP 500 if an internal compiler or lock error occurs.
 pub async fn query_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     // Authenticated like every other non-health route. RLS scoping (JWT -> UserContext)
     // stays deferred per the epic; this only establishes *who* is asking.
     _claims: AuthClaims,
     ValidatedJson(payload): ValidatedJson<QueryRequest>,
-) -> Result<Json<QueryResponse>, ApiError> {
+) -> Result<Json<QueryResponse>, QueryApiError> {
+    // 1. REST DTO -> compiler contract (400 on mapping error via `?`).
     let request = SemanticRequest::try_from(payload)?;
+    let metric = request.metric_name.clone();
 
-    Ok(Json(QueryResponse::new(
-        request.metric_name,
-        String::new(),
-        Vec::new(),
-        Vec::new(),
-    )))
+    // 2. Compile in a tight scope so the read lock is dropped before we return.
+    let sql = {
+        let state_lock = state.state_mgr.get_state();
+        let state_guard = state_lock.read().map_err(|_| {
+            QueryApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to acquire read lock on semantic state",
+            )
+        })?;
+
+        let state_arc = Arc::clone(&state_guard);
+        let compiler = SemanticCompiler::new(state_arc, may_core::dialect_for(&state.dialect_kind));
+
+        // RLS user context is `None` for now, exactly as may_pgwire does today.
+        compiler
+            .compile(request, None)
+            .map_err(QueryApiError::from_compiler_error)?
+    }; // read lock released here, before building the response
+
+    // 3. Standardized envelope. Rows are a documented mock (no warehouse execution yet).
+    let columns = vec![metric.clone()];
+    let rows: Vec<Vec<serde_json::Value>> = vec![vec![serde_json::Value::Null]];
+    let row_count = rows.len();
+
+    Ok(Json(QueryResponse {
+        metric,
+        sql,
+        columns,
+        rows,
+        row_count,
+    }))
 }
 
 /// Upper bound on `QueryRequest.limit`, mirroring the input-validation style of
