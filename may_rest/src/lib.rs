@@ -6,6 +6,7 @@ use utoipa::OpenApi;
 use axum::Router;
 use tower_http::cors::CorsLayer;
 
+pub mod error;
 pub mod middleware;
 pub mod routes;
 
@@ -13,10 +14,12 @@ pub mod routes;
 pub struct AppState {
     pub user_repository: Arc<dyn may_auth::repository::UserRepository + Send + Sync>,
     pub token_service: Arc<may_auth::token::TokenService>,
-    // NEW: shared, reloadable semantic model state (mirrors may_pgwire::QueryProcessor).
+    /// Shared, reloadable semantic model state, mirroring `may_pgwire::QueryProcessor`.
     pub state_mgr: Arc<may_core::StateMgr>,
-    // NEW: active SQL dialect ("postgres" | "snowflake" | "bigquery"); resolved via may_core::dialect_for.
-    pub dialect_kind: String,
+    /// Active SQL dialect (`postgres` | `snowflake` | `bigquery`), validated at startup and
+    /// resolved through `may_core::dialect_for`. `Arc<str>` because `AppState` is cloned
+    /// per request.
+    pub dialect_kind: Arc<str>,
 }
 
 /// Build the complete application router.
@@ -29,7 +32,7 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", axum::routing::get(routes::health::health))
         .nest("/api", routes::router())
-        .nest("/api/v1", routes::query::router())
+        .nest("/api/v1", routes::v1_router())
         .with_state(state)
         .layer(CorsLayer::permissive())
 }
