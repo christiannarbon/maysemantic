@@ -1,7 +1,8 @@
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use utoipa::ToSchema;
+
+use crate::{error::api_error, middleware::json::ValidatedJson};
 
 const MAX_USERNAME_LEN: usize = 64;
 const MAX_PASSWORD_LEN: usize = 128;
@@ -38,12 +39,9 @@ pub fn router() -> Router<crate::AppState> {
 )]
 pub async fn login(
     State(state): State<crate::AppState>,
-    Json(payload): Json<LoginRequest>,
+    ValidatedJson(payload): ValidatedJson<LoginRequest>,
 ) -> Result<Json<LoginResponse>, impl IntoResponse> {
-    let invalid_credentials = (
-        StatusCode::UNAUTHORIZED,
-        Json(json!({"error": "invalid credentials"})),
-    );
+    let invalid_credentials = api_error(StatusCode::UNAUTHORIZED, "invalid credentials");
 
     if payload.username.is_empty()
         || payload.password.is_empty()
@@ -73,19 +71,17 @@ pub async fn login(
         Ok(Ok(true)) => {} // password correct, continue
         Ok(Ok(false)) => return Err(invalid_credentials),
         Ok(Err(_)) | Err(_) => {
-            return Err((
+            return Err(api_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": "internal error"})),
+                "internal error",
             ));
         }
     }
 
-    let token = state.token_service.issue(&user).map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": "internal error"})),
-        )
-    })?;
+    let token = state
+        .token_service
+        .issue(&user)
+        .map_err(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "internal error"))?;
 
     Ok(Json(LoginResponse { token }))
 }
