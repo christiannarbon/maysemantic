@@ -4,7 +4,8 @@ use axum::{
     http::StatusCode,
 };
 use serde::de::DeserializeOwned;
-use serde_json::json;
+
+use crate::error::{ApiError, api_error};
 
 /// A drop-in replacement for [`axum::Json`] as an extractor.
 ///
@@ -21,7 +22,7 @@ where
     T: DeserializeOwned,
     S: Send + Sync,
 {
-    type Rejection = (StatusCode, Json<serde_json::Value>);
+    type Rejection = ApiError;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         match Json::<T>::from_request(req, state).await {
@@ -31,9 +32,18 @@ where
     }
 }
 
-fn reject(rejection: &JsonRejection) -> (StatusCode, Json<serde_json::Value>) {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(json!({ "error": rejection.body_text() })),
-    )
+/// Normalises a rejection to the crate's `{"error": ...}` envelope.
+///
+/// `JsonDataError` (422) and `MissingJsonContentType` (415) are deliberately reported as
+/// `400` so that every "your body is wrong" outcome has one status. `BytesRejection` is
+/// NOT: a body over the size limit is a `413`, and telling the caller `400` would send it
+/// off to fix syntax that is fine.
+fn reject(rejection: &JsonRejection) -> ApiError {
+    let status = match rejection {
+        JsonRejection::JsonDataError(_) | JsonRejection::MissingJsonContentType(_) => {
+            StatusCode::BAD_REQUEST
+        }
+        other => other.status(),
+    };
+    api_error(status, rejection.body_text())
 }

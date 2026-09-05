@@ -1,13 +1,12 @@
 use axum::{
-    Json, async_trait,
+    async_trait,
     extract::FromRequestParts,
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Response},
 };
 use may_auth::token::Claims;
-use serde_json::json;
 
-use crate::AppState;
+use crate::{AppState, error::api_error};
 
 pub struct AuthClaims(pub Claims);
 
@@ -27,21 +26,17 @@ impl FromRequestParts<AppState> for AuthClaims {
             .map(|value| &value["Bearer ".len()..]);
 
         let Some(token) = auth_header else {
-            return Err((
+            return Err(api_error(
                 StatusCode::UNAUTHORIZED,
-                Json(json!({"error": "missing or malformed authorization header"})),
+                "missing or malformed authorization header",
             )
-                .into_response());
+            .into_response());
         };
 
         if let Ok(claims) = state.token_service.verify(token) {
             Ok(Self(claims))
         } else {
-            Err((
-                StatusCode::UNAUTHORIZED,
-                Json(json!({"error": "invalid or expired token"})),
-            )
-                .into_response())
+            Err(api_error(StatusCode::UNAUTHORIZED, "invalid or expired token").into_response())
         }
     }
 }
