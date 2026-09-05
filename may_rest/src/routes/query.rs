@@ -1,6 +1,13 @@
-use axum::{Json, Router, extract::State, routing::post};
-use may_core::{SemanticFilter, SemanticRequest};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::post,
+};
+use may_core::{SemanticFilter, SemanticRequest, compiler::CompilerError};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use thiserror::Error;
 
 use crate::{
@@ -176,5 +183,64 @@ impl TryFrom<QueryRequest> for SemanticRequest {
             time_granularity,
             limit: req.limit,
         })
+    }
+}
+
+/// An error surfaced by `POST /api/v1/query`, carrying its own HTTP status.
+#[derive(Debug)]
+pub struct QueryApiError {
+    pub status: StatusCode,
+    pub message: String,
+}
+
+impl QueryApiError {
+    #[must_use]
+    pub(crate) fn new(status: StatusCode, message: impl Into<String>) -> Self {
+        Self {
+            status,
+            message: message.into(),
+        }
+    }
+
+    /// Maps a compiler error to an HTTP status: caller-caused problems become
+    /// `400`, internal/config failures become `500`.
+    #[must_use]
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "consumed by callers via Result::map_err(QueryApiError::from_compiler_error)"
+    )]
+    pub fn from_compiler_error(err: CompilerError) -> Self {
+        let status = match &err {
+            CompilerError::RequestParsing(_)
+            | CompilerError::MetricResolution(_)
+            | CompilerError::JoinResolution(_)
+            | CompilerError::UnsupportedRequestFeature(_)
+            | CompilerError::AmbiguousMetric { .. } => StatusCode::BAD_REQUEST,
+
+            CompilerError::Lowering(_)
+            | CompilerError::CodeGeneration(_)
+            | CompilerError::GraphConstruction(_)
+            | CompilerError::ChasmTrapHandlingFailed(_)
+            | CompilerError::Rls(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        Self::new(status, err.to_string())
+    }
+}
+
+impl From<QueryMappingError> for QueryApiError {
+    fn from(err: QueryMappingError) -> Self {
+        Self::new(StatusCode::BAD_REQUEST, err.to_string())
+    }
+}
+
+impl From<QueryApiError> for ApiError {
+    fn from(err: QueryApiError) -> Self {
+        crate::error::api_error(err.status, err.message)
+    }
+}
+
+impl IntoResponse for QueryApiError {
+    fn into_response(self) -> Response {
+        (self.status, Json(json!({ "error": self.message }))).into_response()
     }
 }
