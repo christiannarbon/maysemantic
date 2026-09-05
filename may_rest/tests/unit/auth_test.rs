@@ -12,10 +12,6 @@ use may_rest::routes::auth::LoginResponse;
 use serial_test::serial;
 use tower::ServiceExt; // for `oneshot` and `ready`
 
-fn build_app(mock_repo: MockUserRepository) -> axum::Router {
-    may_rest::build_router(crate::support::test_state_with_repo(mock_repo))
-}
-
 #[tokio::test]
 #[serial]
 async fn test_login_valid_credentials() {
@@ -35,7 +31,7 @@ async fn test_login_valid_credentials() {
     };
 
     let mock_repo = MockUserRepository::success(Some(valid_user.clone()));
-    let app = build_app(mock_repo);
+    let app = crate::support::test_app_with_repo(mock_repo);
 
     let body = serde_json::json!({
         "username": "test_user",
@@ -76,7 +72,7 @@ async fn test_login_invalid_password() {
     };
 
     let mock_repo = MockUserRepository::success(Some(valid_user.clone()));
-    let app = build_app(mock_repo);
+    let app = crate::support::test_app_with_repo(mock_repo);
 
     let body = serde_json::json!({
         "username": "test_user",
@@ -98,7 +94,7 @@ async fn test_login_invalid_password() {
 #[serial]
 async fn test_login_non_existent_user() {
     let mock_repo = MockUserRepository::success(None);
-    let app = build_app(mock_repo);
+    let app = crate::support::test_app_with_repo(mock_repo);
 
     let body = serde_json::json!({
         "username": "nobody",
@@ -114,4 +110,34 @@ async fn test_login_non_existent_user() {
 
     let response = app.oneshot(req).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+#[serial]
+async fn login_with_wrong_shape_is_400_json() {
+    let mock_repo = MockUserRepository::success(None);
+    let app = crate::support::test_app_with_repo(mock_repo);
+    // `{}` is valid JSON but missing `username`/`password`: bare axum::Json answers
+    // 422 text/plain, ValidatedJson answers 400 with the crate's envelope.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .expect("request builds"),
+        )
+        .await
+        .expect("router responds");
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+    assert!(json["error"].is_string());
 }

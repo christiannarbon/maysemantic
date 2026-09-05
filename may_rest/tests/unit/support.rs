@@ -5,7 +5,26 @@ use may_auth::{
     token::TokenService,
 };
 use may_rest::AppState;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
+
+static INIT_JWT_SECRET: Once = Once::new();
+
+/// Sets the JWT secret once per test binary.
+///
+/// NOT fully sound: `set_var` still races with any concurrent `env::var` on another thread,
+/// which is why every caller is `#[serial]`. The durable fix is a `TokenService::with_secret`
+/// constructor in `may_auth` that takes no environment at all — tracked as a follow-up.
+fn init_jwt_secret() {
+    INIT_JWT_SECRET.call_once(|| {
+        #[allow(
+            unsafe_code,
+            reason = "no non-env constructor for TokenService yet; see above"
+        )]
+        unsafe {
+            std::env::set_var("MAY_JWT_SECRET", "test_secret_key_for_users_tests");
+        }
+    });
+}
 
 #[allow(dead_code, reason = "shared fixture used by a subset of test modules")]
 pub enum CreateOutcome {
@@ -102,10 +121,7 @@ pub fn test_state() -> AppState {
 
 #[allow(dead_code, reason = "shared fixture used by a subset of test modules")]
 pub fn test_state_with_repo(mock_repo: MockUserRepository) -> AppState {
-    #[allow(unsafe_code, reason = "set_var required to set secret for test app")]
-    unsafe {
-        std::env::set_var("MAY_JWT_SECRET", "test_secret_key_for_users_tests");
-    }
+    init_jwt_secret();
     let token_service = Arc::new(TokenService::new().expect("token service initialises"));
     let user_repository = Arc::new(mock_repo);
 
@@ -113,6 +129,36 @@ pub fn test_state_with_repo(mock_repo: MockUserRepository) -> AppState {
         user_repository,
         token_service,
         state_mgr: Arc::new(may_core::StateMgr::new()),
-        dialect_kind: "postgres".to_string(),
+        dialect_kind: "postgres".into(),
     }
+}
+
+#[allow(dead_code, reason = "shared fixture used by a subset of test modules")]
+pub fn test_app() -> axum::Router {
+    may_rest::build_router(test_state())
+}
+
+#[allow(dead_code, reason = "shared fixture used by a subset of test modules")]
+pub fn test_app_with_repo(mock_repo: MockUserRepository) -> axum::Router {
+    may_rest::build_router(test_state_with_repo(mock_repo))
+}
+
+/// Mint a JWT with the given role claim using the shared test secret.
+#[allow(dead_code, reason = "shared fixture used by a subset of test modules")]
+pub fn mint_token(role: &str) -> String {
+    init_jwt_secret();
+    let user = User {
+        id: uuid::Uuid::new_v4(),
+        username: "token_owner".to_string(),
+        password_hash: String::new(),
+        role: match role {
+            "admin" => Role::Admin,
+            _ => Role::Viewer,
+        },
+        is_active: true,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    let ts = TokenService::new().expect("token service initialises");
+    ts.issue(&user).expect("token issues")
 }

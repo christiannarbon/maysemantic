@@ -1,18 +1,15 @@
 use axum::{
-    Router,
     body::Body,
     http::{Method, Request, StatusCode},
 };
 use http_body_util::BodyExt;
+use serial_test::serial;
 use tower::ServiceExt; // for `oneshot`
 
-fn health_app() -> Router {
-    may_rest::build_router(crate::support::test_state())
-}
-
 #[tokio::test]
+#[serial]
 async fn health_returns_200_ok() {
-    let app = health_app();
+    let app = crate::support::test_app();
     let response = app
         .oneshot(
             Request::builder()
@@ -36,8 +33,9 @@ async fn health_returns_200_ok() {
 }
 
 #[tokio::test]
+#[serial]
 async fn health_cors_preflight_has_allow_origin() {
-    let app = health_app();
+    let app = crate::support::test_app();
     let response = app
         .oneshot(
             Request::builder()
@@ -60,8 +58,9 @@ async fn health_cors_preflight_has_allow_origin() {
 }
 
 #[tokio::test]
+#[serial]
 async fn health_is_not_mounted_under_api() {
-    let app = health_app();
+    let app = crate::support::test_app();
     let response = app
         .oneshot(
             Request::builder()

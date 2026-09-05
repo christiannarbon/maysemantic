@@ -65,3 +65,14 @@ async fn valid_payload_is_accepted() {
     let (status, _) = post_json(Some("application/json"), r#"{"metrics":["revenue"]}"#).await;
     assert_eq!(status, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn oversized_body_is_413_not_400() {
+    // axum's default body limit is 2 MiB; 3 MiB trips it.
+    let big: &'static str =
+        Box::leak(format!(r#"{{"metrics":["{}"]}}"#, "x".repeat(3 * 1024 * 1024)).into_boxed_str());
+    let (status, body) = post_json(Some("application/json"), big).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    let parsed: serde_json::Value = serde_json::from_str(&body).expect("error body is json");
+    assert!(parsed["error"].is_string());
+}
